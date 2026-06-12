@@ -1,0 +1,8 @@
+.DS_Store
+.mythify/
+__pycache__/
+*.pyc
+node_modules/
+dist/
+*.corrupt-*
+npm-debug.log*
