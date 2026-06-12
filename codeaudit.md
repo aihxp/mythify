@@ -230,3 +230,73 @@ overall cap is triggered.
    a rewrite.
 7. Re-run the audit to measure progress; confirm findings are resolved, not
    relocated, and watch for regressions in the strengths.
+
+## Fitness for purpose (functional evaluation)
+
+Date: 2026-06-12. This section captures a hands-on journey through Mythify:
+not a read of the source, but a drive of the product across both surfaces (the
+Python CLI and the Node MCP server) on a shared state directory. The findings
+below were surfaced by exercising the tool, not by inspecting it.
+
+Overall fitness: 87/100. Functionality 88, workflow and UX 86, onboarding 88.
+
+The core promise is executed verification, and it holds up under use:
+
+- CLI verify run on a failing command exits 2 and shows the stderr tail; on a
+  passing command it exits 0 and reports VERIFIED. The exit code is real, not
+  reported.
+- A step cannot be marked completed without evidence: an evidence-less
+  completion is refused, and the plan is left unmodified.
+- MCP verify_run executes the command and writes a real executed record to
+  verifications.jsonl on disk.
+- verify_claim is stored as an attested, never-verified entry (verified is
+  null), so a self-report never masquerades as a checked result.
+
+Cross-surface interop is confirmed: state written through the MCP server is
+readable from the CLI when both point at the same MYTHIFY_DIR, so a plan,
+memory entry, or verification recorded on one surface is visible on the other.
+
+Honesty about what it cannot do is preserved: host_model_switch reports
+can_apply_current_chat false, so Mythify records an intended host model change
+without claiming to have mutated the live chat model.
+
+These three functional findings were found by driving the product, not by
+reading it. FIT-001 and FIT-003 are fully resolved in v2.5.0; FIT-002 is opt-in
+by design, with the default unchanged.
+
+### [FIT-001] CLI verify run ignored MYTHIFY_DISABLE_RUN
+- Severity: High | Confidence: Confirmed | Dimension: Security
+- Status: Fixed in 2.5.0. The CLI verify run now honors MYTHIFY_DISABLE_RUN:
+  it executes nothing, records nothing, prints the disabled message, and exits
+  2 (the unverified code) for parity with the MCP server.
+- Evidence: the documented safety mode was present in the MCP server but absent
+  from the CLI. A search for MYTHIFY_DISABLE_RUN returned 0 matches in
+  scripts/mythify.py against 5 in mcp-server/src/index.js, and a live CLI
+  verify run with MYTHIFY_DISABLE_RUN=1 set still executed the command. The
+  kill switch a security-conscious operator would reach for did not exist on
+  the surface most operators run.
+- Verify the fix: with MYTHIFY_DISABLE_RUN=1 set, verify run prints the
+  disabled message, exits 2, and adds no record to verifications.jsonl.
+
+### [FIT-002] Step-completion evidence gate accepted any non-empty string
+- Severity: Medium | Confidence: Confirmed | Dimension: Testing and Verification
+- Status: Addressed in 2.5.0 via the opt-in MYTHIFY_REQUIRE_VERIFIED_STEP
+  gate. Default off preserves prior behavior exactly.
+- Evidence: the evidence rule on marking a step completed required only a
+  non-empty RESULT argument, so any prose string satisfied it. A completed step
+  was therefore backed by a claim, not necessarily by a real verification
+  reference. With MYTHIFY_REQUIRE_VERIFIED_STEP=1, marking a step completed now
+  also requires a recorded passing executed verification since the step
+  started; this is opt-in so existing behavior is unchanged by default.
+- Verify the fix: with MYTHIFY_REQUIRE_VERIFIED_STEP=1 and no passing verify
+  run recorded, completed is refused with the Verified evidence required
+  message and the plan is unmodified; after a passing verify run, it succeeds.
+
+### [FIT-003] design.md self-contradicted on the tool count
+- Severity: Low | Confidence: Confirmed | Dimension: Documentation and Drift
+- Status: Fixed. The fanout subsection header now reads "total 22".
+- Evidence: design.md stated the server exposes 22 tools, but the fanout tools
+  subsection header read "total 17", a self-contradiction within the same
+  contract document. The header now reads "total 22", matching the 19 core
+  tools plus 3 fanout tools.
+- Verify the fix: design.md contains "total 22" and no "total 17".

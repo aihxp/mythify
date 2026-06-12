@@ -77,8 +77,13 @@ Environment variables:
 - `MYTHIFY_DIR` pins the state directory (created on demand). Without it, the server
   walks up from its working directory to find a `.mythify/` folder, or lazily creates
   `<cwd>/.mythify` on first write.
-- `MYTHIFY_DISABLE_RUN=1` makes the `verify_run` tool refuse to execute commands (it
-  records nothing). Use this in environments where shell execution is not allowed.
+- `MYTHIFY_DISABLE_RUN=1` makes execution refuse: both the CLI `verify run` command
+  and the MCP `verify_run` tool execute nothing and record nothing (the CLI exits 2,
+  the unverified code). Use this in environments where shell execution is not allowed.
+- `MYTHIFY_REQUIRE_VERIFIED_STEP=1` is an opt-in gate: marking a step `completed`
+  (CLI `step` or MCP `plan_update_step`) then requires a recorded passing `verify run`
+  since the step started, not just a non-empty result. Default off keeps the existing
+  behavior.
 
 ## Quick start C: build the skill
 

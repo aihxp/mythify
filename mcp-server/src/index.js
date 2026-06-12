@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Mythify MCP server v2.4.0
+// Mythify MCP server v2.5.0
 // Exposes the Mythify state model (memory, plans, lessons, verifications,
 // reflections) as 19 core MCP tools over stdio, plus the 3 fanout tools for
 // parallel delegation (src/fanout.js), 22 tools in total. On-disk formats are
@@ -17,7 +17,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { registerFanoutTools } from "./fanout.js";
 
-const VERSION = "2.4.0";
+const VERSION = "2.5.0";
 const TAIL_CHARS = 4000;
 const TRIAGE_ENGINES = ["claude-cli", "codex-cli", "cursor-agent", "command"];
 const TRIAGE_MODES = ["never", "auto", "always"];
@@ -2675,6 +2675,27 @@ server.registerTool(
     const step = (plan.steps || []).find((s) => s.id === step_id);
     if (!step) {
       return `[FAIL] No step with id ${step_id} in plan "${slug}".`;
+    }
+    if (status === "completed" && process.env.MYTHIFY_REQUIRE_VERIFIED_STEP === "1") {
+      const lowerBound =
+        typeof step.updated_at === "string" && step.updated_at !== ""
+          ? step.updated_at
+          : plan.created;
+      const verifications = readJsonl(verificationsPath());
+      const hasPassingRun = verifications.some(
+        (record) =>
+          record &&
+          record.kind === "executed" &&
+          record.verified === true &&
+          typeof record.timestamp === "string" &&
+          record.timestamp >= lowerBound
+      );
+      if (!hasPassingRun) {
+        return (
+          "[FAIL] Verified evidence required: MYTHIFY_REQUIRE_VERIFIED_STEP=1 but no passing 'verify run' " +
+          "was recorded since this step started. Run 'verify run' with a passing check first."
+        );
+      }
     }
     step.status = status;
     if (hasResult) {

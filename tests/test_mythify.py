@@ -24,6 +24,16 @@ NO_WORKSPACE_MESSAGE = (
 EVIDENCE_MESSAGE = (
     "[FAIL] Evidence required: pass a RESULT describing what proves this status."
 )
+VERIFIED_EVIDENCE_MESSAGE = (
+    "[FAIL] Verified evidence required: MYTHIFY_REQUIRE_VERIFIED_STEP=1 but no "
+    "passing 'verify run' was recorded since this step started. Run 'verify run' "
+    "with a passing check first."
+)
+VERIFY_RUN_DISABLED_MESSAGE = (
+    "[FAIL] verify run is disabled: MYTHIFY_DISABLE_RUN=1 is set. No command was "
+    "executed and nothing was recorded. Unset it to enable execution, or use "
+    "verify claim to record a self-reported attestation."
+)
 
 
 def shell_py(code):
@@ -640,6 +650,81 @@ class TestStepUpdates(CliTestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("No pending steps remain.", result.stdout)
 
+    def test_gate_unset_plain_result_still_completes(self):
+        # Backward compatibility: with the gate unset, a non-empty RESULT alone
+        # marks the step completed, exactly as before.
+        state, plan_file = self.make_plan()
+        result = self.run_cli("step", "1", "completed", "all tests passed")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        plan = self.read_json(plan_file)
+        self.assertEqual(plan["steps"][0]["status"], "completed")
+
+    def test_gate_on_without_verification_refused_and_plan_unmodified(self):
+        state, plan_file = self.make_plan()
+        before = plan_file.read_text(encoding="utf-8")
+        result = self.run_cli(
+            "step", "1", "completed", "I promise it works",
+            env_extra={"MYTHIFY_REQUIRE_VERIFIED_STEP": "1"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(VERIFIED_EVIDENCE_MESSAGE, result.stderr)
+        self.assertEqual(plan_file.read_text(encoding="utf-8"), before)
+        plan = self.read_json(plan_file)
+        self.assertEqual(plan["steps"][0]["status"], "pending")
+
+    def test_gate_on_with_passing_verification_completes(self):
+        state, plan_file = self.make_plan()
+        # ACT: move the step in_progress (sets the lower bound).
+        in_progress = self.run_cli("step", "1", "in_progress")
+        self.assertEqual(in_progress.returncode, 0, in_progress.stderr)
+        # VERIFY: record a passing executed verification after the step started.
+        verified = self.run_cli(
+            "verify", "run", shell_py("raise SystemExit(0)"),
+            "--claim", "step one verified",
+        )
+        self.assertEqual(verified.returncode, 0, verified.stderr)
+        # COMPLETE: the gate is satisfied, so completion advances.
+        result = self.run_cli(
+            "step", "1", "completed", "verified green",
+            env_extra={"MYTHIFY_REQUIRE_VERIFIED_STEP": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        plan = self.read_json(plan_file)
+        self.assertEqual(plan["steps"][0]["status"], "completed")
+        self.assertIn("Next pending", result.stdout)
+
+    def test_gate_on_with_only_failed_verification_refused(self):
+        state, plan_file = self.make_plan()
+        in_progress = self.run_cli("step", "1", "in_progress")
+        self.assertEqual(in_progress.returncode, 0, in_progress.stderr)
+        # Only a FAILED verify run exists (verified is false): does not satisfy.
+        failed = self.run_cli(
+            "verify", "run", shell_py("raise SystemExit(1)"),
+            "--claim", "step one not green",
+        )
+        self.assertEqual(failed.returncode, 2)
+        before = plan_file.read_text(encoding="utf-8")
+        result = self.run_cli(
+            "step", "1", "completed", "claims green",
+            env_extra={"MYTHIFY_REQUIRE_VERIFIED_STEP": "1"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(VERIFIED_EVIDENCE_MESSAGE, result.stderr)
+        self.assertEqual(plan_file.read_text(encoding="utf-8"), before)
+
+    def test_gate_on_does_not_block_failed_status(self):
+        # The gate applies only to completed. Recording a failure is always
+        # allowed, even with the gate on and no passing verification.
+        state, plan_file = self.make_plan()
+        result = self.run_cli(
+            "step", "1", "failed", "ran out of time",
+            env_extra={"MYTHIFY_REQUIRE_VERIFIED_STEP": "1"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        plan = self.read_json(plan_file)
+        self.assertEqual(plan["steps"][0]["status"], "failed")
+        self.assertEqual(plan["steps"][0]["result"], "ran out of time")
+
 
 class TestMemory(CliTestCase):
     def test_set_and_get(self):
@@ -862,6 +947,52 @@ class TestVerify(CliTestCase):
         self.assertEqual(record["exit_code"], 0)
         self.assertIs(record["verified"], True)
         self.assertIsInstance(record["duration_seconds"], float)
+
+    def test_run_without_disable_var_unchanged_passing(self):
+        state = self.init_workspace()
+        result = self.run_cli(
+            "verify", "run", shell_py("raise SystemExit(0)"),
+            "--claim", "still works",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("[OK] VERIFIED:", result.stdout)
+        records = self.read_jsonl(state / "verifications.jsonl")
+        self.assertEqual(len(records), 1)
+        self.assertIs(records[-1]["verified"], True)
+
+    def test_run_disabled_refuses_records_nothing_and_exits_two(self):
+        state = self.init_workspace()
+        log = state / "verifications.jsonl"
+        # Record one passing run so we can prove the disabled run adds no line.
+        seed = self.run_cli(
+            "verify", "run", shell_py("raise SystemExit(0)"),
+            "--claim", "seed",
+        )
+        self.assertEqual(seed.returncode, 0, seed.stderr)
+        lines_before = log.read_text(encoding="utf-8")
+        count_before = len(self.read_jsonl(log))
+        result = self.run_cli(
+            "verify", "run", shell_py("raise SystemExit(0)"),
+            "--claim", "should not run",
+            env_extra={"MYTHIFY_DISABLE_RUN": "1"},
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn(VERIFY_RUN_DISABLED_MESSAGE, result.stderr)
+        # Nothing executed, nothing recorded: the log is byte-for-byte unchanged.
+        self.assertEqual(log.read_text(encoding="utf-8"), lines_before)
+        self.assertEqual(len(self.read_jsonl(log)), count_before)
+
+    def test_run_disabled_creates_no_log_when_absent(self):
+        state = self.init_workspace()
+        log = state / "verifications.jsonl"
+        self.assertFalse(log.exists())
+        result = self.run_cli(
+            "verify", "run", shell_py("raise SystemExit(0)"),
+            env_extra={"MYTHIFY_DISABLE_RUN": "1"},
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn(VERIFY_RUN_DISABLED_MESSAGE, result.stderr)
+        self.assertFalse(log.exists())
 
     def test_run_failing_command_unverified_exit_two(self):
         state = self.init_workspace()

@@ -31,6 +31,16 @@ NO_WORKSPACE_MESSAGE = (
 EVIDENCE_MESSAGE = (
     "[FAIL] Evidence required: pass a RESULT describing what proves this status."
 )
+VERIFIED_EVIDENCE_MESSAGE = (
+    "[FAIL] Verified evidence required: MYTHIFY_REQUIRE_VERIFIED_STEP=1 but no "
+    "passing 'verify run' was recorded since this step started. Run 'verify run' "
+    "with a passing check first."
+)
+VERIFY_RUN_DISABLED_MESSAGE = (
+    "[FAIL] verify run is disabled: MYTHIFY_DISABLE_RUN=1 is set. No command was "
+    "executed and nothing was recorded. Unset it to enable execution, or use "
+    "verify claim to record a self-reported attestation."
+)
 STEP_STATUSES = ("pending", "in_progress", "completed", "failed", "skipped")
 OUTCOME_STATUSES = ("active", "succeeded", "failed", "stopped")
 STATUS_ICONS = {
@@ -2386,6 +2396,20 @@ def cmd_step(args, state):
     ):
         fail(EVIDENCE_MESSAGE)
         return 1
+    if args.status == "completed" and os.environ.get(
+        "MYTHIFY_REQUIRE_VERIFIED_STEP"
+    ) == "1":
+        lower_bound = step.get("updated_at") or plan.get("created", "")
+        records = read_jsonl(state / "verifications.jsonl")
+        satisfied = any(
+            record.get("kind") == "executed"
+            and record.get("verified") is True
+            and str(record.get("timestamp", "")) >= lower_bound
+            for record in records
+        )
+        if not satisfied:
+            fail(VERIFIED_EVIDENCE_MESSAGE)
+            return 1
     step["status"] = args.status
     if args.result is not None:
         step["result"] = args.result
@@ -2753,6 +2777,9 @@ def _coerce_stream_text(value):
 
 
 def cmd_verify_run(args, state):
+    if os.environ.get("MYTHIFY_DISABLE_RUN") == "1":
+        fail(VERIFY_RUN_DISABLED_MESSAGE)
+        return 2
     timeout = args.timeout
     started = datetime.now(timezone.utc)
     timed_out = False

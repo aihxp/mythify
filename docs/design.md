@@ -282,13 +282,13 @@ datetime, pathlib, tempfile). Subcommand grammar:
 | `plan show [NAME]` | Full detail of the named or active plan. | 0; 1 if not found |
 | `plan switch NAME` | Set the active plan pointer. | 0; 1 if not found |
 | `plan archive [NAME]` | Move plan file to `plans/archive/`; clear the active pointer if it pointed there. On filename conflict in archive, append a timestamp. | 0; 1 if plan not found |
-| `step ID STATUS [RESULT] [--plan NAME]` | Update step status. STATUS must be one of the five enum values, otherwise `[FAIL]`, exit 1. `completed` and `failed` REQUIRE the RESULT argument (evidence or failure description); without it print `[FAIL] Evidence required: pass a RESULT describing what proves this status.` and exit 1. After updating, print the next pending step. | 0 |
+| `step ID STATUS [RESULT] [--plan NAME]` | Update step status. STATUS must be one of the five enum values, otherwise `[FAIL]`, exit 1. `completed` and `failed` REQUIRE the RESULT argument (evidence or failure description); without it print `[FAIL] Evidence required: pass a RESULT describing what proves this status.` and exit 1. When `MYTHIFY_REQUIRE_VERIFIED_STEP=1`, `completed` ALSO requires a recorded passing executed verification (see "Verified-step gate" below), otherwise print `[FAIL] Verified evidence required: MYTHIFY_REQUIRE_VERIFIED_STEP=1 but no passing 'verify run' was recorded since this step started. Run 'verify run' with a passing check first.` and exit 1 without modifying the plan. After updating, print the next pending step. | 0 |
 | `memory set KEY VALUE [--category C]` | Category one of fact, decision, discovery, state; default fact. | 0 |
 | `memory get [QUERY] [--category C]` | Case-insensitive substring match over keys and values; optional category filter. | 0 |
 | `memory clear [KEY] [--all]` | KEY removes one entry. `--all` clears everything. Neither: `[FAIL]` explaining the guard, exit 1. | 0 |
 | `lesson add TITLE DETAIL [--tags a,b] [--global]` | Record a lesson in the project store, or the global store with `--global`. | 0 |
 | `lesson list [--tag TAG] [--scope project\|global\|all]` | Default scope all; label each lesson `(project)` or `(global)`; `--tag` filters. | 0 |
-| `verify run COMMAND [--claim TEXT] [--timeout N]` | Execute COMMAND through the shell, capture exit code, duration, and output tails, append an executed record, print the verdict. Default timeout 300 seconds. | 0 if verified, 2 if unverified |
+| `verify run COMMAND [--claim TEXT] [--timeout N]` | Execute COMMAND through the shell, capture exit code, duration, and output tails, append an executed record, print the verdict. Default timeout 300 seconds. If `MYTHIFY_DISABLE_RUN=1`, refuse: execute nothing, record nothing, print `[FAIL] verify run is disabled: MYTHIFY_DISABLE_RUN=1 is set. No command was executed and nothing was recorded. Unset it to enable execution, or use verify claim to record a self-reported attestation.` and exit 2 (the unverified code, so callers branching on verify run treat a disabled run as not verified). | 0 if verified, 2 if unverified or disabled |
 | `verify claim CLAIM EVIDENCE` | Append an attested record and print the `[WARN] ATTESTED` line. | 0 |
 | `reflect [JSON]` or `reflect --action A --outcome O --observation OBS --next N [--root-cause R] [--lesson L]` | Record a structured reflection. Required keys: action, outcome (enum success, partial, failure), observation, next. A provided lesson is auto-recorded as a project lesson tagged `auto-reflected`. JSON positional takes precedence over flags. Missing keys or bad outcome: `[FAIL]`, exit 1. | 0 |
 | `classify TASK [--json] [--triage never\|auto\|always] [--platform auto\|codex-desktop\|claude-desktop\|cursor-desktop] [--effort auto\|low\|medium\|high] [--speed auto\|standard\|fast] [--session-model MODEL] [--spawn-ceiling auto\|lower_only\|same_or_lower\|allow_stronger]` | Classify a task before planning. Returns task type, risk, ambiguity, ceremony level, execution profile, verification strategy, fanout recommendation, fast model triage fit, model policy, task-based host recommendation, signals, and next action. `--triage auto` runs one fast local model only when the gate is recommended or required. Does not require `.mythify` state unless the selected local model command does. | 0 |
@@ -305,7 +305,7 @@ Implementation notes:
 ## MCP server: mcp-server/
 
 Node 18+, ESM (`"type": "module"`). Dependencies: `@modelcontextprotocol/sdk`
-(current 1.x) and `zod` (3.x). package.json: name `mythify-mcp`, version `2.4.0`,
+(current 1.x) and `zod` (3.x). package.json: name `mythify-mcp`, version `2.5.0`,
 scripts `{"start": "node src/index.js", "test": "node --test test/*.test.js"}`
 (the glob form, because modern Node treats a bare directory argument to --test as
 a literal file and fails), engines node >= 18. Use the registration API that the
@@ -332,7 +332,7 @@ does AND when to use it, since descriptions drive tool selection.
 | `lesson_recall` | `{tag?: string, scope: enum(project, global, all) = "all"}` | List lessons, labeled by scope. |
 | `plan_create` | `{goal: string, name?: string, steps?: [{title: string, success_criteria?: string}]}` | Ids auto-assigned 1-based. Sets active plan. |
 | `plan_add_step` | `{title: string, success_criteria?: string, plan?: string}` | Append to named or active plan. |
-| `plan_update_step` | `{step_id: number, status: enum(pending, in_progress, completed, failed, skipped), result?: string, plan?: string}` | Enforce the evidence rule: `completed` or `failed` without `result` returns `[FAIL] Evidence required ...` and does NOT modify the plan. On success, include the next pending step in the response. |
+| `plan_update_step` | `{step_id: number, status: enum(pending, in_progress, completed, failed, skipped), result?: string, plan?: string}` | Enforce the evidence rule: `completed` or `failed` without `result` returns `[FAIL] Evidence required ...` and does NOT modify the plan. When `MYTHIFY_REQUIRE_VERIFIED_STEP=1`, `completed` also requires a recorded passing executed verification (see "Verified-step gate") and otherwise returns the same `[FAIL] Verified evidence required ...` text the CLI uses, without modifying the plan. On success, include the next pending step in the response. |
 | `plan_status` | `{plan?: string}` | Goal, progress count, step list with icons. |
 | `verify_run` | `{command: string, claim?: string, timeout_seconds?: number = 300}` | Execute through the shell, record an executed verification, return the verdict with output tails. If env `MYTHIFY_DISABLE_RUN=1`, refuse with an explanation and record nothing. |
 | `verify_claim` | `{claim: string, evidence: string}` | Record an attested entry, return the `[WARN] ATTESTED` line. |
@@ -749,7 +749,7 @@ Platform mapping:
   `gpt-5.3-codex-high-fast` when that id is available. If no matching encoded
   id is found, Mythify leaves the requested model unchanged.
 
-### Tools (3, total 17)
+### Tools (3, total 22)
 
 | Tool | Input schema | Behavior |
 | :--- | :--- | :--- |
@@ -868,12 +868,48 @@ the format contract field by field; stub `claude-cli`, `codex-cli`, and
 `cursor-agent` workers prove argv, prompt delivery, environment guards, and
 auth remediation behavior without network access.
 
+## Verified-step gate (opt-in)
+
+`MYTHIFY_REQUIRE_VERIFIED_STEP` is unset by default, which preserves the
+existing behavior exactly: a non-empty RESULT string is sufficient to mark a
+step `completed`. When it is set to `1`, marking a step `completed`
+additionally requires evidence of a passing executed verification, so that a
+"completed" step is backed by a real exit code rather than only a prose claim.
+
+The rule, identical in the CLI `step` command and the MCP `plan_update_step`
+tool:
+
+- The gate applies ONLY to status `completed`. `failed`, `in_progress`,
+  `skipped`, and `pending` are never blocked by it (you must always be able to
+  record a failure or a state change).
+- The RESULT argument is still required first; the verified-step check runs
+  after the non-empty-RESULT check.
+- Evidence is satisfied when `verifications.jsonl` contains at least one record
+  with `kind == "executed"` and `verified == true` whose `timestamp` is greater
+  than or equal to the lower bound below. Attested records (`kind == "attested"`)
+  never satisfy the gate.
+- Lower bound: the step's `updated_at` if the step has one (it was previously
+  touched, for example set to `in_progress`); otherwise the parent plan's
+  `created` timestamp. Comparison is string comparison of ISO-8601 timestamps,
+  which is correct because the format is fixed-width and lexicographically
+  ordered.
+- On failure the plan is NOT modified and the command prints
+  `[FAIL] Verified evidence required: MYTHIFY_REQUIRE_VERIFIED_STEP=1 but no passing 'verify run' was recorded since this step started. Run 'verify run' with a passing check first.`
+  The CLI exits 1; the MCP tool returns that text.
+
+This is the honest-evidence upgrade: with the gate on, the autonomy loop's ACT
+step (`step ID in_progress`) sets the lower bound, the VERIFY step
+(`verify run`) records the passing check, and only then does
+`step ID completed` succeed.
+
 ## Versioning
 
-This is Mythify v2.4.0. Fanout was added in 2.1.0; 2.2.0 added local
-subscription-backed `codex-cli` and `cursor-agent` engines; 2.3.0 adds
-task classification; 2.4.0 adds optional fast model triage after
-classification, execution profiles, optional fast model triage after
-classification, platform-aware model policy, initiating-model awareness, spawn
-ceiling checks, and additive fanout model and effort metadata. The CLI prints
-no version banner; the MCP server reports 2.4.0 through its server info.
+This is Mythify v2.5.0. Fanout was added in 2.1.0; 2.2.0 added local
+subscription-backed `codex-cli` and `cursor-agent` engines; 2.3.0 added
+task classification; 2.4.0 added optional fast model triage after
+classification, execution profiles, platform-aware model policy,
+initiating-model awareness, spawn ceiling checks, and additive fanout model and
+effort metadata; 2.5.0 makes the CLI `verify run` honor `MYTHIFY_DISABLE_RUN`
+for parity with the MCP server, and adds the opt-in `MYTHIFY_REQUIRE_VERIFIED_STEP`
+gate to both the CLI `step` command and the MCP `plan_update_step` tool. The CLI
+prints no version banner; the MCP server reports 2.5.0 through its server info.

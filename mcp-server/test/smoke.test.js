@@ -470,3 +470,113 @@ test("mythify MCP server smoke test", async (t) => {
     fs.rmSync(homeDir, { recursive: true, force: true });
   }
 });
+
+test("MYTHIFY_REQUIRE_VERIFIED_STEP gate on plan_update_step", async (t) => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-gate-state-"));
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-gate-home-"));
+
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [SERVER_PATH],
+    env: {
+      ...process.env,
+      MYTHIFY_DIR: stateDir,
+      HOME: homeDir,
+      MYTHIFY_REQUIRE_VERIFIED_STEP: "1",
+    },
+  });
+  const client = new Client({ name: "mythify-gate-test", version: "2.5.0" });
+  await client.connect(transport);
+
+  try {
+    await t.test("server reports version 2.5.0 in serverInfo", () => {
+      const info = client.getServerVersion();
+      assert.ok(info, "server info is available after connect");
+      assert.equal(info.version, "2.5.0", "serverInfo reports version 2.5.0");
+    });
+
+    await t.test("completed is blocked until a passing verify_run is recorded", async () => {
+      const created = textOf(
+        await client.callTool({
+          name: "plan_create",
+          arguments: {
+            goal: "Gate goal",
+            steps: [{ title: "Gated step", success_criteria: "exit code is zero" }],
+          },
+        })
+      );
+      assert.ok(created.startsWith("[OK]"), `plan_create reports [OK]: ${created}`);
+
+      const inProgress = textOf(
+        await client.callTool({
+          name: "plan_update_step",
+          arguments: { step_id: 1, status: "in_progress" },
+        })
+      );
+      assert.ok(inProgress.startsWith("[OK]"), `in_progress succeeds: ${inProgress}`);
+
+      const refused = textOf(
+        await client.callTool({
+          name: "plan_update_step",
+          arguments: {
+            step_id: 1,
+            status: "completed",
+            result: "I believe the command passed",
+          },
+        })
+      );
+      assert.ok(refused.startsWith("[FAIL]"), `refusal starts with [FAIL]: ${refused}`);
+      assert.match(refused, /Verified evidence required/, "refusal explains the verified-step gate");
+      assert.match(
+        refused,
+        /MYTHIFY_REQUIRE_VERIFIED_STEP=1 but no passing 'verify run' was recorded/,
+        "refusal uses the exact spec text"
+      );
+
+      const planAfterRefusal = JSON.parse(
+        fs.readFileSync(path.join(stateDir, "plans", "gate-goal.json"), "utf8")
+      );
+      assert.equal(
+        planAfterRefusal.steps[0].status,
+        "in_progress",
+        "refused completion leaves the step not completed"
+      );
+    });
+
+    await t.test("completed succeeds after a passing verify_run", async () => {
+      const passed = textOf(
+        await client.callTool({
+          name: "verify_run",
+          arguments: { command: 'node -e "process.exit(0)"', claim: "node can exit zero" },
+        })
+      );
+      assert.ok(passed.startsWith("[OK]"), `passing run reports [OK]: ${passed}`);
+      assert.match(passed, /VERIFIED/, "passing run is VERIFIED");
+
+      const accepted = textOf(
+        await client.callTool({
+          name: "plan_update_step",
+          arguments: {
+            step_id: 1,
+            status: "completed",
+            result: "node -e process.exit(0) passed",
+          },
+        })
+      );
+      assert.ok(accepted.startsWith("[OK]"), `completion now succeeds: ${accepted}`);
+
+      const planAfterAccept = JSON.parse(
+        fs.readFileSync(path.join(stateDir, "plans", "gate-goal.json"), "utf8")
+      );
+      assert.equal(
+        planAfterAccept.steps[0].status,
+        "completed",
+        "completion with passing evidence marks the step completed"
+      );
+    });
+  } finally {
+    await client.close();
+    fs.rmSync(stateDir, { recursive: true, force: true });
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  }
+});

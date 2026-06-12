@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No unreleased changes.
 
+## [2.5.0] - 2026-06-12
+
+### Added
+
+- Opt-in `MYTHIFY_REQUIRE_VERIFIED_STEP` gate. When set to `1`, marking a step
+  `completed` requires a recorded passing executed verification (a `verify run`
+  with exit 0) since the step started, not just a non-empty RESULT string. The
+  gate applies to both the CLI `step` command and the MCP `plan_update_step`
+  tool. Default off preserves the existing behavior exactly.
+
+### Fixed
+
+- CLI `verify run` now honors `MYTHIFY_DISABLE_RUN` for parity with the MCP
+  server. Previously the CLI ignored it and executed the command regardless;
+  it now executes nothing, records nothing, prints the disabled message, and
+  exits 2.
+- `docs/design.md` tool-count self-contradiction: the fanout tools subsection
+  said "total 17" while the rest of the document said 22. It now reads
+  "total 22".
+
 ## [2.4.0] - 2026-06-12
 
 ### Added
@@ -161,7 +181,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v2.4.0...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/aihxp/mythify/compare/v2.4.0...v2.5.0
 [2.4.0]: https://github.com/aihxp/mythify/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/aihxp/mythify/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/aihxp/mythify/compare/v2.1.0...v2.2.0
