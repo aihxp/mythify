@@ -32,6 +32,8 @@ Implementation status:
 
 - First slice landed in `mcp-server/src/capability-registry.js`: existing host
   platforms now have explicit capability flags.
+- Second slice landed in `host_model_switch`: JSON and text status now expose
+  registry-backed host capability while keeping current-chat switching false.
 - Current-chat switching remains conservative. A `true` worker or new-thread
   capability does not mean Mythify can mutate the active host chat.
 

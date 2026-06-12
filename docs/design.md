@@ -174,6 +174,16 @@ host-model.json:
   "status": "recorded_requires_host_action",
   "control": "host_selected",
   "can_apply_current_chat": false,
+  "host_capability": {
+    "kind": "host",
+    "status": "supported|unknown|unsupported",
+    "can_switch_current_thread": false,
+    "can_set_new_thread_model": true,
+    "can_set_worker_model": true,
+    "can_set_thinking": true,
+    "can_list_models": false,
+    "can_confirm_current_model": false
+  },
   "updated": "ISO-8601",
   "host_actions": ["str"]
 }
@@ -354,7 +364,7 @@ does AND when to use it, since descriptions drive tool selection.
 | Tool | Input schema | Behavior |
 | :--- | :--- | :--- |
 | `classify_task` | `{task: string, format?: enum(text, json), triage?: enum(never, auto, always), triage_engine?: enum(claude-cli, codex-cli, cursor-agent, command), triage_model?: string, triage_timeout_seconds?: number, platform?: enum(auto, unknown, codex-desktop, codex-cli, claude-desktop, claude-code, cursor-desktop, cursor-agent), effort?: enum(auto, low, medium, high), speed?: enum(auto, standard, fast), session_model?: string, spawn_ceiling?: enum(auto, lower_only, same_or_lower, allow_stronger)}` | Classify a task before planning. Returns task type, risk, ambiguity, ceremony level, execution profile, verification strategy, fanout recommendation, fast model triage fit, model policy, task-based host recommendation, signals, and next action. With `triage: auto`, run one fast local model only when the deterministic gate recommends it. |
-| `host_model_switch` | `{action?: enum(switch, status, clear), platform?: enum(auto, unknown, codex-desktop, codex-cli, claude-desktop, claude-code, cursor-desktop, cursor-agent), target_model?: string, current_model?: string, thinking?: enum(auto, low, medium, high, xhigh, max), speed?: enum(auto, standard, fast), reason?: string, format?: enum(text, json)}` | Record, show, or clear a requested host chat model switch. `switch` writes `.mythify/host-model.json`, returns platform-specific switch guidance, and makes later `classify_task` and `fanout_start` calls use the recorded target as the session model when no explicit or env session model is supplied. It does not claim to mutate the current host chat unless a future host integration exposes that capability. |
+| `host_model_switch` | `{action?: enum(switch, status, clear), platform?: enum(auto, unknown, codex-desktop, codex-cli, claude-desktop, claude-code, cursor-desktop, cursor-agent), target_model?: string, current_model?: string, thinking?: enum(auto, low, medium, high, xhigh, max), speed?: enum(auto, standard, fast), reason?: string, format?: enum(text, json)}` | Record, show, or clear a requested host chat model switch. `switch` writes `.mythify/host-model.json`, returns platform-specific switch guidance and registry-backed `host_capability`, and makes later `classify_task` and `fanout_start` calls use the recorded target as the session model when no explicit or env session model is supplied. It does not claim to mutate the current host chat unless a future host integration exposes that capability. |
 | `outcome_start` | `{goal: string, success: string, verify_command: string, metric_command?: string, max_iterations?: number, allowed_paths?: string[], visibility?: enum(auto, quiet, summary, verbose, threaded), name?: string, format?: enum(text, json)}` | Start a supervised outcome loop and set it active. The host agent acts between checks; Mythify records the verifier, metric, budget, and visibility policy. |
 | `outcome_check` | `{name?: string, notes?: string, timeout_seconds?: number, format?: enum(text, json)}` | Run the verifier and optional metric for the active or named outcome, append an iteration, append executed verification evidence, and return success, retry, or budget-exhausted guidance. If `MYTHIFY_DISABLE_RUN=1`, refuse and record nothing. |
 | `outcome_status` | `{name?: string, format?: enum(text, json)}` | Show active or named outcome status, verifier, metric, iteration budget, and next action. |

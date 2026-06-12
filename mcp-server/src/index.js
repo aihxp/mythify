@@ -29,6 +29,7 @@ import {
   STRONG_HOST_TASK_TYPES,
   TRIAGE_ENGINES,
   TRIAGE_MODES,
+  getHostCapability,
 } from "./capability-registry.js";
 
 const VERSION = "2.5.0";
@@ -324,6 +325,32 @@ function hostSwitchActions(platform, targetModel, thinking, speed) {
   return actions;
 }
 
+function hostCapabilityForRecord(platform) {
+  const capability = getHostCapability(platform);
+  return {
+    kind: capability.kind,
+    status: capability.status,
+    can_switch_current_thread: capability.can_switch_current_thread,
+    can_set_new_thread_model: capability.can_set_new_thread_model,
+    can_set_worker_model: capability.can_set_worker_model,
+    can_set_thinking: capability.can_set_thinking,
+    can_list_models: capability.can_list_models,
+    can_confirm_current_model: capability.can_confirm_current_model,
+  };
+}
+
+function withHostCapability(record) {
+  if (!record || typeof record !== "object" || Array.isArray(record)) {
+    return record;
+  }
+  const platform = String(record.platform || "unknown").trim() || "unknown";
+  return {
+    ...record,
+    host_capability: hostCapabilityForRecord(platform),
+    can_apply_current_chat: false,
+  };
+}
+
 function buildHostModelRecord({ platform, target_model, current_model, thinking, speed, reason }) {
   const targetModel = String(target_model || "").trim();
   const resolvedPlatform = detectHostPlatform(platform || "auto");
@@ -342,23 +369,34 @@ function buildHostModelRecord({ platform, target_model, current_model, thinking,
     status: "recorded_requires_host_action",
     control: "host_selected",
     can_apply_current_chat: false,
+    host_capability: hostCapabilityForRecord(resolvedPlatform),
     updated: isoNow(),
     host_actions: actions,
   };
 }
 
+function formatBool(value) {
+  return value ? "yes" : "no";
+}
+
 function formatHostModelRecord(record) {
+  const withCapability = withHostCapability(record);
+  const capability = withCapability.host_capability || hostCapabilityForRecord(withCapability.platform);
   const lines = [
-    `[OK] Host model switch ${record.status}.`,
-    `platform: ${record.platform}`,
-    `target model: ${record.target_model} (tier ${record.target_model_tier})`,
-    `current model: ${record.current_model || "unknown"}`,
-    `thinking: ${record.thinking}`,
-    `speed: ${record.speed}`,
+    `[OK] Host model switch ${withCapability.status}.`,
+    `platform: ${withCapability.platform}`,
+    `target model: ${withCapability.target_model} (tier ${withCapability.target_model_tier})`,
+    `current model: ${withCapability.current_model || "unknown"}`,
+    `thinking: ${withCapability.thinking}`,
+    `speed: ${withCapability.speed}`,
+    `current-chat switch: ${formatBool(capability.can_switch_current_thread)}`,
+    `new-thread model: ${formatBool(capability.can_set_new_thread_model)}`,
+    `worker model: ${formatBool(capability.can_set_worker_model)}`,
+    `thinking control: ${formatBool(capability.can_set_thinking)}`,
     "scope: Mythify recorded the requested host model for model_policy and spawn ceiling checks.",
     "host action required:",
   ];
-  for (const action of record.host_actions || []) {
+  for (const action of withCapability.host_actions || []) {
     lines.push(`- ${action}`);
   }
   return lines.join("\n");
@@ -2272,7 +2310,8 @@ server.registerTool(
         const empty = { status: "unset", target_model: "", source: "unknown" };
         return format === "json" ? "[OK] " + JSON.stringify(empty, null, 2) : "[OK] No host model switch is recorded.";
       }
-      return format === "json" ? "[OK] " + JSON.stringify(record, null, 2) : formatHostModelRecord(record);
+      const enriched = withHostCapability(record);
+      return format === "json" ? "[OK] " + JSON.stringify(enriched, null, 2) : formatHostModelRecord(enriched);
     }
     if (selectedAction === "clear") {
       clearHostModelState();

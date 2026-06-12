@@ -213,6 +213,9 @@ test("mythify MCP server smoke test", async (t) => {
       );
       assert.ok(switched.startsWith("[OK]"), `host_model_switch reports [OK]: ${switched}`);
       assert.match(switched, /target model: gpt-5\.4/, "text includes the target model");
+      assert.match(switched, /current-chat switch: no/, "text does not claim current-chat switching");
+      assert.match(switched, /new-thread model: yes/, "text exposes new-thread model capability");
+      assert.match(switched, /worker model: yes/, "text exposes worker model capability");
 
       const statusText = textOf(
         await client.callTool({
@@ -224,6 +227,13 @@ test("mythify MCP server smoke test", async (t) => {
       assert.equal(status.target_model, "gpt-5.4");
       assert.equal(status.platform, "codex-desktop");
       assert.equal(status.status, "recorded_requires_host_action");
+      assert.equal(status.can_apply_current_chat, false);
+      assert.equal(status.host_capability.kind, "host");
+      assert.equal(status.host_capability.status, "supported");
+      assert.equal(status.host_capability.can_switch_current_thread, false);
+      assert.equal(status.host_capability.can_set_new_thread_model, true);
+      assert.equal(status.host_capability.can_set_worker_model, true);
+      assert.equal(status.host_capability.can_set_thinking, true);
 
       const classifiedText = textOf(
         await client.callTool({

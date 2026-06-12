@@ -71,8 +71,8 @@ Completed v2 runway tasks:
 
 Next adapter slices:
 
-- Wire registry data into `host_model_switch` status output without claiming
-  current-chat switching.
+- [x] 2026-06-12: wire registry data into `host_model_switch` status output
+  without claiming current-chat switching.
 - Add a generic OpenAI-compatible local provider probe for reader or triage
   roles.
 - Add a Kimi Code or OpenCode CLI probe after the local provider path proves
