@@ -1,5 +1,8 @@
 # Mythify
 
+[![CI](https://github.com/aihxp/mythify/actions/workflows/ci.yml/badge.svg)](https://github.com/aihxp/mythify/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Give any model Mythos-class operational discipline.
 
 Mythify improves the harness, not the underlying model. A weaker model with
@@ -21,6 +24,13 @@ capability gap.
 All components read and write the same per-project `.mythify/` state directory, so
 they interoperate: a plan created by the CLI is visible to the MCP server and vice
 versa.
+
+Each quick start begins from a local clone:
+
+```bash
+git clone https://github.com/aihxp/mythify.git
+cd mythify
+```
 
 ## Quick start A: drop-in
 
@@ -78,7 +88,9 @@ python3 scripts/package_skill.py
 
 This zips `skills/mythify/` into `dist/mythify.skill` with `SKILL.md` at the zip root
 and `references/` beside it, ready to import into Manus or any skill-compatible
-agent.
+agent. If you would rather not build it yourself, a prebuilt `mythify.skill` is
+attached to each GitHub release at
+[https://github.com/aihxp/mythify/releases](https://github.com/aihxp/mythify/releases).
 
 ## How it works
 
@@ -205,6 +217,10 @@ instead of crashing.
 | Any CLI agent | Use `scripts/mythify.py` directly, paired with any protocol variant. |
 | Custom MCP clients | Connect to `mcp-server/src/index.js` over stdio. |
 
+For step-by-step Claude Desktop and Claude Code setup, including running Mythify
+on smaller models like Haiku, see
+[docs/claude-integrations.md](docs/claude-integrations.md).
+
 ## Development
 
 Run the Python test suite (stdlib unittest, no dependencies):
@@ -216,7 +232,7 @@ python3 -m unittest discover -s tests -v
 Run the MCP server smoke test:
 
 ```bash
-cd mcp-server && npm install && npm test
+cd mcp-server && npm ci && npm test
 ```
 
 `tests/test_interop.py` exercises the CLI and the MCP server against the same state
@@ -225,12 +241,26 @@ directory; it skips automatically when `node` is not on PATH or
 
 ## Limitations
 
-- No published npm package yet. The MCP server is configured by local absolute path;
-  there are no `npx` instructions because there is nothing published to run.
+- No published npm package yet. You can get the code by cloning the repository or
+  downloading a GitHub release, but the MCP server is still configured by local
+  absolute path; there are no `npx` instructions because nothing is published to npm.
 - Evals have not been run. The claims in this README and in the protocol are design
   rationale, not measured results.
 - Protocol adherence varies by model strength. Weaker models follow the discipline
   less reliably, and the gains shrink accordingly.
+
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the
+development workflow, [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community
+expectations, and [SECURITY.md](SECURITY.md) for how to report vulnerabilities. Two
+repository rules are non-negotiable:
+
+1. [docs/design.md](docs/design.md) is the contract for all CLI, MCP, and on-disk
+   interfaces. Behavior changes start there.
+2. The generated protocol variants (`CLAUDE.md`, `AGENTS.md`, `.cursorrules`) are
+   never edited by hand. Edit `protocol/PROTOCOL.md` and regenerate them with
+   `scripts/build_variants.py`.
 
 ## License
 

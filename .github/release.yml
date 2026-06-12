@@ -1,0 +1,22 @@
+changelog:
+  exclude:
+    authors:
+      - "dependabot"
+      - "dependabot[bot]"
+  categories:
+    - title: Breaking
+      labels:
+        - "breaking"
+    - title: Features
+      labels:
+        - "enhancement"
+    - title: Fixes
+      labels:
+        - "bug"
+    - title: Documentation
+      labels:
+        - "documentation"
+    - title: CI and chores
+      labels:
+        - "ci"
+        - "chore"

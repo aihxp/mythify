@@ -1,0 +1,50 @@
+name: Feature request
+description: Propose a change or addition to the Mythify CLI, MCP server, protocol, or skill.
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Mythify favors proportional ceremony: small surface, strict contracts.
+        The strongest proposals name a concrete failure of the current tooling
+        and a behavior precise enough to test.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: >
+        What goes wrong or is missing today? Describe the situation where the
+        current CLI commands, MCP tools, protocol rules, or skill content fall
+        short, ideally with the command or tool call you reached for and could
+        not complete.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-behavior
+    attributes:
+      label: Proposed behavior
+      description: >
+        Describe the new or changed behavior precisely. For CLI changes,
+        sketch the subcommand grammar and exit codes. For MCP tools, sketch the
+        input schema. For state changes, name the exact fields and files under
+        .mythify/. Remember that the CLI and the MCP server are independent
+        implementations of the same contracts, so most behavior changes land
+        in both.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: >
+        Optional. Workarounds you tried, or why existing commands such as
+        verify run, memory set, or lesson add do not cover this.
+  - type: checkboxes
+    id: contract
+    attributes:
+      label: Contract acknowledgment
+      description: docs/design.md is the authoritative contract for all CLI, MCP, and on-disk interfaces.
+      options:
+        - label: I understand that any change to CLI commands, MCP tools, or on-disk formats must also update docs/design.md.
+          required: true

@@ -1,0 +1,33 @@
+name: Release assets
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  upload-assets:
+    name: Build and upload release assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Build skill package
+        run: python scripts/package_skill.py
+      - name: Build npm tarball
+        run: npm pack
+        working-directory: mcp-server
+      - name: Upload assets to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" dist/mythify.skill mcp-server/mythify-mcp-*.tgz --clobber

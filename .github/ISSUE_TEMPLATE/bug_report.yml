@@ -1,0 +1,91 @@
+name: Bug report
+description: Report a defect in the Mythify CLI, MCP server, protocol files, skill package, or docs.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Mythify grounds bug reports in command output:
+        please paste exactly what the tool printed, not a summary of it.
+        Reports without reproduction commands and real output are hard to act on.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      description: Which part of Mythify misbehaves?
+      options:
+        - CLI (scripts/mythify.py)
+        - MCP server (mcp-server/)
+        - Protocol files (protocol/PROTOCOL.md, CLAUDE.md, AGENTS.md, .cursorrules)
+        - Skill package (skills/mythify/, dist/mythify.skill)
+        - Documentation (README.md, docs/)
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: Install method
+      description: How are you running Mythify?
+      options:
+        - Drop-in copy (protocol variant plus scripts/mythify.py copied into a project)
+        - MCP server (node mcp-server/src/index.js registered with an MCP client)
+        - Skill (dist/mythify.skill imported into Manus or another skill-compatible agent)
+        - Working directly in a checkout of this repository
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: >
+        Exact commands or tool calls, in order, starting from a clean state
+        (for example a fresh directory after python3 scripts/mythify.py init).
+        Include any relevant environment variables such as MYTHIFY_DIR or
+        MYTHIFY_DISABLE_RUN.
+      placeholder: |
+        1. python3 scripts/mythify.py init
+        2. python3 scripts/mythify.py plan create "Demo" --steps '[{"title": "A"}]'
+        3. python3 scripts/mythify.py step 1 completed
+    validations:
+      required: true
+  - type: textarea
+    id: actual-output
+    attributes:
+      label: Actual output
+      description: >
+        What did verify run, the CLI, or the MCP tool actually print? Paste the
+        verbatim output, including any [OK], [FAIL], or [WARN] lines, exit codes,
+        and stdout or stderr tails. If a state file ended up wrong, paste the
+        relevant lines from it too.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: >
+        What should have happened instead? If the behavior is specified in
+        docs/design.md, quote or link the relevant contract line.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: macOS 15.5, Ubuntu 24.04, Windows 11
+    validations:
+      required: true
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      description: Output of python3 --version (the CLI requires 3.9+). Leave blank if the CLI is not involved.
+      placeholder: Python 3.12.4
+  - type: input
+    id: node-version
+    attributes:
+      label: Node version
+      description: Output of node --version (the MCP server requires 18+). Leave blank if the MCP server is not involved.
+      placeholder: v20.14.0
