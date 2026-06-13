@@ -39,11 +39,13 @@ mythify/
 |-- .cursorrules                 generated from protocol/PROTOCOL.md
 |-- protocol/
 |   |-- PROTOCOL.md              canonical protocol source
-|   `-- operation-registry.json  shared operation metadata
+|   |-- operation-registry.json  shared operation metadata
+|   `-- surface-manifest.json    shared public surface metadata
 |-- scripts/
 |   |-- mythify.py               zero-dependency CLI orchestrator
 |   |-- build_variants.py        generates CLAUDE.md, AGENTS.md, .cursorrules
 |   |-- build_registry_docs.mjs  generates registry-backed docs
+|   |-- check_surface_manifest.mjs checks public surface metadata drift
 |   |-- local_model_eval.py      local bare-vs-Mythify comparison harness
 |   `-- package_skill.py         builds dist/mythify.skill from skills/mythify/
 |-- mcp-server/
@@ -53,6 +55,8 @@ mythify/
 |   |-- src/capability-registry.js
 |   |-- src/fanout.js
 |   |-- src/index.js
+|   |-- src/operation-registry.js
+|   |-- src/surface-manifest.js
 |   |-- test/capability-registry.test.js
 |   |-- test/execution-probe.test.js
 |   |-- test/host-cli-probe.test.js
@@ -201,6 +205,32 @@ Prototype scope:
 
 Keep new surfaces out of the registry until duplication has been observed and a
 focused drift test proves the shared contract reduces maintenance risk.
+
+## Surface manifest
+
+Shared public surface metadata lives in `protocol/surface-manifest.json`. The
+manifest owns duplicated metadata that is easy to drift across prose, tests, and
+runtime registrations.
+
+Current scope:
+
+- Top-level CLI command names and command count.
+- MCP core tool names, fanout tool names, and the 27 core plus 3 fanout count
+  split.
+
+Rules:
+
+- The manifest is not a runtime router. It does not generate tool handlers,
+  command parsers, schemas, or behavior.
+- `mcp-server/src/surface-manifest.js` exposes the manifest to Node tests.
+- Python tests may read the JSON file directly.
+- `scripts/check_surface_manifest.mjs` verifies manifest counts, runtime MCP
+  registrations, public doc count phrases, documented tool names, and CLI
+  `--help` output.
+- CI hygiene runs the check so README, design, protocol notes, tests, and
+  runtime registrations cannot quietly disagree about public surface metadata.
+- Add a new surface only after drift has been observed and the check can prove
+  the shared metadata reduces maintenance risk.
 
 ## State model (shared contract)
 

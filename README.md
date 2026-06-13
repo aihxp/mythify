@@ -826,6 +826,11 @@ Operation registry tests compare the memory CLI and MCP behavior with
 `protocol/operation-registry.json` so duplicated operation contracts cannot
 quietly drift.
 
+`protocol/surface-manifest.json` owns duplicated public surface metadata such
+as top-level CLI commands and MCP tool names. Run
+`node scripts/check_surface_manifest.mjs` to compare the manifest with runtime
+registrations, public docs, and CLI help output.
+
 `docs/adapter-candidates.md` is generated from
 `mcp-server/src/capability-registry.js` by `node scripts/build_registry_docs.mjs`.
 The Node suite and CI hygiene job compare the committed file with fresh

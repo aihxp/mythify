@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `protocol/surface-manifest.json` plus `scripts/check_surface_manifest.mjs`
+  for duplicated public surface metadata. The manifest owns top-level CLI
+  command names and MCP tool names/counts, and CI hygiene now checks it
+  against runtime registrations, public docs, and CLI help output.
 - CLI `dashboard` and MCP `workflow_status` read-only workflow view. The view
   shows active plan, current and next step, active outcome, evidence counts,
   recent verification records, and recent reflections without mutating state

@@ -21,13 +21,13 @@ Status markers:
 
 ## Active Now
 
-- [>] Registry-backed surface manifest for duplicated CLI and MCP metadata.
-  - Current goal: move one small public-surface metadata set behind a checked
-    manifest before sharing more runtime behavior.
-  - Next step: identify a recently drifting surface, likely tool and command
-    count metadata, and define the smallest manifest plus drift test.
-  - Guardrail: do not generate runtime handlers or schemas until the manifest
-    is protected by focused checks.
+- [>] Background task view for long-running delegated work.
+  - Current goal: expose in-flight fanout and outcome-loop work in a
+    scan-friendly status surface.
+  - Next step: map existing fanout job state, outcome iteration state, and
+    workflow dashboard data into the smallest read-only view.
+  - Guardrail: show durable state and executed evidence only; do not invent
+    progress from model confidence.
 
 ## Next Queue
 
@@ -185,11 +185,12 @@ Guardrails:
 
 What remains:
 
-- [>] Expand registry-backed generation only when another duplicated surface
-  has a focused drift test.
+Nothing open right now.
 
 Already shipped in this track:
 
+- [x] Surface manifest owns top-level CLI commands and MCP tool names/counts,
+  with CI checks against runtime registrations, public docs, and CLI help.
 - [x] One-core architecture decision keeps CLI and MCP as native adapters while
   moving duplicated facts into checked contract artifacts one surface at a time.
 - [x] Read-only workflow dashboard exposes plan, outcome, verification, and
@@ -213,7 +214,7 @@ Already shipped in this track:
 
 What remains:
 
-- [ ] Background task view.
+- [>] Background task view.
 - [ ] Phase view for Understand, Design, Build, Judge, Verify.
 - [ ] Fanout worker timeline.
 - [ ] Verification history.
@@ -248,6 +249,10 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add registry-backed surface manifest. The manifest owns
+  top-level CLI commands and MCP tool names/counts, while
+  `scripts/check_surface_manifest.mjs` verifies runtime registrations, public
+  docs, and CLI help without generating runtime handlers or schemas.
 - [x] 2026-06-13: decide one-core architecture direction. Mythify keeps the
   Python CLI and Node MCP server as native adapters while moving duplicated
   facts into checked protocol files, registries, generated docs, schemas, or

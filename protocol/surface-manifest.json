@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "surfaces": {
+    "cli": {
+      "command_count": 15,
+      "commands": [
+        "init",
+        "protocol",
+        "status",
+        "dashboard",
+        "classify",
+        "host-model",
+        "outcome",
+        "plan",
+        "step",
+        "memory",
+        "lesson",
+        "logs",
+        "verify",
+        "reflect",
+        "summary"
+      ]
+    },
+    "mcp": {
+      "core_tool_count": 27,
+      "fanout_tool_count": 3,
+      "total_tools": 30,
+      "core_tools": [
+        "classify_task",
+        "host_model_switch",
+        "provider_probe",
+        "local_model_run",
+        "host_cli_probe",
+        "host_cli_run",
+        "execution_probe",
+        "execution_run",
+        "lifecycle_probe",
+        "workflow_status",
+        "memory_store",
+        "memory_recall",
+        "memory_clear",
+        "lesson_record",
+        "lesson_recall",
+        "plan_create",
+        "plan_add_step",
+        "plan_update_step",
+        "plan_status",
+        "outcome_start",
+        "outcome_check",
+        "outcome_status",
+        "outcome_results",
+        "outcome_stop",
+        "verify_run",
+        "verify_claim",
+        "reflect"
+      ],
+      "fanout_tools": [
+        "fanout_start",
+        "fanout_status",
+        "fanout_results"
+      ]
+    }
+  }
+}

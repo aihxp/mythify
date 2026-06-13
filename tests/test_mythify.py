@@ -18,6 +18,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CLI = REPO_ROOT / "scripts" / "mythify.py"
 OPERATION_REGISTRY = REPO_ROOT / "protocol" / "operation-registry.json"
+SURFACE_MANIFEST = REPO_ROOT / "protocol" / "surface-manifest.json"
 
 NO_WORKSPACE_MESSAGE = (
     "[FAIL] No .mythify workspace found. Run: python3 scripts/mythify.py init"
@@ -117,8 +118,8 @@ class TestInit(CliTestCase):
     def test_help_exits_zero(self):
         result = self.run_cli("--help")
         self.assertEqual(result.returncode, 0)
-        for name in ("init", "protocol", "status", "dashboard", "classify", "host-model", "outcome", "plan", "step",
-                     "memory", "lesson", "logs", "verify", "reflect", "summary"):
+        commands = self.read_json(SURFACE_MANIFEST)["surfaces"]["cli"]["commands"]
+        for name in commands:
             self.assertIn(name, result.stdout)
 
 
