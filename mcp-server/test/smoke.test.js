@@ -26,6 +26,7 @@ const EXPECTED_TOOLS = [
   "execution_probe",
   "execution_run",
   "lifecycle_probe",
+  "workflow_status",
   "memory_store",
   "memory_recall",
   "memory_clear",
@@ -121,7 +122,7 @@ test("mythify MCP server smoke test", async (t) => {
   await client.connect(transport);
 
   try {
-    await t.test("tools/list returns exactly the 29 tools", async () => {
+    await t.test("tools/list returns exactly the 30 tools", async () => {
       const { tools } = await client.listTools();
       const names = tools.map((tool) => tool.name).sort();
       assert.deepEqual(names, [...EXPECTED_TOOLS].sort());
@@ -487,6 +488,31 @@ test("mythify MCP server smoke test", async (t) => {
       assert.ok(failed.startsWith("[FAIL]"), `failing run reports [FAIL]: ${failed}`);
       assert.match(failed, /UNVERIFIED/, "failing run is UNVERIFIED");
       assert.match(failed, /exit 3/, "failing run reports the exit code");
+    });
+
+    await t.test("workflow_status shows read-only dashboard state", async () => {
+      const before = snapshotStateDir(stateDir);
+      const text = textOf(
+        await client.callTool({
+          name: "workflow_status",
+          arguments: { recent: 1 },
+        })
+      );
+      assert.ok(text.startsWith("[OK] Workflow dashboard"), `workflow_status reports [OK]: ${text}`);
+      assert.match(text, /Active plan: smoke-goal/);
+      assert.match(text, /Evidence:/);
+      assert.deepEqual(snapshotStateDir(stateDir), before, "workflow_status leaves state unchanged");
+
+      const jsonText = textOf(
+        await client.callTool({
+          name: "workflow_status",
+          arguments: { recent: 1, format: "json" },
+        })
+      );
+      const parsed = JSON.parse(jsonText.replace(/^\[OK\] /, ""));
+      assert.equal(parsed.active_plan.slug, "smoke-goal");
+      assert.equal(parsed.verification_summary.recent.length, 1);
+      assert.equal(parsed.counts.memory, 1);
     });
 
     await t.test("outcome tools track success and bounded failure", async () => {

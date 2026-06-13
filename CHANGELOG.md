@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CLI `dashboard` and MCP `workflow_status` read-only workflow view. The view
+  shows active plan, current and next step, active outcome, evidence counts,
+  recent verification records, and recent reflections without mutating state
+  or reporting model confidence as evidence.
 - Custom adapter contract in CLI and MCP `model_policy.provider_defaults`.
   The contract marks `custom-command` as the bounded user-defined adapter path
   through `MYTHIFY_TRIAGE_COMMAND` and `MYTHIFY_FANOUT_COMMAND`, and records

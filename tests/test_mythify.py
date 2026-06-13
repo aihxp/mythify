@@ -117,7 +117,7 @@ class TestInit(CliTestCase):
     def test_help_exits_zero(self):
         result = self.run_cli("--help")
         self.assertEqual(result.returncode, 0)
-        for name in ("init", "protocol", "status", "classify", "host-model", "outcome", "plan", "step",
+        for name in ("init", "protocol", "status", "dashboard", "classify", "host-model", "outcome", "plan", "step",
                      "memory", "lesson", "logs", "verify", "reflect", "summary"):
             self.assertIn(name, result.stdout)
 
@@ -1638,6 +1638,25 @@ class TestStatusAndSummary(CliTestCase):
             result.stdout,
         )
         self.assertIn("Reflections: 1", result.stdout)
+
+    def test_dashboard_includes_plan_evidence_and_reflections(self):
+        self.populate()
+        result = self.run_cli("dashboard")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("[OK] Workflow dashboard", result.stdout)
+        self.assertIn("Active plan: build-house (1/2 completed)", result.stdout)
+        self.assertIn("Next pending: 2. Raise walls (criteria: walls up)", result.stdout)
+        self.assertIn("Evidence: 2 executed (1 passed, 1 failed), 1 attested", result.stdout)
+        self.assertIn("Recent verification:", result.stdout)
+        self.assertIn("Recent reflection:", result.stdout)
+
+        json_result = self.run_cli("dashboard", "--json", "--recent", "1")
+        self.assertEqual(json_result.returncode, 0, json_result.stderr)
+        payload = json.loads(json_result.stdout)
+        self.assertEqual(payload["active_plan"]["slug"], "build-house")
+        self.assertEqual(payload["verification_summary"]["executed_passed"], 1)
+        self.assertEqual(len(payload["verification_summary"]["recent"]), 1)
+        self.assertEqual(payload["reflection_summary"]["recent"][0]["next"], "frame walls")
 
 
 class TestCorruptRecovery(CliTestCase):

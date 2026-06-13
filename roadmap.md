@@ -21,19 +21,18 @@ Status markers:
 
 ## Active Now
 
-- [>] Workflow dashboard or phase view that reveals evidence without
-  decorating self-report.
-  - Current goal: expose plan, outcome, verification, and reflection state in
-    a scan-friendly status view.
-  - Next step: map current `status`, `plan show`, `outcome status`,
-    `verify_run`, and reflection log surfaces into one minimal read-only view.
-  - Guardrail: show executed evidence and current state, not model confidence
-    or completion theater.
+- [>] One-core architecture decision after the registry prototype proves
+  enough value.
+  - Current goal: decide whether the CLI and MCP should keep parallel
+    implementations or move more behavior behind one shared core.
+  - Next step: map duplicated logic, generated surfaces, test coverage, and
+    migration risk.
+  - Guardrail: do not refactor architecture before the decision has concrete
+    drift, maintenance, and test evidence.
 
 ## Next Queue
 
-1. [ ] One-core architecture decision after the registry prototype proves
-   enough value.
+Nothing queued right now.
 
 ## Open Work By Track
 
@@ -189,11 +188,13 @@ What remains:
 
 - [ ] Expand registry-backed generation only when another duplicated surface
   has a focused drift test.
-- [ ] One-core architecture decision after the registry prototype proves enough
+- [>] One-core architecture decision after the registry prototype proves enough
   value.
 
 Already shipped in this track:
 
+- [x] Read-only workflow dashboard exposes plan, outcome, verification, and
+  reflection state without model-confidence fields.
 - [x] Capability registry exists in `mcp-server/src/capability-registry.js`.
 - [x] Registry data is shown in `host_model_switch` status output.
 - [x] Generated adapter candidate docs come from the capability registry and
@@ -245,6 +246,11 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add read-only workflow dashboard surfaces. CLI `dashboard`
+  and MCP `workflow_status` now show active plan, current and next step,
+  active outcome, evidence counts, recent verification records, and recent
+  reflections without mutating state or reporting model confidence as
+  evidence.
 - [x] 2026-06-13: add custom adapter contract to CLI and MCP
   `model_policy.provider_defaults`. Mythify now names `custom-command` as the
   bounded user-defined path through triage and fanout command engines, while
@@ -422,7 +428,7 @@ Preserve:
 - [x] Execution adapter lane for Colab CLI style remote jobs.
 - [ ] Agent lifecycle lane for Agents CLI and ADK style workflows.
 - [ ] One-core architecture decision based on the registry prototype.
-- [ ] Stronger workflow surfaces.
+- [x] Stronger workflow surfaces.
 - [ ] Clear migration guide from CLI-only usage to model-runtime orchestration.
 
 ## References

@@ -28,7 +28,7 @@ from pathlib import Path
 WORKSPACE_DIR_NAME = ".mythify"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
-PROTOCOL_SOURCE_SHA256 = "0a253810b09aa61d840f9f5b6119e5bb168d40ef1d3d576e11b0fdd003addc9a"
+PROTOCOL_SOURCE_SHA256 = "a1e49441ba9bb197985a54ff92ec7ed3363bbf16b4c2622609f88c69b4fbe4ac"
 PROTOCOL_HASH_PREFIX = "<!-- Mythify protocol-sha256: "
 PROTOCOL_COPY_CANDIDATES = ("CLAUDE.md", "AGENTS.md", ".cursorrules")
 NO_WORKSPACE_MESSAGE = (
@@ -2957,6 +2957,175 @@ def cmd_status(args, state):
     return 0
 
 
+def current_in_progress_step(plan):
+    for step in plan.get("steps", []):
+        if step.get("status") == "in_progress":
+            return step
+    return None
+
+
+def recent_records(records, limit):
+    if limit <= 0:
+        return []
+    return records[-limit:]
+
+
+def build_dashboard(state, recent=3):
+    active = get_active_slug(state)
+    active_plan = None
+    if active:
+        plan = load_plan(state, active)
+        if plan is not None:
+            done, total = plan_progress(plan)
+            active_plan = {
+                "slug": active,
+                "goal": plan.get("goal", ""),
+                "completed_steps": done,
+                "total_steps": total,
+                "current_step": current_in_progress_step(plan),
+                "next_pending_step": next_pending_step(plan),
+                "steps": plan.get("steps", []),
+            }
+    active_outcome_slug = get_active_outcome_slug(state)
+    active_outcome = None
+    if active_outcome_slug:
+        slug, goal = load_outcome(state, active_outcome_slug)
+        if goal is not None:
+            iterations = read_jsonl(outcome_iterations_path(state, slug))
+            active_outcome = {
+                "slug": slug,
+                "goal": goal.get("goal", ""),
+                "status": goal.get("status", "active"),
+                "iteration_count": goal.get("iteration_count", 0),
+                "max_iterations": goal.get("max_iterations", 1),
+                "last_iteration": iterations[-1] if iterations else None,
+            }
+    memory = load_memory(state)
+    project_lessons = load_lessons(state / "lessons", "project")
+    global_lessons = load_lessons(global_lessons_dir(), "global")
+    verifications = read_jsonl(state / "verifications.jsonl")
+    executed = [record for record in verifications if record.get("kind") == "executed"]
+    reflections = read_jsonl(state / "reflections.jsonl")
+    return {
+        "state_dir": str(state),
+        "active_plan": active_plan,
+        "active_outcome": active_outcome,
+        "counts": {
+            "memory": len(memory["entries"]),
+            "project_lessons": len(project_lessons),
+            "global_lessons": len(global_lessons),
+            "verifications": len(verifications),
+            "reflections": len(reflections),
+        },
+        "verification_summary": {
+            "executed": len(executed),
+            "executed_passed": sum(1 for record in executed if record.get("verified") is True),
+            "executed_failed": sum(1 for record in executed if record.get("verified") is False),
+            "attested": sum(1 for record in verifications if record.get("kind") == "attested"),
+            "recent": recent_records(verifications, recent),
+        },
+        "reflection_summary": {
+            "total": len(reflections),
+            "recent": recent_records(reflections, recent),
+        },
+    }
+
+
+def format_dashboard(dashboard):
+    lines = ["[OK] Workflow dashboard: {0}".format(dashboard["state_dir"])]
+    plan = dashboard.get("active_plan")
+    if plan:
+        lines.append(
+            "Active plan: {0} ({1}/{2} completed)".format(
+                plan["slug"], plan["completed_steps"], plan["total_steps"]
+            )
+        )
+        lines.append("Goal: {0}".format(plan.get("goal", "")))
+        current = plan.get("current_step")
+        if current:
+            lines.append("Current step: {0}".format(format_step_line(current, "").strip()))
+        next_step = plan.get("next_pending_step")
+        if next_step:
+            lines.append(
+                "Next pending: {0}. {1} (criteria: {2})".format(
+                    next_step.get("id"),
+                    next_step.get("title"),
+                    next_step.get("success_criteria") or "none",
+                )
+            )
+        elif not current:
+            lines.append("Next pending: none")
+    else:
+        lines.append("Active plan: none")
+    outcome = dashboard.get("active_outcome")
+    if outcome:
+        lines.append(
+            "Active outcome: {0} ({1}, {2}/{3} iterations)".format(
+                outcome["slug"],
+                outcome["status"],
+                outcome["iteration_count"],
+                outcome["max_iterations"],
+            )
+        )
+    else:
+        lines.append("Active outcome: none")
+    counts = dashboard["counts"]
+    lines.append(
+        "Counts: memory {0}, lessons {1} project + {2} global, verifications {3}, reflections {4}".format(
+            counts["memory"],
+            counts["project_lessons"],
+            counts["global_lessons"],
+            counts["verifications"],
+            counts["reflections"],
+        )
+    )
+    verification = dashboard["verification_summary"]
+    lines.append(
+        "Evidence: {0} executed ({1} passed, {2} failed), {3} attested".format(
+            verification["executed"],
+            verification["executed_passed"],
+            verification["executed_failed"],
+            verification["attested"],
+        )
+    )
+    if verification["recent"]:
+        lines.append("Recent verification:")
+        for record in verification["recent"]:
+            if record.get("kind") == "executed":
+                verdict = "passed" if record.get("verified") is True else "failed"
+                label = record.get("claim") or record.get("command") or "executed check"
+                lines.append(
+                    "  - {0}: {1} (exit {2})".format(
+                        verdict, label, record.get("exit_code")
+                    )
+                )
+            else:
+                lines.append(
+                    "  - attested: {0}".format(record.get("claim") or "claim")
+                )
+    reflections = dashboard["reflection_summary"]
+    if reflections["recent"]:
+        lines.append("Recent reflection:")
+        for record in reflections["recent"]:
+            lines.append(
+                "  - {0}: {1}; next {2}".format(
+                    record.get("outcome", "unknown"),
+                    record.get("action", ""),
+                    record.get("next", ""),
+                )
+            )
+    return "\n".join(lines)
+
+
+def cmd_dashboard(args, state):
+    dashboard = build_dashboard(state, args.recent)
+    if args.json_output:
+        print(json.dumps(dashboard, indent=2))
+    else:
+        print(format_dashboard(dashboard))
+    return 0
+
+
 def cmd_classify(args, _state):
     result = classify_task_text(args.task)
     result["model_policy"] = build_model_policy(result, args)
@@ -3906,6 +4075,24 @@ def build_parser():
         ),
     )
     p.set_defaults(handler=cmd_status)
+
+    p = sub.add_parser(
+        "dashboard",
+        help="Show a read-only workflow dashboard with plan, outcome, and evidence state.",
+        description=(
+            "Read-only workflow dashboard: active plan, current and next step, "
+            "active outcome, memory and lesson counts, verification totals, "
+            "recent verification records, and recent reflections."
+        ),
+    )
+    p.add_argument(
+        "--recent",
+        type=int,
+        default=3,
+        help="Number of recent verification and reflection records to show. Defaults to 3.",
+    )
+    p.add_argument("--json", dest="json_output", action="store_true", help="Print JSON.")
+    p.set_defaults(handler=cmd_dashboard)
 
     p = sub.add_parser(
         "classify",

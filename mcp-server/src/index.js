@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Mythify MCP server v2.5.0
 // Exposes the Mythify state model (memory, plans, lessons, verifications,
-// reflections) as 26 core MCP tools over stdio, plus the 3 fanout tools for
-// parallel delegation (src/fanout.js), 29 tools in total. On-disk formats are
+// reflections) as 27 core MCP tools over stdio, plus the 3 fanout tools for
+// parallel delegation (src/fanout.js), 30 tools in total. On-disk formats are
 // shared with the Python CLI (scripts/mythify.py); both implementations must
 // interoperate on the same .mythify state directory. Fanout is MCP-only; the
 // CLI deliberately does not implement it.
@@ -897,6 +897,145 @@ function verificationsPath() {
 
 function reflectionsPath() {
   return path.join(resolveStateDir(), "reflections.jsonl");
+}
+
+function currentInProgressStep(plan) {
+  return (plan.steps || []).find((step) => step.status === "in_progress") || null;
+}
+
+function recentRecords(records, limit) {
+  if (limit <= 0) {
+    return [];
+  }
+  return records.slice(Math.max(0, records.length - limit));
+}
+
+function buildWorkflowDashboard(recent = 3) {
+  const active = readActiveSlug();
+  let activePlan = null;
+  if (active && fs.existsSync(planPath(active))) {
+    const plan = readJsonRecover(planPath(active), () => null);
+    if (plan !== null) {
+      const steps = Array.isArray(plan.steps) ? plan.steps : [];
+      const completed = steps.filter((step) => step.status === "completed").length;
+      activePlan = {
+        slug: active,
+        goal: plan.goal || "",
+        completed_steps: completed,
+        total_steps: steps.length,
+        current_step: currentInProgressStep(plan),
+        next_pending_step: steps.find((step) => step.status === "pending") || null,
+        steps,
+      };
+    }
+  }
+  const activeOutcomeSlug = readActiveOutcomeSlug();
+  let activeOutcome = null;
+  if (activeOutcomeSlug) {
+    const resolved = resolveOutcome(activeOutcomeSlug);
+    if (!resolved.error) {
+      const iterations = readOutcomeIterations(resolved.slug);
+      activeOutcome = {
+        slug: resolved.slug,
+        goal: resolved.goal.goal || "",
+        status: resolved.goal.status || "active",
+        iteration_count: resolved.goal.iteration_count || 0,
+        max_iterations: resolved.goal.max_iterations || 1,
+        last_iteration: iterations.length > 0 ? iterations[iterations.length - 1] : null,
+      };
+    }
+  }
+  const memory = loadMemory();
+  const projectLessons = readLessonsFrom(projectLessonsDir(), "project");
+  const globalLessons = readLessonsFrom(globalLessonsDir(), "global");
+  const verifications = readJsonl(verificationsPath());
+  const executed = verifications.filter((record) => record.kind === "executed");
+  const reflections = readJsonl(reflectionsPath());
+  return {
+    state_dir: resolveStateDir(),
+    active_plan: activePlan,
+    active_outcome: activeOutcome,
+    counts: {
+      memory: memory.entries.length,
+      project_lessons: projectLessons.length,
+      global_lessons: globalLessons.length,
+      verifications: verifications.length,
+      reflections: reflections.length,
+    },
+    verification_summary: {
+      executed: executed.length,
+      executed_passed: executed.filter((record) => record.verified === true).length,
+      executed_failed: executed.filter((record) => record.verified === false).length,
+      attested: verifications.filter((record) => record.kind === "attested").length,
+      recent: recentRecords(verifications, recent),
+    },
+    reflection_summary: {
+      total: reflections.length,
+      recent: recentRecords(reflections, recent),
+    },
+  };
+}
+
+function formatWorkflowDashboard(dashboard) {
+  const lines = [`[OK] Workflow dashboard: ${dashboard.state_dir}`];
+  const plan = dashboard.active_plan;
+  if (plan) {
+    lines.push(`Active plan: ${plan.slug} (${plan.completed_steps}/${plan.total_steps} completed)`);
+    lines.push(`Goal: ${plan.goal}`);
+    if (plan.current_step) {
+      lines.push(`Current step: ${stepLine(plan.current_step)}`);
+    }
+    if (plan.next_pending_step) {
+      lines.push(
+        `Next pending: ${plan.next_pending_step.id}. ${plan.next_pending_step.title} ` +
+          `(criteria: ${plan.next_pending_step.success_criteria || "none"})`
+      );
+    } else if (!plan.current_step) {
+      lines.push("Next pending: none");
+    }
+  } else {
+    lines.push("Active plan: none");
+  }
+  const outcome = dashboard.active_outcome;
+  if (outcome) {
+    lines.push(
+      `Active outcome: ${outcome.slug} (${outcome.status}, ` +
+        `${outcome.iteration_count}/${outcome.max_iterations} iterations)`
+    );
+  } else {
+    lines.push("Active outcome: none");
+  }
+  const counts = dashboard.counts;
+  lines.push(
+    `Counts: memory ${counts.memory}, lessons ${counts.project_lessons} project + ` +
+      `${counts.global_lessons} global, verifications ${counts.verifications}, ` +
+      `reflections ${counts.reflections}`
+  );
+  const verification = dashboard.verification_summary;
+  lines.push(
+    `Evidence: ${verification.executed} executed (${verification.executed_passed} passed, ` +
+      `${verification.executed_failed} failed), ${verification.attested} attested`
+  );
+  if (verification.recent.length > 0) {
+    lines.push("Recent verification:");
+    for (const record of verification.recent) {
+      if (record.kind === "executed") {
+        const verdict = record.verified === true ? "passed" : "failed";
+        const label = record.claim || record.command || "executed check";
+        lines.push(`  - ${verdict}: ${label} (exit ${record.exit_code})`);
+      } else {
+        lines.push(`  - attested: ${record.claim || "claim"}`);
+      }
+    }
+  }
+  const reflections = dashboard.reflection_summary;
+  if (reflections.recent.length > 0) {
+    lines.push("Recent reflection:");
+    for (const record of reflections.recent) {
+      lines.push(`  - ${record.outcome || "unknown"}: ${record.action || ""}; next ${record.next || ""}`);
+    }
+  }
+  return lines.join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -4545,6 +4684,32 @@ server.registerTool(
     });
     const prefix = result.status === "available" ? "[OK] " : "[FAIL] ";
     return format === "json" ? prefix + JSON.stringify(result, null, 2) : formatLifecycleProbe(result);
+  })
+);
+
+server.registerTool(
+  "workflow_status",
+  {
+    title: "Show workflow dashboard",
+    description:
+      "Show a read-only dashboard of the active plan, current step, next step, active outcome, evidence counts, recent verification records, and recent reflections. " +
+      "Use this to orient without mutating state or treating model confidence as evidence.",
+    inputSchema: {
+      recent: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe("Number of recent verification and reflection records to include. Defaults to 3."),
+      format: z.enum(["text", "json"]).optional().describe("Return text or JSON. Defaults to text."),
+    },
+  },
+  guarded(({ recent, format }) => {
+    const dashboard = buildWorkflowDashboard(typeof recent === "number" ? recent : 3);
+    if (format === "json") {
+      return `[OK] ${JSON.stringify(dashboard, null, 2)}`;
+    }
+    return formatWorkflowDashboard(dashboard);
   })
 );
 
