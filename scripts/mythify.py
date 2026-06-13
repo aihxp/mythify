@@ -281,6 +281,9 @@ ROLE_PROVIDER_PROFILES = {
         "execution_enabled": True,
         "writes_state": False,
         "evidence_status": "command_output_not_verification",
+        "custom_adapter": "custom-command",
+        "command_env": ("MYTHIFY_TRIAGE_COMMAND", "MYTHIFY_FANOUT_COMMAND"),
+        "input_contract": "prompt_on_stdin",
         "fallback_policy": ROLE_PROVIDER_FALLBACK_POLICY,
     },
     "local_command": {
@@ -2177,6 +2180,60 @@ def api_provider_contract():
     }
 
 
+def custom_adapter_contract():
+    return {
+        "version": 1,
+        "status": "metadata_supported",
+        "fallback_policy": ROLE_PROVIDER_FALLBACK_POLICY,
+        "execution_policy": "explicit_only_no_hidden_fallback",
+        "evidence_status": "adapter_output_not_verification",
+        "command": {
+            "adapter": "custom-command",
+            "status": "bounded_execution_supported",
+            "execution_enabled": True,
+            "tools": [
+                "classify_task triage_engine=command",
+                "fanout_start engine=command",
+            ],
+            "command_env": ["MYTHIFY_TRIAGE_COMMAND", "MYTHIFY_FANOUT_COMMAND"],
+            "input_contract": "prompt_on_stdin",
+            "default_timeout_seconds": {
+                "triage": ROLE_TIMEOUT_DEFAULTS["triage"]["timeout_seconds"],
+                "fanout_worker": ROLE_TIMEOUT_DEFAULTS["fanout_worker"]["timeout_seconds"],
+                "reviewer": ROLE_TIMEOUT_DEFAULTS["reviewer"]["timeout_seconds"],
+            },
+            "billing": "user_defined",
+            "writes_state": False,
+            "output_is_evidence": False,
+            "evidence_status": "command_output_not_verification",
+        },
+        "http": {
+            "adapter": "custom-http",
+            "status": "metadata_only",
+            "execution_enabled": False,
+            "explicit_enable_required": True,
+            "base_url_env": "MYTHIFY_CUSTOM_HTTP_BASE_URL",
+            "api_key_env": "MYTHIFY_CUSTOM_HTTP_API_KEY",
+            "model_env": "MYTHIFY_CUSTOM_HTTP_MODEL",
+            "pricing_url_env": "MYTHIFY_CUSTOM_HTTP_PRICING_URL",
+            "required_before_execution": [
+                "method_allowlist",
+                "auth_from_env_only",
+                "bounded_timeout",
+                "request_body_template",
+                "response_extraction",
+                "cost_metadata",
+                "no_state_write",
+                "material_not_evidence",
+            ],
+            "billing": "metered_external_account_or_user_defined",
+            "writes_state": False,
+            "output_is_evidence": False,
+            "evidence_status": "http_output_not_verification",
+        },
+    }
+
+
 def build_provider_defaults():
     return {
         "version": 1,
@@ -2186,6 +2243,7 @@ def build_provider_defaults():
         "cost_metadata_fields": list(ROLE_COST_METADATA_FIELDS),
         "provider_catalog": role_provider_catalog(),
         "api_provider_contract": api_provider_contract(),
+        "custom_adapter_contract": custom_adapter_contract(),
         "roles": {
             role: resolve_role_provider(role)
             for role in ROLE_PROVIDER_ORDER

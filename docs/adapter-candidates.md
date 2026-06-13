@@ -8,6 +8,8 @@ This file is generated from `mcp-server/src/capability-registry.js`. Do not edit
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | anthropic-api | api_provider | metadata_supported | no | no | no | metadata only; no API worker | metadata only, not evidence |
 | antigravity | host | worker_supported | no | no | yes | bounded worker | material, not evidence |
+| custom-command | custom_adapter | bounded_execution_supported | yes | no | no | bounded worker | material, not evidence |
+| custom-http | custom_adapter | metadata_only | no | no | no | metadata only; no API worker | metadata only, not evidence |
 | generic-openai-compatible | model_provider | local_backend_supported | yes | yes | yes | local roles: reader, triage | material, not evidence |
 | google-adk-cli | agent_lifecycle | probe_supported | no | no | yes | eval probe; no eval run; no deploy | probe material, not evidence |
 | google-agents-cli | agent_lifecycle | probe_supported | no | no | yes | eval probe; no eval run; no deploy | probe material, not evidence |

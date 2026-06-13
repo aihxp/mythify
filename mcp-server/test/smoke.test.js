@@ -170,6 +170,26 @@ test("mythify MCP server smoke test", async (t) => {
       );
       assert.equal(parsed.model_policy.provider_defaults.api_provider_contract.status, "metadata_supported");
       assert.equal(parsed.model_policy.provider_defaults.api_provider_contract.execution_enabled, false);
+      assert.equal(
+        parsed.model_policy.provider_defaults.custom_adapter_contract.execution_policy,
+        "explicit_only_no_hidden_fallback"
+      );
+      assert.equal(
+        parsed.model_policy.provider_defaults.custom_adapter_contract.command.execution_enabled,
+        true
+      );
+      assert.deepEqual(
+        parsed.model_policy.provider_defaults.custom_adapter_contract.command.command_env,
+        ["MYTHIFY_TRIAGE_COMMAND", "MYTHIFY_FANOUT_COMMAND"]
+      );
+      assert.equal(
+        parsed.model_policy.provider_defaults.custom_adapter_contract.http.execution_enabled,
+        false
+      );
+      assert.equal(
+        parsed.model_policy.provider_defaults.custom_adapter_contract.http.base_url_env,
+        "MYTHIFY_CUSTOM_HTTP_BASE_URL"
+      );
       assert.ok(
         parsed.model_policy.provider_defaults.timeout_metadata_fields.includes("timeout_seconds")
       );

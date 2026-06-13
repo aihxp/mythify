@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Custom adapter contract in CLI and MCP `model_policy.provider_defaults`.
+  The contract marks `custom-command` as the bounded user-defined adapter path
+  through `MYTHIFY_TRIAGE_COMMAND` and `MYTHIFY_FANOUT_COMMAND`, and records
+  `custom-http` as metadata-only with execution disabled until its HTTP
+  method, auth, timeout, request, response, cost, and evidence boundaries are
+  explicit.
 - Cost and timeout metadata for role policy and fanout workers. CLI and MCP
   `model_policy` roles now expose `timeout` and `cost` objects, and fanout
   job and task records store billing, timeout source, pricing reference, and

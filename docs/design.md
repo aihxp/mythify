@@ -542,6 +542,13 @@ Classification always returns `model_policy`. It separates:
   posture, timeout metadata fields, cost metadata fields, pricing URLs, and
   `execution_enabled: false`. Hosted execution must be added in a later
   explicit slice.
+- `provider_defaults.custom_adapter_contract`: metadata for user-defined
+  adapter paths. The `command` adapter is enabled only through
+  `MYTHIFY_TRIAGE_COMMAND` and `MYTHIFY_FANOUT_COMMAND`, reads prompts on
+  stdin, obeys role timeouts, writes no Mythify state, and returns material,
+  not verification evidence. The `http` adapter is metadata-only with
+  `execution_enabled: false`; it records env names for a future custom HTTP
+  worker and lists the execution blockers that must be solved first.
 - Resolved role records include `timeout` and `cost` objects. `timeout`
   records `timeout_seconds`, `timeout_source`, `timeout_enforced_by`, and
   `can_override`. `cost` records billing posture, `cost_estimate_supported:
@@ -649,7 +656,8 @@ explicit argument, `MYTHIFY_TRIAGE_ENGINE`, local CLI auto-detection, then
 CLI paths. `claude-cli` defaults to model `haiku`; `codex-cli` and
 `cursor-agent` use their local defaults unless `MYTHIFY_TRIAGE_MODEL` or an
 explicit model is set. The `command` engine reads the triage prompt on stdin
-and must print JSON.
+and must print JSON. It is the custom command adapter path for triage only;
+its output is material, not verification evidence.
 
 ### Smoke test: mcp-server/test/smoke.test.js
 
@@ -932,6 +940,11 @@ endpoint and a model.
 | `anthropic` | POST `https://api.anthropic.com/v1/messages` (anthropic-version 2023-06-01) with `max_tokens` from env. Aliases map: haiku to claude-haiku-4-5, sonnet to claude-sonnet-4-6, opus to claude-opus-4-8, fable to claude-fable-5. Join text blocks. | API key (`ANTHROPIC_API_KEY`) | Any Claude model ID |
 | `openai` | POST `<MYTHIFY_FANOUT_BASE_URL>/chat/completions` with `MYTHIFY_FANOUT_API_KEY`. | Provider API key | Any model the endpoint serves |
 | `command` | Run the `MYTHIFY_FANOUT_COMMAND` shell template; prompt on stdin; stdout is the output; exit 0 is success. | Whatever the command does | Anything (generic CLI agents; also used by CI to test the job machinery with no network) |
+
+The `command` engine is the supported custom command adapter path for fanout.
+It is bounded by fanout validation, worker timeout, context byte caps, and the
+depth guard. Its output is still material for the orchestrator, never final
+verification evidence.
 
 `claude-cli` binary resolution (Claude Desktop launches MCP servers with a
 minimal PATH): `MYTHIFY_FANOUT_CLAUDE_BIN` if set, else `claude` on PATH, else

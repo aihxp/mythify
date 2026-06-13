@@ -21,19 +21,18 @@ Status markers:
 
 ## Active Now
 
-- [>] Custom command or HTTP adapter path.
-  - Current goal: decide how user-defined command and HTTP adapters graduate
-    from metadata to bounded execution.
-  - Next step: map command templates, HTTP requests, auth, timeout,
-    state-write, and evidence boundaries.
-  - Guardrail: no hidden provider fallback, no unbounded command execution,
-    and no treating adapter output as verification evidence.
+- [>] Workflow dashboard or phase view that reveals evidence without
+  decorating self-report.
+  - Current goal: expose plan, outcome, verification, and reflection state in
+    a scan-friendly status view.
+  - Next step: map current `status`, `plan show`, `outcome status`,
+    `verify_run`, and reflection log surfaces into one minimal read-only view.
+  - Guardrail: show executed evidence and current state, not model confidence
+    or completion theater.
 
 ## Next Queue
 
-1. [ ] Workflow dashboard or phase view that reveals evidence without
-   decorating self-report.
-2. [ ] One-core architecture decision after the registry prototype proves
+1. [ ] One-core architecture decision after the registry prototype proves
    enough value.
 
 ## Open Work By Track
@@ -138,12 +137,13 @@ Already shipped in this track:
 
 What remains:
 
-- [ ] Custom command or HTTP adapter path.
 - [ ] Clear audit logs for spawned provider work.
 - [ ] Hosted execution for OpenAI, Anthropic, and OpenAI-compatible APIs.
 
 Already shipped in this track:
 
+- [x] Custom adapter contract separates bounded custom command execution from
+  metadata-only custom HTTP.
 - [x] OpenAI, Anthropic, and hosted OpenAI-compatible provider metadata includes
   auth env names, billing posture, timeout defaults, cost metadata fields, and
   pricing references.
@@ -245,6 +245,11 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add custom adapter contract to CLI and MCP
+  `model_policy.provider_defaults`. Mythify now names `custom-command` as the
+  bounded user-defined path through triage and fanout command engines, while
+  keeping `custom-http` metadata-only until HTTP method, auth, timeout,
+  request, response, cost, and evidence boundaries are explicit.
 - [x] 2026-06-13: add cost and timeout metadata to role policy and fanout
   worker records. Mythify records timeout source, billing posture, pricing
   references, and explicit not-estimated cost status without guessing dollar
@@ -402,6 +407,7 @@ Preserve:
 - [x] API provider adapter path.
 - [x] Per-role provider defaults.
 - [x] Cost and timeout metadata in worker records.
+- [x] Custom command and HTTP adapter contract.
 - [x] CLI/MCP interop matrix for shared mutating operations.
 - [x] Kimi Code CLI adapter proof of concept.
 - [x] OpenCode CLI adapter proof of concept.

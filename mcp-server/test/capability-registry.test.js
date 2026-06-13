@@ -106,6 +106,8 @@ test("researched future adapters are candidates, not public host platforms", () 
   assert.deepEqual(candidateNames, [
     "anthropic-api",
     "antigravity",
+    "custom-command",
+    "custom-http",
     "generic-openai-compatible",
     "google-adk-cli",
     "google-agents-cli",
@@ -134,6 +136,10 @@ test("researched future adapters are candidates, not public host platforms", () 
     listAdapterCandidates("api_provider").map((candidate) => candidate.name).sort(),
     ["anthropic-api", "openai-api", "openai-compatible-hosted"]
   );
+  assert.deepEqual(
+    listAdapterCandidates("custom_adapter").map((candidate) => candidate.name).sort(),
+    ["custom-command", "custom-http"]
+  );
   assert.equal(ADAPTER_CANDIDATES["openai-api"].status, "metadata_supported");
   assert.equal(ADAPTER_CANDIDATES["openai-api"].openai_compatible, true);
   assert.equal(ADAPTER_CANDIDATES["openai-api"].default_base_url, "https://api.openai.com/v1");
@@ -155,6 +161,20 @@ test("researched future adapters are candidates, not public host platforms", () 
     "MYTHIFY_HOSTED_OPENAI_COMPAT_BASE_URL"
   );
   assert.equal(ADAPTER_CANDIDATES["openai-compatible-hosted"].pricing_url_env, "MYTHIFY_HOSTED_OPENAI_COMPAT_PRICING_URL");
+  assert.equal(ADAPTER_CANDIDATES["custom-command"].status, "bounded_execution_supported");
+  assert.equal(ADAPTER_CANDIDATES["custom-command"].execution_enabled, true);
+  assert.deepEqual(ADAPTER_CANDIDATES["custom-command"].command_env, [
+    "MYTHIFY_TRIAGE_COMMAND",
+    "MYTHIFY_FANOUT_COMMAND",
+  ]);
+  assert.equal(ADAPTER_CANDIDATES["custom-command"].input_contract, "prompt_on_stdin");
+  assert.equal(ADAPTER_CANDIDATES["custom-command"].output_is_evidence, false);
+  assert.equal(ADAPTER_CANDIDATES["custom-http"].status, "metadata_only");
+  assert.equal(ADAPTER_CANDIDATES["custom-http"].execution_enabled, false);
+  assert.equal(ADAPTER_CANDIDATES["custom-http"].explicit_enable_required, true);
+  assert.equal(ADAPTER_CANDIDATES["custom-http"].base_url_env, "MYTHIFY_CUSTOM_HTTP_BASE_URL");
+  assert.equal(ADAPTER_CANDIDATES["custom-http"].can_run_http_worker, false);
+  assert.equal(ADAPTER_CANDIDATES["custom-http"].output_is_evidence, false);
   assert.equal(ADAPTER_CANDIDATES["generic-openai-compatible"].status, "local_backend_supported");
   assert.equal(ADAPTER_CANDIDATES["generic-openai-compatible"].can_probe, true);
   assert.equal(ADAPTER_CANDIDATES["generic-openai-compatible"].can_run_local_roles, true);

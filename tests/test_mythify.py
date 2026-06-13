@@ -375,6 +375,7 @@ class TestClassification(CliTestCase):
             "model_output_not_verification",
         )
         api_contract = policy["provider_defaults"]["api_provider_contract"]
+        custom_contract = policy["provider_defaults"]["custom_adapter_contract"]
         self.assertEqual(api_contract["status"], "metadata_supported")
         self.assertFalse(api_contract["execution_enabled"])
         self.assertEqual(
@@ -396,6 +397,19 @@ class TestClassification(CliTestCase):
             api_contract["providers"]["openai-compatible-hosted"]["base_url_env"],
             "MYTHIFY_HOSTED_OPENAI_COMPAT_BASE_URL",
         )
+        self.assertEqual(custom_contract["execution_policy"], "explicit_only_no_hidden_fallback")
+        self.assertTrue(custom_contract["command"]["execution_enabled"])
+        self.assertEqual(
+            custom_contract["command"]["command_env"],
+            ["MYTHIFY_TRIAGE_COMMAND", "MYTHIFY_FANOUT_COMMAND"],
+        )
+        self.assertFalse(custom_contract["command"]["output_is_evidence"])
+        self.assertFalse(custom_contract["http"]["execution_enabled"])
+        self.assertEqual(
+            custom_contract["http"]["base_url_env"],
+            "MYTHIFY_CUSTOM_HTTP_BASE_URL",
+        )
+        self.assertIn("method_allowlist", custom_contract["http"]["required_before_execution"])
         self.assertEqual(providers["session"]["provider"], "host")
         self.assertEqual(providers["triage"]["provider"], "host_cli")
         self.assertEqual(providers["reader"]["provider"], "local_openai_compatible")

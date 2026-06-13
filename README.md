@@ -339,6 +339,14 @@ have to guess which model setting applies where:
   endpoints. It records auth env names, billing posture, timeout fields, cost
   metadata fields, pricing URLs, and `execution_enabled: false` until a later
   slice adds explicit hosted execution.
+  `provider_defaults.custom_adapter_contract` records two user-defined adapter
+  paths. `command` is enabled only through `MYTHIFY_TRIAGE_COMMAND` or
+  `MYTHIFY_FANOUT_COMMAND`, reads the prompt on stdin, obeys role timeouts,
+  writes no Mythify state, and returns material rather than verification
+  evidence. `http` is metadata-only: it records env names for a future custom
+  HTTP worker, but keeps `execution_enabled: false` until method allowlists,
+  auth handling, request templating, response extraction, cost metadata, and
+  evidence boundaries are explicitly designed.
   Each resolved role also includes `timeout` and `cost` objects. `timeout`
   records the timeout seconds, source, enforcer, and whether callers can
   override it. `cost` records billing posture, estimate support, explicit
@@ -461,6 +469,10 @@ your terminal.
 | `anthropic` | POST `https://api.anthropic.com/v1/messages`. | API key (`ANTHROPIC_API_KEY`) | Any Claude model ID |
 | `openai` | POST `<MYTHIFY_FANOUT_BASE_URL>/chat/completions`. | Provider API key (`MYTHIFY_FANOUT_API_KEY`) | Any model the endpoint serves |
 | `command` | Runs the `MYTHIFY_FANOUT_COMMAND` shell template; prompt on stdin, stdout is the output, exit 0 is success. | Whatever the command does | Anything (generic CLI agents) |
+
+The `command` engine is the supported custom command adapter path. Its output
+is still worker material, not verification evidence; the orchestrator must
+inspect it and then run `verify_run` for any completion claim.
 
 The engine is set by `MYTHIFY_FANOUT_ENGINE`, or auto-detected in this order:
 `claude-cli` if a claude binary resolves, else `codex-cli` if a codex binary
