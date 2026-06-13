@@ -21,21 +21,20 @@ Status markers:
 
 ### In Progress
 
-- [>] Step-bound verification records
-  - Current goal: make verification evidence easier to audit against the plan
-    step that produced it.
-  - Next step: design the verification record fields and compatibility path.
-  - Guardrail: keep existing verification readers working.
+- [>] CLI/MCP interop coverage
+  - Current goal: prove mutating operations behave the same through the CLI and
+    MCP server.
+  - Next step: map every mutating operation and current spot-check coverage.
+  - Guardrail: keep tests focused on shared state contracts.
 
 ### Next To Do
 
-1. [ ] Add step-bound verification records.
-   - Bind verification records to plan and step ids.
-   - Make completion evidence easier to audit later.
-2. [ ] Expand CLI/MCP interop coverage.
+1. [ ] Expand CLI/MCP interop coverage.
    - Move from spot checks to every mutating operation.
-3. [ ] Add whole-state no-mutation checks for refusal paths.
+2. [ ] Add whole-state no-mutation checks for refusal paths.
    - Prove guarded tools leave project state untouched when they refuse.
+3. [ ] Add operation registry prototype for a small surface.
+   - Use it only where it reduces drift.
 
 ### Later
 
@@ -87,6 +86,7 @@ Status markers:
 - [x] 2026-06-13: add role-limited local model backend for localhost
   OpenAI-compatible reader and triage runs.
 - [x] 2026-06-13: add bounded Kimi Code and OpenCode host CLI worker runs.
+- [x] 2026-06-13: add step-bound verification records for CLI and MCP evidence.
 
 ## Track Backlogs
 
@@ -99,7 +99,6 @@ product work.
 Open:
 
 - [ ] Operation registry prototype for a small surface.
-- [ ] Step-bound verification records.
 - [ ] Whole-state no-mutation checks for refusal paths.
 - [ ] Deployed-copy version handshake between protocol text and CLI.
 - [ ] Log compaction or rotation for long-lived `.mythify` directories.
@@ -111,6 +110,7 @@ Done:
 
 - [x] Capability registry exists in `mcp-server/src/capability-registry.js`.
 - [x] Registry data is shown in `host_model_switch` status output.
+- [x] Verification records include active plan and in-progress step context.
 
 ### Model Assignment
 
@@ -327,7 +327,7 @@ Preserve:
 ### v2.6
 
 - [ ] Operation registry prototype for a small surface.
-- [ ] Step-bound verification records.
+- [x] Step-bound verification records.
 - [ ] Whole-state refusal no-mutation checks.
 - [ ] Host model switch capability contract and status model.
 - [x] Agents CLI and ADK lifecycle spike.
@@ -348,8 +348,8 @@ Preserve:
 - [ ] Per-role provider defaults.
 - [ ] Cost and timeout metadata in worker records.
 - [ ] CLI/MCP interop matrix for every mutating operation.
-- [ ] Kimi Code CLI adapter proof of concept.
-- [ ] OpenCode CLI adapter proof of concept.
+- [x] Kimi Code CLI adapter proof of concept.
+- [x] OpenCode CLI adapter proof of concept.
 
 ### v3.0
 

@@ -693,6 +693,30 @@ class TestStepUpdates(CliTestCase):
         self.assertEqual(plan["steps"][0]["status"], "completed")
         self.assertIn("Next pending", result.stdout)
 
+    def test_gate_on_requires_bound_verification_for_the_target_step(self):
+        state, plan_file = self.make_plan()
+        in_progress = self.run_cli("step", "1", "in_progress")
+        self.assertEqual(in_progress.returncode, 0, in_progress.stderr)
+        verified = self.run_cli(
+            "verify", "run", shell_py("raise SystemExit(0)"),
+            "--claim", "step one verified",
+        )
+        self.assertEqual(verified.returncode, 0, verified.stderr)
+        record = self.read_jsonl(state / "verifications.jsonl")[-1]
+        self.assertEqual(record["plan"], "step-plan")
+        self.assertEqual(record["step_id"], 1)
+        self.assertEqual(record["step_title"], "Do first thing")
+        self.assertEqual(record["step_status"], "in_progress")
+
+        result = self.run_cli(
+            "step", "2", "completed", "step two should not borrow step one evidence",
+            env_extra={"MYTHIFY_REQUIRE_VERIFIED_STEP": "1"},
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(VERIFIED_EVIDENCE_MESSAGE, result.stderr)
+        plan = self.read_json(plan_file)
+        self.assertEqual(plan["steps"][1]["status"], "pending")
+
     def test_gate_on_with_only_failed_verification_refused(self):
         state, plan_file = self.make_plan()
         in_progress = self.run_cli("step", "1", "in_progress")
@@ -884,6 +908,8 @@ class TestOutcome(CliTestCase):
         verification = self.read_jsonl(state / "verifications.jsonl")[-1]
         self.assertEqual(verification["outcome"], goal["id"])
         self.assertIs(verification["verified"], True)
+        self.assertIsNone(verification["plan"])
+        self.assertIsNone(verification["step_id"])
 
     def test_outcome_check_fails_after_iteration_budget(self):
         state = self.init_workspace()
@@ -940,13 +966,18 @@ class TestVerify(CliTestCase):
         self.assertEqual(
             set(record.keys()),
             {"kind", "claim", "command", "exit_code", "duration_seconds",
-             "stdout_tail", "stderr_tail", "verified", "timestamp"},
+             "stdout_tail", "stderr_tail", "verified", "timestamp", "plan",
+             "step_id", "step_title", "step_status"},
         )
         self.assertEqual(record["kind"], "executed")
         self.assertEqual(record["claim"], "exit zero works")
         self.assertEqual(record["exit_code"], 0)
         self.assertIs(record["verified"], True)
         self.assertIsInstance(record["duration_seconds"], float)
+        self.assertIsNone(record["plan"])
+        self.assertIsNone(record["step_id"])
+        self.assertIsNone(record["step_title"])
+        self.assertIsNone(record["step_status"])
 
     def test_run_without_disable_var_unchanged_passing(self):
         state = self.init_workspace()
@@ -1033,12 +1064,17 @@ class TestVerify(CliTestCase):
         record = self.read_jsonl(state / "verifications.jsonl")[-1]
         self.assertEqual(
             set(record.keys()),
-            {"kind", "claim", "evidence", "verified", "timestamp"},
+            {"kind", "claim", "evidence", "verified", "timestamp", "plan",
+             "step_id", "step_title", "step_status"},
         )
         self.assertEqual(record["kind"], "attested")
         self.assertEqual(record["claim"], "docs updated")
         self.assertEqual(record["evidence"], "read the diff")
         self.assertIsNone(record["verified"])
+        self.assertIsNone(record["plan"])
+        self.assertIsNone(record["step_id"])
+        self.assertIsNone(record["step_title"])
+        self.assertIsNone(record["step_status"])
 
 
 class TestReflect(CliTestCase):

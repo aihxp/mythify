@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MCP `host_cli_run` for bounded Kimi Code and OpenCode non-interactive worker
   runs. The output is marked as material, not verification evidence, and the
   tool writes no Mythify state.
+- Step-bound verification record fields. CLI and MCP verification entries now
+  include active plan and in-progress step context when available, while older
+  logs and null-context records remain compatible.
 
 ## [2.5.0] - 2026-06-12
 

@@ -274,8 +274,8 @@ then `.json`. This makes same-title lessons collision-free.
 verifications.jsonl, one JSON object per line. Two kinds:
 
 ```json
-{"kind": "executed", "claim": "str or null", "command": "str", "exit_code": 0, "duration_seconds": 0.03, "stdout_tail": "str", "stderr_tail": "str", "verified": true, "timestamp": "ISO-8601"}
-{"kind": "attested", "claim": "str", "evidence": "str", "verified": null, "timestamp": "ISO-8601"}
+{"kind": "executed", "claim": "str or null", "command": "str", "exit_code": 0, "duration_seconds": 0.03, "stdout_tail": "str", "stderr_tail": "str", "verified": true, "timestamp": "ISO-8601", "plan": "slug or null", "step_id": 1, "step_title": "str or null", "step_status": "in_progress or null"}
+{"kind": "attested", "claim": "str", "evidence": "str", "verified": null, "timestamp": "ISO-8601", "plan": "slug or null", "step_id": 1, "step_title": "str or null", "step_status": "in_progress or null"}
 ```
 
 `verified` is a boolean only for executed verifications (true when exit_code == 0).
@@ -283,6 +283,12 @@ Attested entries always have `verified: null`: a self-report is never marked ver
 On timeout, record `exit_code: -1`, `verified: false`, and append
 `"(timed out after N seconds)"` to `stderr_tail`. Output tails keep the last 4000
 characters of each stream.
+
+Every new verification record also captures active step context. If an active
+plan exists and exactly the first currently `in_progress` step can be found,
+record `plan`, `step_id`, `step_title`, and `step_status`. If no active plan or
+in-progress step exists, write those fields with `null`. Readers must tolerate
+older verification records that do not contain these fields.
 
 reflections.jsonl, one JSON object per line:
 
@@ -946,8 +952,11 @@ tool:
   after the non-empty-RESULT check.
 - Evidence is satisfied when `verifications.jsonl` contains at least one record
   with `kind == "executed"` and `verified == true` whose `timestamp` is greater
-  than or equal to the lower bound below. Attested records (`kind == "attested"`)
-  never satisfy the gate.
+  than or equal to the lower bound below. New records with non-null `plan` or
+  `step_id` fields must match the target plan slug and step id. Older records
+  without step-bound fields, and new records with null step context, keep the
+  previous timestamp-only behavior for compatibility. Attested records
+  (`kind == "attested"`) never satisfy the gate.
 - Lower bound: the step's `updated_at` if the step has one (it was previously
   touched, for example set to `in_progress`); otherwise the parent plan's
   `created` timestamp. Comparison is string comparison of ISO-8601 timestamps,

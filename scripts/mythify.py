@@ -632,6 +632,46 @@ def next_pending_step(plan):
     return None
 
 
+def verification_step_context(state):
+    slug = get_active_slug(state)
+    if not slug:
+        return {
+            "plan": None,
+            "step_id": None,
+            "step_title": None,
+            "step_status": None,
+        }
+    plan = load_plan(state, slug)
+    if plan is None:
+        return {
+            "plan": None,
+            "step_id": None,
+            "step_title": None,
+            "step_status": None,
+        }
+    for step in plan.get("steps", []):
+        if step.get("status") == "in_progress":
+            return {
+                "plan": slug,
+                "step_id": step.get("id"),
+                "step_title": step.get("title"),
+                "step_status": step.get("status"),
+            }
+    return {
+        "plan": None,
+        "step_id": None,
+        "step_title": None,
+        "step_status": None,
+    }
+
+
+def verification_record_matches_step(record, slug, step_id):
+    has_bound_context = record.get("plan") is not None or record.get("step_id") is not None
+    if not has_bound_context:
+        return True
+    return record.get("plan") == slug and record.get("step_id") == step_id
+
+
 def format_step_line(step, indent="  "):
     icon = STATUS_ICONS.get(step.get("status", "pending"), "[ ]")
     return "{0}{1} {2}. {3}".format(indent, icon, step.get("id"), step.get("title"))
@@ -2405,6 +2445,7 @@ def cmd_step(args, state):
             record.get("kind") == "executed"
             and record.get("verified") is True
             and str(record.get("timestamp", "")) >= lower_bound
+            and verification_record_matches_step(record, slug, step_id)
             for record in records
         )
         if not satisfied:
@@ -2684,22 +2725,21 @@ def cmd_outcome_check(args, state):
     if status_after == "succeeded":
         goal["stop_reason"] = "success criteria verified"
     save_outcome(state, slug, goal)
-    append_jsonl(
-        state / "verifications.jsonl",
-        {
-            "kind": "executed",
-            "claim": "Outcome {0}: {1}".format(slug, goal.get("success_criteria", "")),
-            "command": goal["verify_command"],
-            "exit_code": verify["exit_code"],
-            "duration_seconds": verify["duration_seconds"],
-            "stdout_tail": verify["stdout_tail"],
-            "stderr_tail": verify["stderr_tail"],
-            "verified": verify["verified"],
-            "timestamp": record["timestamp"],
-            "outcome": slug,
-            "iteration": next_iteration,
-        },
-    )
+    verification_record = {
+        "kind": "executed",
+        "claim": "Outcome {0}: {1}".format(slug, goal.get("success_criteria", "")),
+        "command": goal["verify_command"],
+        "exit_code": verify["exit_code"],
+        "duration_seconds": verify["duration_seconds"],
+        "stdout_tail": verify["stdout_tail"],
+        "stderr_tail": verify["stderr_tail"],
+        "verified": verify["verified"],
+        "timestamp": record["timestamp"],
+        "outcome": slug,
+        "iteration": next_iteration,
+    }
+    verification_record.update(verification_step_context(state))
+    append_jsonl(state / "verifications.jsonl", verification_record)
     if args.json_output:
         print(json.dumps({"goal": goal, "record": record}, indent=2))
     else:
@@ -2817,6 +2857,7 @@ def cmd_verify_run(args, state):
         "verified": verified,
         "timestamp": now_iso(),
     }
+    record.update(verification_step_context(state))
     append_jsonl(state / "verifications.jsonl", record)
     label = args.claim or args.command
     if verified:
@@ -2840,6 +2881,7 @@ def cmd_verify_claim(args, state):
         "verified": None,
         "timestamp": now_iso(),
     }
+    record.update(verification_step_context(state))
     append_jsonl(state / "verifications.jsonl", record)
     print(
         "[WARN] ATTESTED: {0} (self-reported, not machine-checked; "

@@ -524,6 +524,51 @@ function resolvePlan(name) {
   return { slug: active, plan };
 }
 
+function verificationStepContext() {
+  const active = readActiveSlug();
+  if (!active || !fs.existsSync(planPath(active))) {
+    return {
+      plan: null,
+      step_id: null,
+      step_title: null,
+      step_status: null,
+    };
+  }
+  const plan = readJsonRecover(planPath(active), () => null);
+  if (plan === null) {
+    return {
+      plan: null,
+      step_id: null,
+      step_title: null,
+      step_status: null,
+    };
+  }
+  const step = (plan.steps || []).find((item) => item.status === "in_progress");
+  if (!step) {
+    return {
+      plan: null,
+      step_id: null,
+      step_title: null,
+      step_status: null,
+    };
+  }
+  return {
+    plan: active,
+    step_id: step.id,
+    step_title: step.title,
+    step_status: step.status,
+  };
+}
+
+function verificationRecordMatchesStep(record, slug, stepId) {
+  const hasBoundContext = record && (record.plan !== null && record.plan !== undefined
+    || record.step_id !== null && record.step_id !== undefined);
+  if (!hasBoundContext) {
+    return true;
+  }
+  return record.plan === slug && record.step_id === stepId;
+}
+
 function savePlan(slug, plan) {
   plan.last_updated = isoNow();
   writeJsonAtomic(planPath(slug), plan);
@@ -4080,7 +4125,8 @@ server.registerTool(
           record.kind === "executed" &&
           record.verified === true &&
           typeof record.timestamp === "string" &&
-          record.timestamp >= lowerBound
+          record.timestamp >= lowerBound &&
+          verificationRecordMatchesStep(record, slug, step_id)
       );
       if (!hasPassingRun) {
         return (
@@ -4340,6 +4386,7 @@ server.registerTool(
       timestamp: record.timestamp,
       outcome: slug,
       iteration: nextIteration,
+      ...verificationStepContext(),
     });
     if (format === "json") {
       const prefix = verified ? "[OK]" : "[FAIL]";
@@ -4530,6 +4577,7 @@ server.registerTool(
       stderr_tail: stderrTail,
       verified,
       timestamp: isoNow(),
+      ...verificationStepContext(),
     };
     appendJsonl(verificationsPath(), record);
     const label = record.claim !== null ? record.claim : command;
@@ -4569,6 +4617,7 @@ server.registerTool(
       evidence,
       verified: null,
       timestamp: isoNow(),
+      ...verificationStepContext(),
     };
     appendJsonl(verificationsPath(), record);
     return `[WARN] ATTESTED: ${claim} (self-reported, not machine-checked; prefer verify run)`;

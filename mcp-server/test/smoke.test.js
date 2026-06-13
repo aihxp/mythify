@@ -330,6 +330,13 @@ test("mythify MCP server smoke test", async (t) => {
       assert.ok(passed.startsWith("[OK]"), `passing run reports [OK]: ${passed}`);
       assert.match(passed, /VERIFIED/, "passing run is VERIFIED");
       assert.doesNotMatch(passed, /UNVERIFIED/, "passing run is not UNVERIFIED");
+      const passedRecord = JSON.parse(
+        fs.readFileSync(path.join(stateDir, "verifications.jsonl"), "utf8").trim().split(/\n/).at(-1)
+      );
+      assert.equal(passedRecord.plan, null);
+      assert.equal(passedRecord.step_id, null);
+      assert.equal(passedRecord.step_title, null);
+      assert.equal(passedRecord.step_status, null);
 
       const failed = textOf(
         await client.callTool({
@@ -568,6 +575,13 @@ test("MYTHIFY_REQUIRE_VERIFIED_STEP gate on plan_update_step", async (t) => {
       );
       assert.ok(passed.startsWith("[OK]"), `passing run reports [OK]: ${passed}`);
       assert.match(passed, /VERIFIED/, "passing run is VERIFIED");
+      const verificationRecord = JSON.parse(
+        fs.readFileSync(path.join(stateDir, "verifications.jsonl"), "utf8").trim().split(/\n/).at(-1)
+      );
+      assert.equal(verificationRecord.plan, "gate-goal");
+      assert.equal(verificationRecord.step_id, 1);
+      assert.equal(verificationRecord.step_title, "Gated step");
+      assert.equal(verificationRecord.step_status, "in_progress");
 
       const accepted = textOf(
         await client.callTool({
@@ -589,6 +603,52 @@ test("MYTHIFY_REQUIRE_VERIFIED_STEP gate on plan_update_step", async (t) => {
         "completed",
         "completion with passing evidence marks the step completed"
       );
+    });
+
+    await t.test("bound verification for one step cannot complete another step", async () => {
+      const created = textOf(
+        await client.callTool({
+          name: "plan_create",
+          arguments: {
+            goal: "Gate mismatch",
+            steps: [
+              { title: "Step one", success_criteria: "first check passes" },
+              { title: "Step two", success_criteria: "second check passes" },
+            ],
+          },
+        })
+      );
+      assert.ok(created.startsWith("[OK]"), `plan_create reports [OK]: ${created}`);
+      const inProgress = textOf(
+        await client.callTool({
+          name: "plan_update_step",
+          arguments: { step_id: 1, status: "in_progress" },
+        })
+      );
+      assert.ok(inProgress.startsWith("[OK]"), `in_progress succeeds: ${inProgress}`);
+      const passed = textOf(
+        await client.callTool({
+          name: "verify_run",
+          arguments: { command: 'node -e "process.exit(0)"', claim: "step one only" },
+        })
+      );
+      assert.ok(passed.startsWith("[OK]"), `verify_run succeeds: ${passed}`);
+      const refused = textOf(
+        await client.callTool({
+          name: "plan_update_step",
+          arguments: {
+            step_id: 2,
+            status: "completed",
+            result: "must not borrow step one evidence",
+          },
+        })
+      );
+      assert.ok(refused.startsWith("[FAIL]"), `mismatched evidence refuses: ${refused}`);
+      assert.match(refused, /Verified evidence required/);
+      const planAfterRefusal = JSON.parse(
+        fs.readFileSync(path.join(stateDir, "plans", "gate-mismatch.json"), "utf8")
+      );
+      assert.equal(planAfterRefusal.steps[1].status, "pending");
     });
   } finally {
     await client.close();

@@ -84,6 +84,9 @@ Environment variables:
   (CLI `step` or MCP `plan_update_step`) then requires a recorded passing `verify run`
   since the step started, not just a non-empty result. Default off keeps the existing
   behavior.
+- New verification records include active step context when a step is
+  `in_progress`: `plan`, `step_id`, `step_title`, and `step_status`. Null
+  context and older records remain compatible with existing readers.
 
 ## Quick start C: build the skill
 
