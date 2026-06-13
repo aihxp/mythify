@@ -816,6 +816,76 @@ function engineCostMetadata(engine) {
   };
 }
 
+function engineProvider(engine) {
+  if (["claude-cli", "codex-cli", "cursor-agent"].includes(engine)) {
+    return "host_cli";
+  }
+  if (["anthropic", "openai"].includes(engine)) {
+    return "api_provider";
+  }
+  if (engine === "command") {
+    return "custom_command";
+  }
+  return "unknown";
+}
+
+function sha256Hex(text) {
+  return crypto.createHash("sha256").update(String(text || ""), "utf8").digest("hex");
+}
+
+function auditCostMetadata(task) {
+  return {
+    billing: task.billing || "unknown",
+    cost_tracking: task.cost_tracking || "metadata_only_no_estimate",
+    cost_estimate_status: task.cost_estimate_status || "not_estimated",
+    cost_estimate_cents: task.cost_estimate_cents ?? null,
+    pricing_url: task.pricing_url || "",
+  };
+}
+
+function providerAuditPath() {
+  return path.join(io.resolveStateDir(), "provider-audit.jsonl");
+}
+
+function appendProviderAudit(record) {
+  const auditPath = providerAuditPath();
+  fs.mkdirSync(path.dirname(auditPath), { recursive: true });
+  fs.appendFileSync(auditPath, `${JSON.stringify(record)}\n`, "utf8");
+}
+
+function providerAuditBase(job, task, prompt) {
+  const cost = auditCostMetadata(task);
+  return {
+    timestamp: io.isoNow(),
+    surface: "fanout_worker",
+    provider: engineProvider(task.engine),
+    provider_execution_scope: "fanout_worker_only",
+    job_id: job.id,
+    task_id: task.id,
+    task_title: task.title,
+    role: task.role || "worker",
+    engine: task.engine,
+    model: task.model || "",
+    model_source: task.model_source || "",
+    model_tier: task.model_tier || "unknown",
+    effort: task.effort || "medium",
+    speed: task.speed || "auto",
+    billing: cost.billing,
+    cost_metadata: cost,
+    cost_metadata_fields: Object.keys(cost).sort(),
+    request_metadata: {
+      prompt_sha256: sha256Hex(prompt),
+      prompt_bytes: Buffer.byteLength(String(prompt || ""), "utf8"),
+      prompt_redacted: true,
+      timeout_seconds: task.timeout_seconds,
+      timeout_source: task.timeout_source,
+    },
+    output_material_status: "material_not_verification",
+    verification_boundary: "worker output must be merged by the orchestrator and verified with verify_run or outcome_check",
+    records_verification_evidence: false,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Worker prompt assembly
 // ---------------------------------------------------------------------------
@@ -1443,6 +1513,11 @@ async function runOneTask(job, jobDir, task, prompt, timeoutSeconds, projectRoot
   task.status = "running";
   task.started_at = io.isoNow();
   saveJob(job, jobDir);
+  appendProviderAudit({
+    ...providerAuditBase(job, task, prompt),
+    event: "fanout_task_started",
+    status: task.status,
+  });
   const startedNs = process.hrtime.bigint();
   let outcome;
   try {
@@ -1481,6 +1556,18 @@ async function runOneTask(job, jobDir, task, prompt, timeoutSeconds, projectRoot
   task.error = outcome.ok ? null : outcome.error || "Worker failed with no error detail.";
   task.output_bytes = outputBytes;
   saveJob(job, jobDir);
+  appendProviderAudit({
+    ...providerAuditBase(job, task, prompt),
+    event: "fanout_task_finished",
+    status: task.status,
+    duration_seconds: task.duration_seconds,
+    output_metadata: {
+      output_file: task.output_file,
+      output_bytes: task.output_bytes,
+      output_redacted: true,
+      error_present: task.error !== null,
+    },
+  });
 }
 
 // Drains the task list through a fixed-size pool of sequential lanes.

@@ -1331,6 +1331,7 @@ visibility infers from `purpose` and task prompts, then defaults to summary.
 .mythify/fanout/<job_id>/
 |-- job.json
 `-- task-<id>-output.md
+.mythify/provider-audit.jsonl
 ```
 
 job.json (atomic writes on every transition):
@@ -1372,6 +1373,27 @@ job.json (atomic writes on every transition):
   ]
 }
 ```
+
+`provider-audit.jsonl` is append-only and receives one start event and one
+finish event per spawned fanout task. Each row records:
+
+- `surface: "fanout_worker"`, provider class, engine, model, role, effort,
+  speed, job id, task id, and task title.
+- Billing and cost metadata fields: billing posture, `cost_tracking`,
+  `cost_estimate_status`, `cost_estimate_cents`, and `pricing_url`.
+- Redacted request metadata: prompt SHA-256, prompt byte count, timeout
+  seconds, timeout source, and `prompt_redacted: true`.
+- Redacted output metadata on finish: output file, output byte count,
+  `output_redacted: true`, and whether an error was present.
+- `output_material_status: "material_not_verification"`,
+  `records_verification_evidence: false`, and the verifier boundary:
+  worker output must be merged by the orchestrator and verified with
+  `verify_run` or `outcome_check`.
+
+The audit log must never store raw prompts, raw context blocks, API keys,
+authorization headers, or worker output. It audits existing fanout worker
+execution only; it does not enable any separate hosted provider execution path
+or upgrade provider output into evidence.
 
 ### Configuration
 

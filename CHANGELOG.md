@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Fanout provider worker audit logs. Each spawned fanout task now appends
+  redacted start and finish rows to `.mythify/provider-audit.jsonl`, recording
+  provider class, engine, model, role, billing posture, cost metadata fields,
+  prompt hash and byte count, output byte count, and the material-only
+  verification boundary without storing raw prompts or worker output.
 - `scripts/local_model_eval.py` now emits a `fanout_value` report block. It
   records helpful and waste-prone task shapes, per-scenario fanout-fit
   metadata, verifier-backed single-worker sufficiency signals, and a caveat

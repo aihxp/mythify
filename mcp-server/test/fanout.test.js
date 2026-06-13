@@ -104,6 +104,15 @@ function jobIdOf(startText) {
   return match[0];
 }
 
+function readJsonl(filePath) {
+  return fs
+    .readFileSync(filePath, "utf8")
+    .trim()
+    .split(/\r?\n/)
+    .filter((line) => line !== "")
+    .map((line) => JSON.parse(line));
+}
+
 async function waitForAllFinished(client, jobId, deadlineMs = 60000) {
   const deadline = Date.now() + deadlineMs;
   for (;;) {
@@ -198,6 +207,40 @@ test("fanout with the command engine", async (t) => {
       );
       assert.equal(job.visibility, "summary");
       assert.equal(job.visibility_source, "default");
+      const auditPath = path.join(stateDir, "provider-audit.jsonl");
+      const audit = readJsonl(auditPath).filter((row) => row.job_id === threeTaskJobId);
+      assert.equal(audit.length, 6, "each task writes start and finish audit events");
+      const startedEvents = audit.filter((row) => row.event === "fanout_task_started");
+      const finishedEvents = audit.filter((row) => row.event === "fanout_task_finished");
+      assert.equal(startedEvents.length, 3);
+      assert.equal(finishedEvents.length, 3);
+      for (const row of audit) {
+        assert.equal(row.surface, "fanout_worker");
+        assert.equal(row.provider, "custom_command");
+        assert.equal(row.provider_execution_scope, "fanout_worker_only");
+        assert.equal(row.billing, "user_defined");
+        assert.deepEqual(row.cost_metadata_fields, [
+          "billing",
+          "cost_estimate_cents",
+          "cost_estimate_status",
+          "cost_tracking",
+          "pricing_url",
+        ]);
+        assert.equal(row.cost_metadata.cost_estimate_status, "not_estimated");
+        assert.equal(row.output_material_status, "material_not_verification");
+        assert.equal(row.records_verification_evidence, false);
+        assert.match(row.verification_boundary, /verify_run or outcome_check/);
+        assert.equal(row.request_metadata.prompt_redacted, true);
+        assert.equal(row.request_metadata.prompt_sha256.length, 64);
+        assert.ok(row.request_metadata.prompt_bytes > 0);
+        assert.equal(JSON.stringify(row).includes("alpha deliverable 111"), false);
+        assert.equal(JSON.stringify(row).includes("WORKER-MARKER"), false);
+      }
+      for (const row of finishedEvents) {
+        assert.equal(row.output_metadata.output_redacted, true);
+        assert.ok(row.output_metadata.output_bytes > 0);
+        assert.equal(typeof row.duration_seconds, "number");
+      }
     });
 
     await t.test("fanout visibility can infer quiet or use explicit verbose", async () => {

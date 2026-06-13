@@ -212,6 +212,7 @@ Each project owns a `.mythify/` directory:
 |-- logs/
 |   `-- archive/
 |       `-- <log-stem>-<YYYYMMDDHHMMSS>.jsonl
+|-- provider-audit.jsonl         append-only spawned provider worker audit log
 |-- verifications.jsonl
 `-- reflections.jsonl
 ```
@@ -492,6 +493,14 @@ your terminal.
 The `command` engine is the supported custom command adapter path. Its output
 is still worker material, not verification evidence; the orchestrator must
 inspect it and then run `verify_run` for any completion claim.
+
+Every spawned fanout task appends redacted start and finish events to
+`.mythify/provider-audit.jsonl`. The audit rows record the fanout surface,
+provider class (`host_cli`, `api_provider`, or `custom_command`), engine,
+model, role, billing posture, cost metadata fields, timeout metadata, prompt
+hash and byte count, output byte count, and the verification boundary. They do
+not store raw prompts or worker output, and they explicitly mark worker output
+as material rather than verification evidence.
 
 The engine is set by `MYTHIFY_FANOUT_ENGINE`, or auto-detected in this order:
 `claude-cli` if a claude binary resolves, else `codex-cli` if a codex binary

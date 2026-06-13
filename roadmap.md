@@ -21,15 +21,14 @@ Status markers:
 
 ## Active Now
 
-- [>] Provider worker audit logs.
-  - Current goal: make spawned provider work auditable before hosted API
-    execution is enabled.
-  - Next step: map current provider metadata, fanout job records, and hosted
-    execution-disabled paths so the audit log schema does not imply execution
-    exists before it does.
-  - Guardrail: audit logs can record requests, providers, billing posture,
-    cost metadata fields, and evidence boundaries, but they must not treat
-    provider output as verification evidence.
+- [>] Hosted provider execution guardrails.
+  - Current goal: prepare hosted execution for OpenAI, Anthropic, and
+    OpenAI-compatible APIs without surprise billing or evidence upgrades.
+  - Next step: map provider metadata, auth env names, billing posture,
+    provider audit logs, and existing fanout API engine behavior before adding
+    any new hosted execution path.
+  - Guardrail: no implicit cross-provider fallback, no raw secret logging, and
+    provider output remains material until a verifier runs.
 
 ## Next Queue
 
@@ -137,11 +136,11 @@ Already shipped in this track:
 
 What remains:
 
-- [>] Clear audit logs for spawned provider work.
-- [ ] Hosted execution for OpenAI, Anthropic, and OpenAI-compatible APIs.
+- [>] Hosted execution for OpenAI, Anthropic, and OpenAI-compatible APIs.
 
 Already shipped in this track:
 
+- [x] Clear audit logs for spawned provider work.
 - [x] Custom adapter contract separates bounded custom command execution from
   metadata-only custom HTTP.
 - [x] OpenAI, Anthropic, and hosted OpenAI-compatible provider metadata includes
@@ -284,6 +283,13 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add provider worker audit logs.
+  Fanout worker task start and finish events now append to
+  `.mythify/provider-audit.jsonl`, recording provider class, engine, model,
+  role, billing posture, cost metadata fields, redacted prompt hash and byte
+  count, redacted output byte count, and the material-only verification
+  boundary without storing raw prompts, context, API keys, authorization
+  headers, or worker output.
 - [x] 2026-06-13: add fanout value evaluation reporting.
   `scripts/local_model_eval.py` now emits `fanout_value`, a policy and
   harness-evidence report showing helpful and waste-prone task shapes,
