@@ -19,6 +19,9 @@ Implementation status:
 - Provider probe slice landed in `provider_probe`: a generic OpenAI-compatible
   endpoint can be checked through `/v1/models` and `/v1/chat/completions`, and
   the result is marked as material, not verification evidence.
+- Host CLI probe slice landed in `host_cli_probe`: Kimi Code and OpenCode can
+  be checked through version and help commands without executing prompts or
+  enabling worker execution.
 - Local provider worker execution is not supported yet. The next slice should
   add a role-limited execution path before claiming reader or triage support.
 
@@ -443,11 +446,13 @@ This prevents Colab CLI and Agents CLI from being squeezed into the wrong box.
    completion request.
 2. Done 2026-06-12: prototype a generic OpenAI-compatible provider probe
    against a fake server.
-3. Add a real Kimi Code adapter spike:
+3. Done 2026-06-12: add Kimi Code and OpenCode CLI probe support with offline
+   stub tests.
+4. Add a real Kimi Code adapter spike:
    `kimi -p "summarize this repository"`.
-4. Add a real OpenCode adapter spike:
+5. Add a real OpenCode adapter spike:
    `opencode run --format json --model <provider/model>`.
-5. Repair Antigravity install or update the `agy` shim, then probe `agy -p`,
+6. Repair Antigravity install or update the `agy` shim, then probe `agy -p`,
    `/model`, `/mcp`, and model settings behavior.
-6. Create a Colab CLI spike plan without running billable accelerator work.
-7. Create an Agents CLI spike plan around `agents-cli eval`, not deployment.
+7. Create a Colab CLI spike plan without running billable accelerator work.
+8. Create an Agents CLI spike plan around `agents-cli eval`, not deployment.

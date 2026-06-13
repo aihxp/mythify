@@ -169,15 +169,19 @@ export const ADAPTER_CANDIDATES = {
   },
   "kimi-code": {
     kind: "host",
-    status: "candidate",
+    status: "probe_supported",
     local: false,
     openai_compatible: false,
+    can_probe: true,
+    can_run_noninteractive_prompt: false,
   },
   opencode: {
     kind: "host",
-    status: "candidate",
+    status: "probe_supported",
     local: false,
     openai_compatible: false,
+    can_probe: true,
+    can_run_noninteractive_prompt: false,
   },
   antigravity: {
     kind: "host",

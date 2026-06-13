@@ -18,6 +18,7 @@ const EXPECTED_TOOLS = [
   "classify_task",
   "host_model_switch",
   "provider_probe",
+  "host_cli_probe",
   "memory_store",
   "memory_recall",
   "memory_clear",
@@ -88,7 +89,7 @@ test("mythify MCP server smoke test", async (t) => {
   await client.connect(transport);
 
   try {
-    await t.test("tools/list returns exactly the 23 tools", async () => {
+    await t.test("tools/list returns exactly the 24 tools", async () => {
       const { tools } = await client.listTools();
       const names = tools.map((tool) => tool.name).sort();
       assert.deepEqual(names, [...EXPECTED_TOOLS].sort());

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Mythify MCP server v2.5.0
 // Exposes the Mythify state model (memory, plans, lessons, verifications,
-// reflections) as 20 core MCP tools over stdio, plus the 3 fanout tools for
-// parallel delegation (src/fanout.js), 23 tools in total. On-disk formats are
+// reflections) as 21 core MCP tools over stdio, plus the 3 fanout tools for
+// parallel delegation (src/fanout.js), 24 tools in total. On-disk formats are
 // shared with the Python CLI (scripts/mythify.py); both implementations must
 // interoperate on the same .mythify state directory. Fanout is MCP-only; the
 // CLI deliberately does not implement it.
@@ -2370,6 +2370,198 @@ function formatProviderProbe(result) {
   return lines.join("\n");
 }
 
+const HOST_CLI_PROBES = {
+  "kimi-code": {
+    envName: "MYTHIFY_KIMI_BIN",
+    binaryNames: ["kimi"],
+    fallbacks: [
+      path.join(os.homedir(), ".kimi-code", "bin", "kimi"),
+      "/opt/homebrew/bin/kimi",
+      "/usr/local/bin/kimi",
+    ],
+    checks: [
+      { name: "version", args: ["--version"] },
+      { name: "help", args: ["--help"] },
+    ],
+  },
+  opencode: {
+    envName: "MYTHIFY_OPENCODE_BIN",
+    binaryNames: ["opencode"],
+    fallbacks: [
+      path.join(os.homedir(), ".local", "bin", "opencode"),
+      "/opt/homebrew/bin/opencode",
+      "/usr/local/bin/opencode",
+    ],
+    checks: [
+      { name: "version", args: ["--version"] },
+      { name: "run_help", args: ["run", "--help"] },
+    ],
+  },
+};
+
+function resolveHostCliBinary(host, explicitBin) {
+  const config = HOST_CLI_PROBES[host];
+  if (!config) {
+    return { bin: "", source: "unsupported", error: `Unsupported host ${host}.` };
+  }
+  const explicit = String(explicitBin || "").trim();
+  if (explicit !== "") {
+    return isExecutableFile(explicit)
+      ? { bin: explicit, source: "explicit", error: "" }
+      : { bin: "", source: "explicit", error: `Configured binary is not executable: ${explicit}` };
+  }
+  const envBin = envValue(config.envName);
+  if (envBin !== "") {
+    return isExecutableFile(envBin)
+      ? { bin: envBin, source: `env:${config.envName}`, error: "" }
+      : { bin: "", source: `env:${config.envName}`, error: `Configured binary is not executable: ${envBin}` };
+  }
+  for (const binaryName of config.binaryNames) {
+    const found = findExecutableOnPath(binaryName);
+    if (found !== null) {
+      return { bin: found, source: "path", error: "" };
+    }
+  }
+  for (const candidate of config.fallbacks) {
+    if (isExecutableFile(candidate)) {
+      return { bin: candidate, source: "fallback", error: "" };
+    }
+  }
+  return {
+    bin: "",
+    source: "missing",
+    error: `No ${host} binary found. Set ${config.envName} or pass bin.`,
+  };
+}
+
+function runCliProbeCommand(bin, args, timeoutSeconds) {
+  const startedAt = process.hrtime.bigint();
+  const run = spawnSync(bin, args, {
+    shell: false,
+    encoding: "utf8",
+    timeout: Math.round(timeoutSeconds * 1000),
+    maxBuffer: 1024 * 1024,
+  });
+  const durationSeconds = Number(process.hrtime.bigint() - startedAt) / 1e9;
+  const timedOut = Boolean(run.error && run.error.code === "ETIMEDOUT");
+  const exitCode = typeof run.status === "number" ? run.status : -1;
+  let error = "";
+  if (timedOut) {
+    error = `timed out after ${timeoutSeconds} seconds`;
+  } else if (exitCode !== 0) {
+    error = tailText(run.stderr) || `command exited ${exitCode}`;
+  } else if (run.error) {
+    error = run.error.message;
+  }
+  return {
+    command: [path.basename(bin), ...args].join(" "),
+    args,
+    ok: exitCode === 0,
+    exit_code: exitCode,
+    duration_seconds: Number(durationSeconds.toFixed(3)),
+    stdout_tail: tailText(run.stdout, 2000),
+    stderr_tail: tailText(run.stderr, 2000),
+    error,
+    timed_out: timedOut,
+  };
+}
+
+function outputContains(check, pattern) {
+  const text = `${check.stdout_tail || ""}\n${check.stderr_tail || ""}`.toLowerCase();
+  return text.includes(pattern.toLowerCase());
+}
+
+function inferHostCliFeatures(host, checks) {
+  if (host === "kimi-code") {
+    const help = checks.find((item) => item.name === "help");
+    return {
+      can_run_noninteractive_prompt: Boolean(help && help.ok && outputContains(help, "-p")),
+      evidence:
+        help && help.ok && outputContains(help, "-p")
+          ? "help output includes -p prompt mode"
+          : "help output did not expose -p prompt mode",
+    };
+  }
+  if (host === "opencode") {
+    const runHelp = checks.find((item) => item.name === "run_help");
+    return {
+      can_run_noninteractive_prompt: Boolean(runHelp && runHelp.ok),
+      evidence: runHelp && runHelp.ok ? "run --help succeeded" : "run --help failed",
+    };
+  }
+  return { can_run_noninteractive_prompt: false, evidence: "unsupported host" };
+}
+
+function probeHostCli({ host, bin, timeout_seconds }) {
+  const selectedHost = host || "opencode";
+  const config = HOST_CLI_PROBES[selectedHost];
+  const timeoutSeconds =
+    typeof timeout_seconds === "number" && timeout_seconds > 0 ? timeout_seconds : 10;
+  const adapter = ADAPTER_CANDIDATES[selectedHost] || {};
+  const resolved = resolveHostCliBinary(selectedHost, bin);
+  const result = {
+    host: selectedHost,
+    host_kind: adapter.kind || "host",
+    status: "blocked",
+    binary: resolved.bin,
+    binary_source: resolved.source,
+    material_not_evidence: true,
+    evidence_status: "probe_only_not_verification",
+    can_run_noninteractive_prompt: false,
+    feature_evidence: "",
+    checks: [],
+    error: resolved.error,
+  };
+  if (!config) {
+    result.error = `host_cli_probe does not support ${selectedHost}.`;
+    return result;
+  }
+  if (resolved.bin === "") {
+    return result;
+  }
+  result.checks = config.checks.map((check) => ({
+    name: check.name,
+    ...runCliProbeCommand(resolved.bin, check.args, timeoutSeconds),
+  }));
+  const features = inferHostCliFeatures(selectedHost, result.checks);
+  result.can_run_noninteractive_prompt = features.can_run_noninteractive_prompt;
+  result.feature_evidence = features.evidence;
+  const checksOk = result.checks.every((item) => item.ok);
+  result.status = checksOk && result.can_run_noninteractive_prompt ? "available" : "blocked";
+  result.error = result.status === "available"
+    ? ""
+    : result.checks.find((item) => !item.ok)?.error || features.evidence || "host CLI probe failed";
+  return result;
+}
+
+function formatHostCliProbe(result) {
+  const prefix = result.status === "available" ? "[OK]" : "[FAIL]";
+  const lines = [
+    `${prefix} Host CLI probe ${result.status}.`,
+    `host: ${result.host}`,
+    `binary: ${result.binary || "not found"}`,
+    `binary source: ${result.binary_source}`,
+    `noninteractive prompt: ${result.can_run_noninteractive_prompt ? "yes" : "no"}`,
+    `feature evidence: ${result.feature_evidence || "none"}`,
+    "evidence: probe output is material, not verification evidence.",
+  ];
+  for (const item of result.checks || []) {
+    const details = [
+      `${item.name}: ${item.ok ? "ok" : "failed"}`,
+      `exit=${item.exit_code}`,
+      `command=${item.command}`,
+    ];
+    if (item.error) {
+      details.push(`error=${item.error}`);
+    }
+    lines.push(details.join("; "));
+  }
+  if (result.error && (!result.checks || result.checks.length === 0)) {
+    lines.push(`error: ${result.error}`);
+  }
+  return lines.join("\n");
+}
+
 // Handlers never throw on bad state: any unexpected error becomes an
 // explanatory [FAIL] text result.
 function guarded(handler) {
@@ -2641,6 +2833,48 @@ server.registerTool(
     });
     const prefix = result.status === "available" ? "[OK] " : "[FAIL] ";
     return format === "json" ? prefix + JSON.stringify(result, null, 2) : formatProviderProbe(result);
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Host CLI probe tool
+// ---------------------------------------------------------------------------
+
+server.registerTool(
+  "host_cli_probe",
+  {
+    title: "Probe a host CLI adapter",
+    description:
+      "Probe Kimi Code or OpenCode CLI availability by running only version and help commands. " +
+      "Use this before enabling a host CLI adapter. The result is material, not verification evidence, and does not execute a prompt or start workers.",
+    inputSchema: {
+      host: z
+        .enum(["kimi-code", "opencode"])
+        .optional()
+        .describe("Host CLI to probe. Defaults to opencode."),
+      bin: z
+        .string()
+        .optional()
+        .describe("Explicit CLI binary path. Defaults to MYTHIFY_KIMI_BIN or MYTHIFY_OPENCODE_BIN, then PATH and common install paths."),
+      timeout_seconds: z
+        .number()
+        .positive()
+        .optional()
+        .describe("Timeout per version or help command in seconds. Defaults to 10."),
+      format: z
+        .enum(["text", "json"])
+        .optional()
+        .describe("Return text by default, or JSON for machine-readable probes."),
+    },
+  },
+  guarded(({ host, bin, timeout_seconds, format }) => {
+    const result = probeHostCli({
+      host: host || "opencode",
+      bin: bin || "",
+      timeout_seconds,
+    });
+    const prefix = result.status === "available" ? "[OK] " : "[FAIL] ";
+    return format === "json" ? prefix + JSON.stringify(result, null, 2) : formatHostCliProbe(result);
   })
 );
 

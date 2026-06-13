@@ -75,8 +75,8 @@ Next adapter slices:
   without claiming current-chat switching.
 - [x] 2026-06-12: add a generic OpenAI-compatible local provider probe for
   reader or triage roles without enabling worker execution.
-- Add a Kimi Code or OpenCode CLI probe after the local provider path proves
-  the adapter contract.
+- [x] 2026-06-12: add Kimi Code and OpenCode CLI probes without executing
+  prompts or enabling worker execution.
 
 Do not let architecture work pause the product path. It should make local
 models, API providers, and role-based spawning cheaper to add.
