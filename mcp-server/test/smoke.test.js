@@ -164,6 +164,32 @@ test("mythify MCP server smoke test", async (t) => {
         parsed.model_policy.provider_defaults.adapter_interface_contract.candidates["google-colab-cli"].writes_state,
         false
       );
+      const roleAssignment = parsed.model_policy.provider_defaults.role_assignment_contract;
+      assert.equal(roleAssignment.version, 1);
+      assert.equal(roleAssignment.execution_policy, "metadata_shape_only_no_runtime_change");
+      assert.equal(roleAssignment.runtime_routing_changed, false);
+      assert.deepEqual(roleAssignment.roles.triage.eligible_adapter_lanes, [
+        "host",
+        "model_provider",
+        "custom_adapter",
+      ]);
+      assert.ok(roleAssignment.roles.triage.eligible_candidate_ids.includes("opencode"));
+      assert.ok(roleAssignment.roles.fanout_worker.eligible_candidate_ids.includes("openai-api"));
+      assert.equal(roleAssignment.roles.reader.selected_provider, "host");
+      assert.equal(roleAssignment.roles.verifier.writes_state_allowed, true);
+      assert.equal(roleAssignment.roles.verifier.material_not_evidence_required, false);
+      assert.ok(roleAssignment.roles.remote_execution.eligible_candidate_ids.includes("google-colab-cli"));
+      assert.ok(
+        roleAssignment.roles.remote_execution.execution_enabled_candidate_ids.includes("google-colab-cli")
+      );
+      assert.deepEqual(roleAssignment.roles.remote_execution.required_acknowledgements, [
+        "billing_ack_required",
+        "data_movement_ack_required",
+        "cleanup_ack_required",
+      ]);
+      assert.ok(roleAssignment.roles.agent_lifecycle.eligible_candidate_ids.includes("google-agents-cli"));
+      assert.ok(roleAssignment.roles.agent_lifecycle.eligible_candidate_ids.includes("google-adk-cli"));
+      assert.equal(roleAssignment.roles.agent_lifecycle.execution_enabled_candidate_ids.length, 0);
       assert.equal(parsed.model_policy.provider_defaults.api_provider_contract.status, "metadata_supported");
       assert.equal(parsed.model_policy.provider_defaults.api_provider_contract.execution_enabled, false);
       assert.equal(parsed.model_policy.provider_defaults.api_provider_contract.fanout_execution_enabled, true);

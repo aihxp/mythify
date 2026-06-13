@@ -219,6 +219,72 @@ ADAPTER_INTERFACE_LANES = (
     "execution_substrate",
     "agent_lifecycle",
 )
+ROLE_ASSIGNMENT_VERSION = 1
+ROLE_ASSIGNMENT_ADAPTER_LANES = {
+    "session": ("host",),
+    "triage": ("host", "model_provider", "custom_adapter"),
+    "reader": ("host", "model_provider"),
+    "fanout_worker": ("host", "api_provider", "custom_adapter"),
+    "reviewer": ("host", "api_provider", "custom_adapter"),
+    "verifier": (),
+}
+ROLE_ASSIGNMENT_EXTRA_ROLES = {
+    "remote_execution": {
+        "status": "metadata_supported",
+        "default_provider": None,
+        "selected_provider": None,
+        "provider_source": "not_enabled",
+        "allowed_providers": [],
+        "eligible_adapter_lanes": ("execution_substrate",),
+        "adapter_interface_role": "remote_execution",
+        "assignment_order": ("future_explicit_role_input", "built_in_disabled"),
+        "fallback_policy": ROLE_PROVIDER_FALLBACK_POLICY,
+        "execution_policy": "guarded_explicit_acknowledgement_only",
+        "runtime_routing_changed": False,
+        "writes_state_allowed": False,
+        "material_not_evidence_required": True,
+        "required_evidence_status": "remote_output_not_verification",
+        "eligible_candidate_ids": (),
+        "required_acknowledgements": (
+            "billing_ack_required",
+            "data_movement_ack_required",
+            "cleanup_ack_required",
+        ),
+        "guardrails": (
+            ROLE_PROVIDER_FALLBACK_POLICY,
+            "explicit_acknowledgements_required",
+            "material_not_verification",
+            "no_mythify_state_write",
+        ),
+    },
+    "agent_lifecycle": {
+        "status": "metadata_supported",
+        "default_provider": None,
+        "selected_provider": None,
+        "provider_source": "not_enabled",
+        "allowed_providers": [],
+        "eligible_adapter_lanes": ("agent_lifecycle",),
+        "adapter_interface_role": "agent_lifecycle",
+        "assignment_order": ("future_explicit_role_input", "built_in_disabled"),
+        "fallback_policy": ROLE_PROVIDER_FALLBACK_POLICY,
+        "execution_policy": "probe_only_no_eval_or_deploy",
+        "runtime_routing_changed": False,
+        "writes_state_allowed": False,
+        "material_not_evidence_required": True,
+        "required_evidence_status": "lifecycle_probe_output_not_verification",
+        "eligible_candidate_ids": (),
+        "guardrails": (
+            ROLE_PROVIDER_FALLBACK_POLICY,
+            "probe_only",
+            "no_eval_execution",
+            "no_deploy",
+            "no_publish",
+            "no_cloud_mutation",
+            "no_mythify_state_write",
+            "material_not_verification",
+        ),
+    },
+}
 ROLE_TIMEOUT_DEFAULTS = {
     "session": {
         "timeout_seconds": None,
@@ -2397,7 +2463,83 @@ def adapter_interface_contract():
     }
 
 
+def role_assignment_core_contract(role, resolved_role):
+    profile = role_provider_profile(resolved_role["provider"])
+    evidence_status = profile.get("evidence_status", "unknown")
+    guardrails = [
+        ROLE_PROVIDER_FALLBACK_POLICY,
+        "advisory_metadata_only",
+        "no_hidden_provider_fallback",
+    ]
+    if evidence_status != "executed_verification":
+        guardrails.append("material_not_verification")
+    if role == "reviewer":
+        guardrails.append("stronger_model_requires_explicit_opt_in")
+    record = {
+        "role": role,
+        "status": "metadata_supported",
+        "default_provider": resolved_role["default_provider"],
+        "selected_provider": resolved_role["provider"],
+        "provider_source": resolved_role["provider_source"],
+        "allowed_providers": list(resolved_role["allowed_providers"]),
+        "eligible_adapter_lanes": list(ROLE_ASSIGNMENT_ADAPTER_LANES[role]),
+        "adapter_interface_role": role if role != "session" else "host_session",
+        "assignment_order": ["future_explicit_role_input", "env", "built_in"],
+        "fallback_policy": ROLE_PROVIDER_FALLBACK_POLICY,
+        "execution_policy": "advisory_metadata_only_no_runtime_routing",
+        "runtime_routing_changed": False,
+        "writes_state_allowed": profile.get("writes_state") is True,
+        "material_not_evidence_required": evidence_status != "executed_verification",
+        "required_evidence_status": evidence_status,
+        "eligible_candidate_ids": [],
+        "guardrails": guardrails,
+    }
+    if role == "reviewer":
+        record["stronger_model_policy"] = "explicit_opt_in_required"
+    return record
+
+
+def role_assignment_contract(resolved_roles):
+    roles = {
+        role: role_assignment_core_contract(role, resolved_roles[role])
+        for role in ROLE_PROVIDER_ORDER
+    }
+    for role, record in ROLE_ASSIGNMENT_EXTRA_ROLES.items():
+        roles[role] = {
+            **record,
+            "eligible_adapter_lanes": list(record["eligible_adapter_lanes"]),
+            "assignment_order": list(record["assignment_order"]),
+            "eligible_candidate_ids": list(record["eligible_candidate_ids"]),
+            "guardrails": list(record["guardrails"]),
+            **(
+                {
+                    "required_acknowledgements": list(
+                        record["required_acknowledgements"]
+                    )
+                }
+                if "required_acknowledgements" in record
+                else {}
+            ),
+        }
+    return {
+        "version": ROLE_ASSIGNMENT_VERSION,
+        "status": "metadata_supported",
+        "source": "adapter_interface_contract",
+        "assignment_order": ["future_explicit_role_input", "env", "built_in"],
+        "fallback_policy": ROLE_PROVIDER_FALLBACK_POLICY,
+        "execution_policy": "metadata_shape_only_no_runtime_change",
+        "runtime_routing_changed": False,
+        "guardrail": "role_contract_does_not_enable_hidden_fallback",
+        "candidate_id_source": "mcp_adapter_interface_catalog_when_available",
+        "roles": roles,
+    }
+
+
 def build_provider_defaults():
+    roles = {
+        role: resolve_role_provider(role)
+        for role in ROLE_PROVIDER_ORDER
+    }
     return {
         "version": 1,
         "precedence": ["future_explicit_role_input", "env", "built_in"],
@@ -2406,12 +2548,10 @@ def build_provider_defaults():
         "cost_metadata_fields": list(ROLE_COST_METADATA_FIELDS),
         "provider_catalog": role_provider_catalog(),
         "adapter_interface_contract": adapter_interface_contract(),
+        "role_assignment_contract": role_assignment_contract(roles),
         "api_provider_contract": api_provider_contract(),
         "custom_adapter_contract": custom_adapter_contract(),
-        "roles": {
-            role: resolve_role_provider(role)
-            for role in ROLE_PROVIDER_ORDER
-        },
+        "roles": roles,
     }
 
 

@@ -359,6 +359,13 @@ have to guess which model setting applies where:
   custom adapter, execution substrate, and agent lifecycle lanes. It is a
   metadata contract only: it does not enable runtime routing, fallback, or new
   state writes.
+  `provider_defaults.role_assignment_contract` maps session, triage, reader,
+  fanout worker, reviewer, verifier, remote execution, and agent lifecycle
+  roles to eligible adapter-interface lanes and provider posture. MCP also
+  reports eligible candidate IDs from the adapter registry. The contract keeps
+  `runtime_routing_changed: false`, preserves no-hidden-fallback discipline,
+  and marks worker, remote execution, and lifecycle outputs as material rather
+  than verification evidence.
   `provider_defaults.api_provider_contract` lists metadata-supported hosted
   API providers, currently OpenAI, Anthropic, and hosted OpenAI-compatible
   endpoints. It records auth env names, billing posture, timeout fields, cost

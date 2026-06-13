@@ -814,6 +814,14 @@ Classification always returns `model_policy`. It separates:
   `metadata_shape_only_no_runtime_change`. MCP also includes a normalized
   candidate catalog from the capability registry; CLI exposes the same
   contract fields without using them as a router.
+- `provider_defaults.role_assignment_contract`: stable role-to-lane metadata
+  for session, triage, reader, fanout worker, reviewer, verifier, remote
+  execution, and agent lifecycle roles. It records default and selected
+  providers, eligible adapter-interface lanes, evidence boundaries, state-write
+  posture, and no-hidden-fallback guardrails. MCP additionally lists eligible
+  candidate IDs from the adapter registry. The contract keeps
+  `runtime_routing_changed: false`; role metadata never enables hidden
+  fallback, remote execution, evals, deployments, or new state writes.
 - `provider_defaults.api_provider_contract`: metadata for hosted providers
   before Mythify can spend API credits. It currently covers OpenAI, Anthropic,
   and hosted OpenAI-compatible endpoints. It records auth env names, billing

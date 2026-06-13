@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Stable cross-platform role assignment metadata. CLI and MCP
+  `model_policy.provider_defaults` now expose `role_assignment_contract`,
+  mapping session, triage, reader, fanout worker, reviewer, verifier, remote
+  execution, and agent lifecycle roles to adapter-interface lanes, provider
+  posture, evidence boundaries, state-write posture, and no-hidden-fallback
+  guardrails without changing runtime routing.
 - Stable adapter interface metadata. CLI and MCP `model_policy.provider_defaults`
   now expose `adapter_interface_contract`, and generated adapter candidate docs
   normalize every registry lane to shared interface, locality, execution,

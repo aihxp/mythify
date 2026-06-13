@@ -3291,6 +3291,70 @@ const ROLE_PROVIDER_ORDER = [
   "reviewer",
   "verifier",
 ];
+const ROLE_ASSIGNMENT_VERSION = 1;
+const ROLE_ASSIGNMENT_ADAPTER_LANES = {
+  session: ["host"],
+  triage: ["host", "model_provider", "custom_adapter"],
+  reader: ["host", "model_provider"],
+  fanout_worker: ["host", "api_provider", "custom_adapter"],
+  reviewer: ["host", "api_provider", "custom_adapter"],
+  verifier: [],
+};
+const ROLE_ASSIGNMENT_EXTRA_ROLES = {
+  remote_execution: {
+    status: "metadata_supported",
+    default_provider: null,
+    selected_provider: null,
+    provider_source: "not_enabled",
+    allowed_providers: [],
+    eligible_adapter_lanes: ["execution_substrate"],
+    adapter_interface_role: "remote_execution",
+    assignment_order: ["future_explicit_role_input", "built_in_disabled"],
+    fallback_policy: ROLE_PROVIDER_FALLBACK_POLICY,
+    execution_policy: "guarded_explicit_acknowledgement_only",
+    runtime_routing_changed: false,
+    writes_state_allowed: false,
+    material_not_evidence_required: true,
+    required_evidence_status: "remote_output_not_verification",
+    required_acknowledgements: [
+      "billing_ack_required",
+      "data_movement_ack_required",
+      "cleanup_ack_required",
+    ],
+    guardrails: [
+      ROLE_PROVIDER_FALLBACK_POLICY,
+      "explicit_acknowledgements_required",
+      "material_not_verification",
+      "no_mythify_state_write",
+    ],
+  },
+  agent_lifecycle: {
+    status: "metadata_supported",
+    default_provider: null,
+    selected_provider: null,
+    provider_source: "not_enabled",
+    allowed_providers: [],
+    eligible_adapter_lanes: ["agent_lifecycle"],
+    adapter_interface_role: "agent_lifecycle",
+    assignment_order: ["future_explicit_role_input", "built_in_disabled"],
+    fallback_policy: ROLE_PROVIDER_FALLBACK_POLICY,
+    execution_policy: "probe_only_no_eval_or_deploy",
+    runtime_routing_changed: false,
+    writes_state_allowed: false,
+    material_not_evidence_required: true,
+    required_evidence_status: "lifecycle_probe_output_not_verification",
+    guardrails: [
+      ROLE_PROVIDER_FALLBACK_POLICY,
+      "probe_only",
+      "no_eval_execution",
+      "no_deploy",
+      "no_publish",
+      "no_cloud_mutation",
+      "no_mythify_state_write",
+      "material_not_verification",
+    ],
+  },
+};
 
 function resolveRoleProvider(role) {
   const defaultProvider = ROLE_PROVIDER_DEFAULTS[role];
@@ -3453,6 +3517,106 @@ function adapterInterfaceContract() {
   };
 }
 
+function roleAssignmentCandidateGroups(adapterRole, lanes, catalog) {
+  const eligible = [];
+  const executionEnabled = [];
+  const metadataOnly = [];
+  for (const [id, candidate] of Object.entries(catalog)) {
+    if (!lanes.includes(candidate.kind) || !(candidate.roles || []).includes(adapterRole)) {
+      continue;
+    }
+    eligible.push(id);
+    if (candidate.execution_enabled === true) {
+      executionEnabled.push(id);
+    } else {
+      metadataOnly.push(id);
+    }
+  }
+  return {
+    eligible_candidate_ids: eligible,
+    execution_enabled_candidate_ids: executionEnabled,
+    metadata_only_candidate_ids: metadataOnly,
+  };
+}
+
+function roleAssignmentCoreContract(role, resolvedRole, catalog) {
+  const profile = resolvedRole.provider_profile || ROLE_PROVIDER_PROFILES[resolvedRole.provider] || {};
+  const evidenceStatus = profile.evidence_status || "unknown";
+  const guardrails = [
+    ROLE_PROVIDER_FALLBACK_POLICY,
+    "advisory_metadata_only",
+    "no_hidden_provider_fallback",
+  ];
+  if (evidenceStatus !== "executed_verification") {
+    guardrails.push("material_not_verification");
+  }
+  if (role === "reviewer") {
+    guardrails.push("stronger_model_requires_explicit_opt_in");
+  }
+  const record = {
+    role,
+    status: "metadata_supported",
+    default_provider: resolvedRole.default_provider,
+    selected_provider: resolvedRole.provider,
+    provider_source: resolvedRole.provider_source,
+    allowed_providers: resolvedRole.allowed_providers,
+    eligible_adapter_lanes: ROLE_ASSIGNMENT_ADAPTER_LANES[role],
+    adapter_interface_role: role === "session" ? "host_session" : role,
+    assignment_order: ["future_explicit_role_input", "env", "built_in"],
+    fallback_policy: ROLE_PROVIDER_FALLBACK_POLICY,
+    execution_policy: "advisory_metadata_only_no_runtime_routing",
+    runtime_routing_changed: false,
+    writes_state_allowed: profile.writes_state === true,
+    material_not_evidence_required: evidenceStatus !== "executed_verification",
+    required_evidence_status: evidenceStatus,
+    guardrails,
+  };
+  if (role === "reviewer") {
+    record.stronger_model_policy = "explicit_opt_in_required";
+  }
+  return {
+    ...record,
+    ...roleAssignmentCandidateGroups(record.adapter_interface_role, record.eligible_adapter_lanes, catalog),
+  };
+}
+
+function roleAssignmentExtraContract(record, catalog) {
+  return {
+    ...record,
+    allowed_providers: [...record.allowed_providers],
+    eligible_adapter_lanes: [...record.eligible_adapter_lanes],
+    assignment_order: [...record.assignment_order],
+    required_acknowledgements: record.required_acknowledgements
+      ? [...record.required_acknowledgements]
+      : undefined,
+    guardrails: [...record.guardrails],
+    ...roleAssignmentCandidateGroups(record.adapter_interface_role, record.eligible_adapter_lanes, catalog),
+  };
+}
+
+function roleAssignmentContract(resolvedRoles) {
+  const catalog = buildAdapterInterfaceCatalog();
+  const roles = {};
+  for (const role of ROLE_PROVIDER_ORDER) {
+    roles[role] = roleAssignmentCoreContract(role, resolvedRoles[role], catalog);
+  }
+  for (const [role, record] of Object.entries(ROLE_ASSIGNMENT_EXTRA_ROLES)) {
+    roles[role] = roleAssignmentExtraContract(record, catalog);
+  }
+  return {
+    version: ROLE_ASSIGNMENT_VERSION,
+    status: "metadata_supported",
+    source: "adapter_interface_contract",
+    assignment_order: ["future_explicit_role_input", "env", "built_in"],
+    fallback_policy: ROLE_PROVIDER_FALLBACK_POLICY,
+    execution_policy: "metadata_shape_only_no_runtime_change",
+    runtime_routing_changed: false,
+    guardrail: "role_contract_does_not_enable_hidden_fallback",
+    candidate_id_source: "mcp_adapter_interface_catalog",
+    roles,
+  };
+}
+
 function buildProviderDefaults() {
   const roles = {};
   for (const role of ROLE_PROVIDER_ORDER) {
@@ -3466,6 +3630,7 @@ function buildProviderDefaults() {
     cost_metadata_fields: ROLE_COST_METADATA_FIELDS,
     provider_catalog: roleProviderCatalog(),
     adapter_interface_contract: adapterInterfaceContract(),
+    role_assignment_contract: roleAssignmentContract(roles),
     api_provider_contract: apiProviderContract(),
     custom_adapter_contract: customAdapterContract(),
     roles,

@@ -390,6 +390,52 @@ class TestClassification(CliTestCase):
         self.assertIn("agent_lifecycle", adapter_interface["lanes"])
         self.assertIn("evidence_status", adapter_interface["fields"])
         self.assertIn("guardrails", adapter_interface["fields"])
+        role_assignment = policy["provider_defaults"]["role_assignment_contract"]
+        self.assertEqual(role_assignment["version"], 1)
+        self.assertEqual(role_assignment["status"], "metadata_supported")
+        self.assertFalse(role_assignment["runtime_routing_changed"])
+        self.assertEqual(
+            role_assignment["fallback_policy"],
+            "no_implicit_cross_provider_fallback",
+        )
+        self.assertEqual(
+            role_assignment["execution_policy"],
+            "metadata_shape_only_no_runtime_change",
+        )
+        self.assertEqual(
+            role_assignment["roles"]["triage"]["eligible_adapter_lanes"],
+            ["host", "model_provider", "custom_adapter"],
+        )
+        self.assertEqual(
+            role_assignment["roles"]["reader"]["selected_provider"],
+            "local_openai_compatible",
+        )
+        self.assertEqual(
+            role_assignment["roles"]["reviewer"]["stronger_model_policy"],
+            "explicit_opt_in_required",
+        )
+        self.assertTrue(
+            role_assignment["roles"]["verifier"]["writes_state_allowed"]
+        )
+        self.assertFalse(
+            role_assignment["roles"]["verifier"]["material_not_evidence_required"]
+        )
+        self.assertEqual(
+            role_assignment["roles"]["remote_execution"]["execution_policy"],
+            "guarded_explicit_acknowledgement_only",
+        )
+        self.assertIn(
+            "execution_substrate",
+            role_assignment["roles"]["remote_execution"]["eligible_adapter_lanes"],
+        )
+        self.assertEqual(
+            role_assignment["roles"]["agent_lifecycle"]["execution_policy"],
+            "probe_only_no_eval_or_deploy",
+        )
+        self.assertIn(
+            "agent_lifecycle",
+            role_assignment["roles"]["agent_lifecycle"]["eligible_adapter_lanes"],
+        )
         api_contract = policy["provider_defaults"]["api_provider_contract"]
         custom_contract = policy["provider_defaults"]["custom_adapter_contract"]
         self.assertEqual(api_contract["status"], "metadata_supported")

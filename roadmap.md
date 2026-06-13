@@ -21,14 +21,13 @@ Status markers:
 
 ## Active Now
 
-- [>] Stable cross-platform role assignment.
-  - Current goal: use the stable adapter interface to make role assignment
-    consistent across host, local model, API provider, custom command,
-    execution, and lifecycle lanes.
-  - Next step: map each role to adapter interface constraints before changing
-    any runtime routing.
-  - Guardrail: role assignment must remain explicit and no-surprise; do not
-    add hidden provider fallback or write-enabled spawned workers.
+- [>] Agent lifecycle lane hardening.
+  - Current goal: make the Google Agents CLI and ADK lifecycle lane clearer for
+    probe-only, future eval, and future deploy boundaries.
+  - Next step: map lifecycle actions that remain probe-only versus future
+    guarded actions.
+  - Guardrail: do not run evals, deploy, publish, scaffold projects, mutate
+    cloud resources, or write project state.
 
 ## Next Queue
 
@@ -79,6 +78,8 @@ Already shipped in this track:
 - [x] Cost and timeout metadata per role and fanout worker records.
 - [x] Stable adapter interface metadata for role, execution, evidence,
   state-write, locality, and guardrail fields.
+- [x] Stable cross-platform role assignment metadata using adapter interface
+  constraints.
 
 Role model:
 
@@ -291,6 +292,12 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add stable cross-platform role assignment metadata. CLI and
+  MCP `model_policy.provider_defaults` now expose `role_assignment_contract`,
+  mapping session, triage, reader, fanout worker, reviewer, verifier, remote
+  execution, and agent lifecycle roles to eligible adapter-interface lanes,
+  provider posture, evidence boundaries, state-write posture, and no-hidden
+  fallback guardrails without changing runtime routing.
 - [x] 2026-06-13: add stable adapter interface metadata. CLI and MCP
   `model_policy.provider_defaults` now expose `adapter_interface_contract`,
   and generated adapter candidate docs normalize every registry lane to shared
@@ -562,12 +569,12 @@ Preserve:
 
 ### v3.0
 
-- [>] Stable cross-platform role assignment.
+- [x] Stable cross-platform role assignment.
 - [x] Stable adapter interface.
 - [x] Desktop local-agent lane for Kimi Work and OpenCode Desktop style
   workflows.
 - [x] Execution adapter lane for Colab CLI style remote jobs.
-- [ ] Agent lifecycle lane for Agents CLI and ADK style workflows.
+- [>] Agent lifecycle lane for Agents CLI and ADK style workflows.
 - [x] One-core architecture decision based on the registry prototype.
 - [x] Stronger workflow surfaces.
 - [ ] Clear migration guide from CLI-only usage to model-runtime orchestration.
