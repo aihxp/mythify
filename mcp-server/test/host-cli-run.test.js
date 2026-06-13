@@ -200,6 +200,115 @@ test("host_cli_run executes OpenCode run with model and agent as material only",
   }
 });
 
+test("host_cli_run executes Antigravity print mode with explicit cwd as material only", async () => {
+  const { root, stateDir, homeDir, binDir } = makeProject("mythify-host-run-antigravity-");
+  const logPath = path.join(root, "agy-run.json");
+  const agyBin = path.join(binDir, "agy");
+  writeStub(
+    agyBin,
+    [
+      "#!/usr/bin/env node",
+      'const fs = require("node:fs");',
+      'const args = process.argv.slice(2);',
+      `fs.writeFileSync(${JSON.stringify(logPath)}, JSON.stringify({args, cwd: process.cwd()}));`,
+      'const expected = ["--model", "Gemini 3.5 Flash", "-p", "Review repo"];',
+      "if (JSON.stringify(args) !== JSON.stringify(expected)) {",
+      '  console.error("unexpected args: " + args.join(" "));',
+      "  process.exit(3);",
+      "}",
+      'console.log("antigravity worker material");',
+      "",
+    ].join("\n")
+  );
+  try {
+    await withClient(
+      cleanEnv({
+        MYTHIFY_DIR: stateDir,
+        HOME: homeDir,
+      }),
+      async (client) => {
+        const runText = textOf(
+          await client.callTool({
+            name: "host_cli_run",
+            arguments: {
+              host: "antigravity",
+              bin: agyBin,
+              prompt: "Review repo",
+              cwd: root,
+              model: "Gemini 3.5 Flash",
+              agent: "reviewer",
+              format: "json",
+            },
+          })
+        );
+        assert.ok(runText.startsWith("[OK]"), `host_cli_run reports [OK]: ${runText}`);
+        const parsed = JSON.parse(runText.replace(/^\[OK\] /, ""));
+        assert.equal(parsed.host, "antigravity");
+        assert.equal(parsed.status, "available");
+        assert.equal(parsed.can_run_noninteractive_prompt, true);
+        assert.deepEqual(parsed.args, ["--model", "Gemini 3.5 Flash", "-p", "Review repo"]);
+        assert.equal(parsed.model_applied, true);
+        assert.equal(parsed.agent_applied, false);
+        assert.equal(parsed.trust_policy, "explicit_cwd_required");
+        assert.equal(parsed.permission_policy, "native_permissions_no_auto_bypass");
+        assert.match(parsed.output_tail, /antigravity worker material/);
+        assertMaterialOnly(parsed);
+        assert.equal(fs.existsSync(path.join(stateDir, "verifications.jsonl")), false);
+
+        const logged = JSON.parse(fs.readFileSync(logPath, "utf8"));
+        assert.equal(fs.realpathSync(logged.cwd), fs.realpathSync(root));
+      }
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("host_cli_run refuses Antigravity without explicit cwd", async () => {
+  const { root, stateDir, homeDir, binDir } = makeProject("mythify-host-run-antigravity-cwd-");
+  const agyBin = path.join(binDir, "agy");
+  writeStub(
+    agyBin,
+    [
+      "#!/usr/bin/env node",
+      'console.error("agy should not have run");',
+      "process.exit(3);",
+      "",
+    ].join("\n")
+  );
+  try {
+    await withClient(
+      cleanEnv({
+        MYTHIFY_DIR: stateDir,
+        HOME: homeDir,
+      }),
+      async (client) => {
+        const runText = textOf(
+          await client.callTool({
+            name: "host_cli_run",
+            arguments: {
+              host: "antigravity",
+              bin: agyBin,
+              prompt: "Review repo",
+              format: "json",
+            },
+          })
+        );
+        assert.ok(runText.startsWith("[FAIL]"), `host_cli_run refuses: ${runText}`);
+        const parsed = JSON.parse(runText.replace(/^\[FAIL\] /, ""));
+        assert.equal(parsed.host, "antigravity");
+        assert.equal(parsed.status, "blocked");
+        assert.match(parsed.error, /explicit cwd/);
+        assert.deepEqual(parsed.args, []);
+        assertMaterialOnly(parsed);
+        assert.equal(fs.existsSync(path.join(stateDir, "verifications.jsonl")), false);
+      }
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("host_cli_run reports timeouts without recording verification", async () => {
   const { root, stateDir, homeDir, binDir } = makeProject("mythify-host-run-timeout-");
   const opencodeBin = path.join(binDir, "opencode");

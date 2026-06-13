@@ -21,20 +21,18 @@ Status markers:
 
 ### In Progress
 
-- [>] Antigravity worker adapter after local `agy -p`, model controls,
-  workspace trust, and permissions are verified.
-  - Current goal: turn the probe-only Antigravity adapter into a bounded worker
-    path only if local CLI behavior is explicit and safe.
-  - Next step: map `agy -p` prompt execution, model flags, workspace trust, and
-    permission behavior from local help output and focused probes.
-  - Guardrail: worker output remains material, not verification evidence, and
-    the adapter must refuse when trust or permission posture is unclear.
+- [>] Kimi Work desktop lane after CLI adapters are stable.
+  - Current goal: decide whether Kimi Work should be a desktop host lane,
+    adapter candidate, or backlog-only research item.
+  - Next step: map available local entry points, model controls, workspace
+    boundary, automation hooks, and MCP or CLI compatibility.
+  - Guardrail: do not claim desktop control or spawning unless a local probe or
+    official contract proves it.
 
 ### Next To Do
 
-1. [ ] Kimi Work desktop lane after CLI adapters are stable.
-2. [ ] OpenCode Desktop lane after CLI and server adapters prove useful.
-3. [ ] Colab remote execution adapter after explicit billing, data movement,
+1. [ ] OpenCode Desktop lane after CLI and server adapters prove useful.
+2. [ ] Colab remote execution adapter after explicit billing, data movement,
    and cleanup posture are designed.
 
 ### Later
@@ -109,6 +107,11 @@ Status markers:
 - [x] 2026-06-13: add provider-specific role defaults to `model_policy`,
   including allowed roles, default roles, billing posture, execution boundary,
   evidence status, state-write posture, and selected role provider profiles.
+- [x] 2026-06-13: add bounded Antigravity worker runs through `host_cli_run`,
+  with explicit workspace `cwd`, optional model flag forwarding, native
+  permission handling, and material-only output. The local `agy` shim on this
+  host was broken, so the live prompt path is covered by deterministic MCP
+  tests and the official CLI contract instead of a real Antigravity run.
 
 ## Track Backlogs
 
@@ -251,8 +254,6 @@ official contract proves the capability.
 
 Open:
 
-- [ ] Antigravity worker adapter after local prompt, model, workspace, trust,
-  and permission behavior is verified.
 - [ ] Kimi Work desktop lane.
 - [ ] OpenCode Desktop lane.
 
@@ -262,6 +263,7 @@ Done:
 - [x] OpenCode CLI probe.
 - [x] Kimi Code bounded worker run through `host_cli_run`.
 - [x] OpenCode bounded worker run through `host_cli_run`.
+- [x] Antigravity bounded worker run through `host_cli_run`.
 - [x] Antigravity CLI probe.
 - [x] Antigravity MCP setup guide.
 
@@ -398,6 +400,7 @@ Preserve:
 - [x] CLI/MCP interop matrix for shared mutating operations.
 - [x] Kimi Code CLI adapter proof of concept.
 - [x] OpenCode CLI adapter proof of concept.
+- [x] Antigravity CLI adapter proof of concept.
 
 ### v3.0
 

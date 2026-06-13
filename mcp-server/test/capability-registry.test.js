@@ -174,9 +174,13 @@ test("researched future adapters are candidates, not public host platforms", () 
     listAdapterCandidates("host").map((candidate) => candidate.name).sort(),
     ["antigravity", "kimi-code", "opencode"]
   );
-  assert.equal(ADAPTER_CANDIDATES.antigravity.status, "probe_supported");
+  assert.equal(ADAPTER_CANDIDATES.antigravity.status, "worker_supported");
   assert.equal(ADAPTER_CANDIDATES.antigravity.can_probe, true);
-  assert.equal(ADAPTER_CANDIDATES.antigravity.can_run_noninteractive_prompt, false);
+  assert.equal(ADAPTER_CANDIDATES.antigravity.can_run_noninteractive_prompt, true);
+  assert.equal(ADAPTER_CANDIDATES.antigravity.can_run_bounded_worker, true);
+  assert.equal(ADAPTER_CANDIDATES.antigravity.worker_output_is_evidence, false);
+  assert.equal(ADAPTER_CANDIDATES.antigravity.permission_policy, "native_permissions_no_auto_bypass");
+  assert.equal(ADAPTER_CANDIDATES.antigravity.trust_policy, "explicit_cwd_required");
   assert.equal(ADAPTER_CANDIDATES["kimi-code"].status, "worker_supported");
   assert.equal(ADAPTER_CANDIDATES["kimi-code"].can_probe, true);
   assert.equal(ADAPTER_CANDIDATES["kimi-code"].can_run_noninteractive_prompt, true);

@@ -3118,6 +3118,18 @@ const HOST_CLI_RUNNERS = {
       return args;
     },
   },
+  antigravity: {
+    outputMode: "print",
+    requiresExplicitCwd: true,
+    buildArgs: ({ prompt, model }) => {
+      const args = [];
+      if (model !== "") {
+        args.push("--model", model);
+      }
+      args.push("-p", prompt);
+      return args;
+    },
+  },
 };
 
 function resolveHostCliRunCwd(rawCwd) {
@@ -3142,6 +3154,7 @@ function runHostCliWorker({ host, bin, prompt, cwd, timeout_seconds, model, agen
   const selectedPrompt = String(prompt || "").trim();
   const selectedModel = String(model || "").trim();
   const selectedAgent = String(agent || "").trim();
+  const explicitCwd = String(cwd || "").trim() !== "";
   const adapter = ADAPTER_CANDIDATES[selectedHost] || {};
   const resolved = resolveHostCliBinary(selectedHost, bin);
   const cwdResult = resolveHostCliRunCwd(cwd);
@@ -3164,6 +3177,11 @@ function runHostCliWorker({ host, bin, prompt, cwd, timeout_seconds, model, agen
     model_applied: false,
     agent_applied: false,
     output_mode: runner ? runner.outputMode : "",
+    trust_policy: selectedHost === "antigravity" ? "explicit_cwd_required" : "cwd_only",
+    permission_policy:
+      selectedHost === "antigravity"
+        ? "native_permissions_no_auto_bypass"
+        : "native_permissions",
     command: "",
     args: [],
     exit_code: -1,
@@ -3186,11 +3204,15 @@ function runHostCliWorker({ host, bin, prompt, cwd, timeout_seconds, model, agen
     result.error = cwdResult.error;
     return result;
   }
+  if (runner.requiresExplicitCwd && !explicitCwd) {
+    result.error = "host_cli_run requires explicit cwd for antigravity so workspace trust is deliberate.";
+    return result;
+  }
   if (resolved.bin === "") {
     return result;
   }
 
-  result.model_applied = selectedHost === "opencode" && selectedModel !== "";
+  result.model_applied = ["opencode", "antigravity"].includes(selectedHost) && selectedModel !== "";
   result.agent_applied = selectedHost === "opencode" && selectedAgent !== "";
   result.args = runner.buildArgs({
     prompt: selectedPrompt,
@@ -3240,6 +3262,8 @@ function formatHostCliRun(result) {
     `cwd: ${result.cwd || "unset"}`,
     `model: ${result.model || "unset"} (${result.model_applied ? "applied" : "not applied"})`,
     `agent: ${result.agent || "unset"} (${result.agent_applied ? "applied" : "not applied"})`,
+    `trust policy: ${result.trust_policy || "unset"}`,
+    `permission policy: ${result.permission_policy || "unset"}`,
     `exit: ${result.exit_code}`,
     `writes state: ${result.writes_state ? "yes" : "no"}`,
     `verification recorded: ${result.verification_recorded ? "yes" : "no"}`,
@@ -3962,11 +3986,11 @@ server.registerTool(
   {
     title: "Run a bounded host CLI worker",
     description:
-      "Run a bounded non-interactive prompt through Kimi Code or OpenCode. " +
+      "Run a bounded non-interactive prompt through Kimi Code, OpenCode, or Antigravity. " +
       "Use this only for worker material that the orchestrator will inspect and then verify with commands. The result is material, not verification evidence, and the tool writes no Mythify state.",
     inputSchema: {
       host: z
-        .enum(["kimi-code", "opencode"])
+        .enum(["kimi-code", "opencode", "antigravity"])
         .optional()
         .describe("Host CLI worker to run. Defaults to opencode."),
       bin: z
@@ -3979,7 +4003,7 @@ server.registerTool(
       cwd: z
         .string()
         .optional()
-        .describe("Working directory for the worker. Defaults to the project root inferred from MYTHIFY_DIR."),
+        .describe("Working directory for the worker. Defaults to the project root inferred from MYTHIFY_DIR. Antigravity requires this to be explicit."),
       timeout_seconds: z
         .number()
         .positive()
@@ -3988,11 +4012,11 @@ server.registerTool(
       model: z
         .string()
         .optional()
-        .describe("Optional OpenCode model id. Kimi Code does not receive a model flag in this adapter."),
+        .describe("Optional OpenCode or Antigravity model id. Kimi Code does not receive a model flag in this adapter."),
       agent: z
         .string()
         .optional()
-        .describe("Optional OpenCode agent id. Kimi Code does not receive an agent flag in this adapter."),
+        .describe("Optional OpenCode agent id. Kimi Code and Antigravity do not receive an agent flag in this adapter."),
       format: z
         .enum(["text", "json"])
         .optional()

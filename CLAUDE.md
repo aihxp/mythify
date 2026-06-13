@@ -1,5 +1,5 @@
 <!-- Generated from protocol/PROTOCOL.md by scripts/build_variants.py. Edit the source, then rebuild. -->
-<!-- Mythify protocol-sha256: ab0c64dd60885e7189bd01c211a081d2fee52e65e67302faed31319fae19dd84 -->
+<!-- Mythify protocol-sha256: e1a2e70b8463cb30f43484c437faf6d581abd75621936a37db8c86a64f4b9c35 -->
 
 # The Mythify Protocol
 
@@ -152,9 +152,10 @@ OpenAI-compatible provider. `local_model_run` can run reader or triage prompts
 against a localhost OpenAI-compatible provider, writing no state and returning
 model output as material, not verification evidence. `host_cli_probe` can probe
 Kimi Code, OpenCode, or Antigravity CLI availability with version and help
-commands. `host_cli_run` can run bounded Kimi Code or OpenCode non-interactive
-prompts, writing no state and returning worker output as material, not
-verification evidence. `execution_probe` can probe Google Colab CLI
+commands. `host_cli_run` can run bounded Kimi Code, OpenCode, or Antigravity
+non-interactive prompts, writing no state and returning worker output as
+material, not verification evidence. Antigravity requires explicit `cwd` and
+does not pass permission-bypass flags. `execution_probe` can probe Google Colab CLI
 availability without provisioning remote runtimes or accelerators. `lifecycle_probe` can probe
 Google Agents CLI and ADK CLI availability with version, help, and eval-help
 commands without scaffolding projects, running evals, deploying, publishing,

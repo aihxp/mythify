@@ -425,11 +425,15 @@ export const ADAPTER_CANDIDATES = {
   },
   antigravity: {
     kind: "host",
-    status: "probe_supported",
+    status: "worker_supported",
     local: false,
     openai_compatible: false,
     can_probe: true,
-    can_run_noninteractive_prompt: false,
+    can_run_noninteractive_prompt: true,
+    can_run_bounded_worker: true,
+    worker_output_is_evidence: false,
+    permission_policy: "native_permissions_no_auto_bypass",
+    trust_policy: "explicit_cwd_required",
   },
   "google-colab-cli": {
     kind: "execution_substrate",
