@@ -173,6 +173,58 @@ ROLE_PROVIDER_ALLOWED = {
     "verifier": ("local_command",),
 }
 ROLE_PROVIDER_FALLBACK_POLICY = "no_implicit_cross_provider_fallback"
+ROLE_TIMEOUT_METADATA_FIELDS = (
+    "timeout_seconds",
+    "timeout_source",
+    "timeout_enforced_by",
+    "can_override",
+)
+ROLE_COST_METADATA_FIELDS = (
+    "billing",
+    "cost_estimate_supported",
+    "cost_estimate_status",
+    "cost_estimate_cents",
+    "pricing_url",
+    "usage_metadata_fields",
+)
+ROLE_TIMEOUT_DEFAULTS = {
+    "session": {
+        "timeout_seconds": None,
+        "timeout_source": "host_controlled",
+        "timeout_enforced_by": "host",
+        "can_override": False,
+    },
+    "triage": {
+        "timeout_seconds": 120,
+        "timeout_source": "triage_timeout_seconds_or_default",
+        "timeout_enforced_by": "triage_worker",
+        "can_override": True,
+    },
+    "reader": {
+        "timeout_seconds": 30,
+        "timeout_source": "local_model_run_default",
+        "timeout_enforced_by": "local_model_run",
+        "can_override": True,
+    },
+    "fanout_worker": {
+        "timeout_seconds": 600,
+        "timeout_source": "fanout_start_or_env_or_default",
+        "timeout_enforced_by": "fanout_worker",
+        "can_override": True,
+    },
+    "reviewer": {
+        "timeout_seconds": 600,
+        "timeout_source": "fanout_start_or_env_or_default",
+        "timeout_enforced_by": "fanout_reviewer",
+        "can_override": True,
+    },
+    "verifier": {
+        "timeout_seconds": 300,
+        "timeout_source": "verify_run_default",
+        "timeout_enforced_by": "verify_run",
+        "can_override": True,
+    },
+}
 ROLE_PROVIDER_PROFILES = {
     "host": {
         "status": "supported",
@@ -2130,6 +2182,8 @@ def build_provider_defaults():
         "version": 1,
         "precedence": ["future_explicit_role_input", "env", "built_in"],
         "fallback_policy": ROLE_PROVIDER_FALLBACK_POLICY,
+        "timeout_metadata_fields": list(ROLE_TIMEOUT_METADATA_FIELDS),
+        "cost_metadata_fields": list(ROLE_COST_METADATA_FIELDS),
         "provider_catalog": role_provider_catalog(),
         "api_provider_contract": api_provider_contract(),
         "roles": {
@@ -2148,6 +2202,41 @@ def role_provider_fields(provider_defaults, role):
         "provider_status": provider["status"],
         "provider_fallback_policy": provider["fallback_policy"],
         "provider_profile": provider.get("provider_profile", {}),
+    }
+
+
+def role_timeout_metadata(role, timeout_seconds=None, timeout_source=None):
+    metadata = dict(ROLE_TIMEOUT_DEFAULTS[role])
+    if timeout_seconds is not None:
+        metadata["timeout_seconds"] = timeout_seconds
+    if timeout_source is not None:
+        metadata["timeout_source"] = timeout_source
+    return metadata
+
+
+def role_cost_metadata(provider_defaults, role, pricing_url=""):
+    provider_record = provider_defaults["roles"][role]
+    provider = provider_record["provider"]
+    profile = provider_record.get("provider_profile", {})
+    usage_fields = (
+        list(API_PROVIDER_COST_METADATA_FIELDS)
+        if provider == "api_provider"
+        else []
+    )
+    return {
+        "billing": profile.get("billing", "unknown"),
+        "cost_estimate_supported": False,
+        "cost_estimate_status": "not_estimated",
+        "cost_estimate_cents": None,
+        "pricing_url": pricing_url,
+        "usage_metadata_fields": usage_fields,
+    }
+
+
+def role_budget_fields(provider_defaults, role, timeout_seconds=None, timeout_source=None, pricing_url=""):
+    return {
+        "timeout": role_timeout_metadata(role, timeout_seconds, timeout_source),
+        "cost": role_cost_metadata(provider_defaults, role, pricing_url),
     }
 
 
@@ -2204,6 +2293,7 @@ def build_model_policy(classification, args):
             "control": "host_selected",
             "platform": platform,
             **role_provider_fields(provider_defaults, "session"),
+            **role_budget_fields(provider_defaults, "session"),
             "model": session_model,
             "model_source": session_model_source,
             "model_tier": session_tier,
@@ -2233,6 +2323,12 @@ def build_model_policy(classification, args):
             "role": "problem_framing",
             "spawn": classification.get("model_triage", "skip"),
             **role_provider_fields(provider_defaults, "triage"),
+            **role_budget_fields(
+                provider_defaults,
+                "triage",
+                getattr(args, "triage_timeout", 120.0),
+                "triage_timeout_seconds_or_default",
+            ),
             "engine": triage_engine or "auto",
             "engine_policy": triage_engine_source,
             "model": triage_model,
@@ -2254,6 +2350,7 @@ def build_model_policy(classification, args):
             "role": "read_only_material_inspection",
             "spawn": "optional",
             **role_provider_fields(provider_defaults, "reader"),
+            **role_budget_fields(provider_defaults, "reader"),
             "model_policy": "local_openai_compatible_when_configured",
             "model_relation_to_session": "lower_preferred",
             "effort": "low",
@@ -2271,6 +2368,7 @@ def build_model_policy(classification, args):
             "role": "independent_subtask",
             "spawn": classification.get("fanout", "not_recommended"),
             **role_provider_fields(provider_defaults, "fanout_worker"),
+            **role_budget_fields(provider_defaults, "fanout_worker"),
             "engine": "auto",
             "engine_policy": "local_first",
             "model_policy": "per_task_over_job_over_env_over_engine_default",
@@ -2300,6 +2398,7 @@ def build_model_policy(classification, args):
             "role": "independent_review",
             "spawn": reviewer_spawn_policy(classification),
             **role_provider_fields(provider_defaults, "reviewer"),
+            **role_budget_fields(provider_defaults, "reviewer"),
             "engine": "auto",
             "engine_policy": "local_first",
             "model_policy": "prefer_stronger_than_worker_when_available",
@@ -2324,6 +2423,7 @@ def build_model_policy(classification, args):
             "role": "evidence",
             "spawn": "not_model_based",
             **role_provider_fields(provider_defaults, "verifier"),
+            **role_budget_fields(provider_defaults, "verifier"),
             "engine": "local_command",
             "model_policy": "none_when_executable_check_exists",
             "model_relation_to_session": role_model_relation(

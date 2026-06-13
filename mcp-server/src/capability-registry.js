@@ -97,6 +97,61 @@ export const ROLE_PROVIDER_ENV_NAMES = {
 
 export const ROLE_PROVIDER_FALLBACK_POLICY = "no_implicit_cross_provider_fallback";
 
+export const ROLE_TIMEOUT_METADATA_FIELDS = [
+  "timeout_seconds",
+  "timeout_source",
+  "timeout_enforced_by",
+  "can_override",
+];
+
+export const ROLE_COST_METADATA_FIELDS = [
+  "billing",
+  "cost_estimate_supported",
+  "cost_estimate_status",
+  "cost_estimate_cents",
+  "pricing_url",
+  "usage_metadata_fields",
+];
+
+export const ROLE_TIMEOUT_DEFAULTS = {
+  session: {
+    timeout_seconds: null,
+    timeout_source: "host_controlled",
+    timeout_enforced_by: "host",
+    can_override: false,
+  },
+  triage: {
+    timeout_seconds: 120,
+    timeout_source: "triage_timeout_seconds_or_default",
+    timeout_enforced_by: "triage_worker",
+    can_override: true,
+  },
+  reader: {
+    timeout_seconds: 30,
+    timeout_source: "local_model_run_default",
+    timeout_enforced_by: "local_model_run",
+    can_override: true,
+  },
+  fanout_worker: {
+    timeout_seconds: 600,
+    timeout_source: "fanout_start_or_env_or_default",
+    timeout_enforced_by: "fanout_worker",
+    can_override: true,
+  },
+  reviewer: {
+    timeout_seconds: 600,
+    timeout_source: "fanout_start_or_env_or_default",
+    timeout_enforced_by: "fanout_reviewer",
+    can_override: true,
+  },
+  verifier: {
+    timeout_seconds: 300,
+    timeout_source: "verify_run_default",
+    timeout_enforced_by: "verify_run",
+    can_override: true,
+  },
+};
+
 export const ROLE_PROVIDER_PROFILES = {
   host: {
     status: "supported",

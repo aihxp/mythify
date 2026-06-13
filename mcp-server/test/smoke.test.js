@@ -170,6 +170,12 @@ test("mythify MCP server smoke test", async (t) => {
       );
       assert.equal(parsed.model_policy.provider_defaults.api_provider_contract.status, "metadata_supported");
       assert.equal(parsed.model_policy.provider_defaults.api_provider_contract.execution_enabled, false);
+      assert.ok(
+        parsed.model_policy.provider_defaults.timeout_metadata_fields.includes("timeout_seconds")
+      );
+      assert.ok(
+        parsed.model_policy.provider_defaults.cost_metadata_fields.includes("cost_estimate_status")
+      );
       assert.equal(
         parsed.model_policy.provider_defaults.api_provider_contract.billing_policy,
         "explicit_provider_required"
@@ -192,6 +198,16 @@ test("mythify MCP server smoke test", async (t) => {
       assert.equal(parsed.model_policy.provider_defaults.roles.reviewer.status, "invalid_env_ignored");
       assert.equal(parsed.model_policy.provider_defaults.roles.reviewer.provider_profile.control, "bounded_worker");
       assert.equal(parsed.model_policy.reader.provider, "host");
+      assert.equal(parsed.model_policy.triage.timeout.timeout_seconds, 120);
+      assert.equal(parsed.model_policy.reader.timeout.timeout_seconds, 30);
+      assert.equal(parsed.model_policy.fanout_worker.timeout.timeout_seconds, 600);
+      assert.equal(
+        parsed.model_policy.fanout_worker.cost.billing,
+        "host_cli_subscription_or_local_quota"
+      );
+      assert.equal(parsed.model_policy.fanout_worker.cost.cost_estimate_status, "not_estimated");
+      assert.equal(parsed.model_policy.fanout_worker.cost.cost_estimate_cents, null);
+      assert.equal(parsed.model_policy.verifier.cost.billing, "local_compute");
       assert.equal(parsed.model_policy.reader.evidence_status, "model_output_not_verification");
       assert.equal(parsed.model_policy.reviewer.stronger_model_policy, "same_or_lower");
       assert.equal(parsed.model_policy.reviewer.stronger_model_policy_source, "default");

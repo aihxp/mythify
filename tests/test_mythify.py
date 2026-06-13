@@ -381,6 +381,8 @@ class TestClassification(CliTestCase):
             api_contract["billing_policy"],
             "explicit_provider_required",
         )
+        self.assertIn("timeout_seconds", policy["provider_defaults"]["timeout_metadata_fields"])
+        self.assertIn("cost_estimate_status", policy["provider_defaults"]["cost_metadata_fields"])
         self.assertIn("pricing_url", api_contract["cost_metadata_fields"])
         self.assertEqual(
             api_contract["providers"]["openai-api"]["api_key_env"],
@@ -409,6 +411,17 @@ class TestClassification(CliTestCase):
             "executed_verification",
         )
         self.assertEqual(policy["reader"]["provider"], "local_openai_compatible")
+        self.assertEqual(policy["triage"]["timeout"]["timeout_seconds"], 120.0)
+        self.assertEqual(
+            policy["triage"]["timeout"]["timeout_source"],
+            "triage_timeout_seconds_or_default",
+        )
+        self.assertEqual(policy["reader"]["timeout"]["timeout_seconds"], 30)
+        self.assertEqual(policy["fanout_worker"]["timeout"]["timeout_seconds"], 600)
+        self.assertEqual(policy["fanout_worker"]["cost"]["billing"], "host_cli_subscription_or_local_quota")
+        self.assertEqual(policy["fanout_worker"]["cost"]["cost_estimate_status"], "not_estimated")
+        self.assertIsNone(policy["fanout_worker"]["cost"]["cost_estimate_cents"])
+        self.assertEqual(policy["verifier"]["cost"]["billing"], "local_compute")
         self.assertFalse(policy["reader"]["writes_state"])
         self.assertEqual(
             policy["reader"]["evidence_status"],

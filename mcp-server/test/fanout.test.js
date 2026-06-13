@@ -529,6 +529,10 @@ test("fanout with the command engine", async (t) => {
       assert.deepEqual(
         Object.keys(job).sort(),
         [
+          "billing",
+          "cost_estimate_cents",
+          "cost_estimate_status",
+          "cost_tracking",
           "created",
           "effort",
           "effort_source",
@@ -539,6 +543,7 @@ test("fanout with the command engine", async (t) => {
           "model_ceiling_status",
           "model_source",
           "model_tier",
+          "pricing_url",
           "purpose",
           "reviewer_allow_stronger",
           "session_model",
@@ -550,6 +555,7 @@ test("fanout with the command engine", async (t) => {
           "speed_source",
           "tasks",
           "timeout_seconds",
+          "timeout_source",
           "visibility",
           "visibility_reason",
           "visibility_requested",
@@ -559,6 +565,11 @@ test("fanout with the command engine", async (t) => {
       );
       assert.equal(job.id, threeTaskJobId);
       assert.equal(job.engine, "command");
+      assert.equal(job.billing, "user_defined");
+      assert.equal(job.cost_tracking, "metadata_only_no_estimate");
+      assert.equal(job.cost_estimate_status, "not_estimated");
+      assert.equal(job.cost_estimate_cents, null);
+      assert.equal(job.pricing_url, "");
       assert.equal(typeof job.model, "string");
       assert.equal(job.model_tier, "unknown");
       assert.equal(job.model_ceiling_status, "uncheckable");
@@ -579,6 +590,7 @@ test("fanout with the command engine", async (t) => {
       assert.equal(job.purpose, "");
       assert.equal(job.reviewer_allow_stronger, false);
       assert.equal(job.timeout_seconds, 600, "the per-worker timeout defaults to 600");
+      assert.equal(job.timeout_source, "default");
       assert.equal(typeof job.created, "string");
       assert.equal(typeof job.last_updated, "string");
       assert.ok(Array.isArray(job.tasks), "tasks is an array");
@@ -588,6 +600,10 @@ test("fanout with the command engine", async (t) => {
         assert.deepEqual(
           Object.keys(task).sort(),
           [
+            "billing",
+            "cost_estimate_cents",
+            "cost_estimate_status",
+            "cost_tracking",
             "duration_seconds",
             "effort",
             "effort_source",
@@ -601,12 +617,15 @@ test("fanout with the command engine", async (t) => {
             "model_tier",
             "output_bytes",
             "output_file",
+            "pricing_url",
             "role",
             "speed",
             "speed_source",
             "started_at",
             "status",
             "stronger_reviewer_opt_in",
+            "timeout_seconds",
+            "timeout_source",
             "title",
           ],
           "each task record has the exact contract fields"
@@ -616,6 +635,11 @@ test("fanout with the command engine", async (t) => {
         assert.equal(task.role, "worker");
         assert.equal(task.status, "completed");
         assert.equal(task.engine, "command");
+        assert.equal(task.billing, "user_defined");
+        assert.equal(task.cost_tracking, "metadata_only_no_estimate");
+        assert.equal(task.cost_estimate_status, "not_estimated");
+        assert.equal(task.cost_estimate_cents, null);
+        assert.equal(task.pricing_url, "");
         assert.equal(typeof task.model, "string");
         assert.equal(task.model_tier, "unknown");
         assert.equal(task.model_ceiling_status, "uncheckable");
@@ -625,6 +649,8 @@ test("fanout with the command engine", async (t) => {
         assert.equal(task.effort_source, "model_default");
         assert.equal(task.speed, "auto");
         assert.equal(task.speed_source, "platform_default");
+        assert.equal(task.timeout_seconds, 600);
+        assert.equal(task.timeout_source, "default");
         assert.equal(typeof task.started_at, "string");
         assert.equal(typeof task.finished_at, "string");
         assert.ok(

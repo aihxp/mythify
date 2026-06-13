@@ -527,7 +527,9 @@ Classification always returns `model_policy`. It separates:
   future explicit role input, `MYTHIFY_ROLE_<ROLE>_PROVIDER`, then built-in
   defaults. Invalid env values are ignored with `status:
   "invalid_env_ignored"`. Every role uses `fallback_policy:
-  "no_implicit_cross_provider_fallback"`.
+  "no_implicit_cross_provider_fallback"`. The object also declares
+  `timeout_metadata_fields` and `cost_metadata_fields` so hosts know which
+  fields are intentionally standardized.
 - `provider_defaults.provider_catalog`: provider-specific posture metadata for
   `host`, `host_cli`, `local_openai_compatible`, `api_provider`, `command`,
   and `local_command`. It records allowed roles, default roles, billing
@@ -540,6 +542,12 @@ Classification always returns `model_policy`. It separates:
   posture, timeout metadata fields, cost metadata fields, pricing URLs, and
   `execution_enabled: false`. Hosted execution must be added in a later
   explicit slice.
+- Resolved role records include `timeout` and `cost` objects. `timeout`
+  records `timeout_seconds`, `timeout_source`, `timeout_enforced_by`, and
+  `can_override`. `cost` records billing posture, `cost_estimate_supported:
+  false`, `cost_estimate_status: "not_estimated"`,
+  `cost_estimate_cents: null`, pricing references, and usage metadata field
+  names. Pricing URLs are advisory references only.
 - `session`: host-selected current conversation model, model source, rough
   tier, effort policy, spawn ceiling, and `recommendation`.
   `host_model_switch` records intended host model changes in
@@ -1006,7 +1014,7 @@ Platform mapping:
   `gpt-5.3-codex-high-fast` when that id is available. If no matching encoded
   id is found, Mythify leaves the requested model unchanged.
 
-### Tools (3, total 28)
+### Tools (3, total 29)
 
 | Tool | Input schema | Behavior |
 | :--- | :--- | :--- |
@@ -1044,6 +1052,9 @@ job.json (atomic writes on every transition):
 ```json
 {
   "id": "fo-...", "created": "ISO-8601", "engine": "str", "model": "str",
+  "billing": "str", "cost_tracking": "metadata_only_no_estimate",
+  "cost_estimate_status": "not_estimated", "cost_estimate_cents": null,
+  "pricing_url": "str",
   "model_source": "str", "model_tier": "str", "model_ceiling_status": "str",
   "session_model": "str", "session_model_source": "str",
   "session_model_tier": "str", "spawn_ceiling": "str",
@@ -1054,14 +1065,21 @@ job.json (atomic writes on every transition):
   "visibility_source": "explicit|env|prompt|default",
   "visibility_requested": "auto|quiet|summary|verbose|threaded",
   "visibility_reason": "str", "purpose": "str",
-  "timeout_seconds": 600, "last_updated": "ISO-8601",
+  "timeout_seconds": 600,
+  "timeout_source": "explicit|env:MYTHIFY_FANOUT_TIMEOUT_SECONDS|default|default_invalid_env_ignored",
+  "last_updated": "ISO-8601",
   "tasks": [
     {"id": 1, "title": "str", "status": "pending|running|completed|failed|interrupted",
      "role": "worker|reviewer", "engine": "str", "model": "str", "model_source": "str",
+     "billing": "str", "cost_tracking": "metadata_only_no_estimate",
+     "cost_estimate_status": "not_estimated", "cost_estimate_cents": null,
+     "pricing_url": "str",
      "model_tier": "str", "model_ceiling_status": "str",
      "stronger_reviewer_opt_in": false,
      "effort": "low|medium|high", "effort_source": "str",
      "speed": "auto|standard|fast", "speed_source": "str",
+     "timeout_seconds": 600,
+     "timeout_source": "explicit|env:MYTHIFY_FANOUT_TIMEOUT_SECONDS|default|default_invalid_env_ignored",
      "started_at": "ISO-8601 or null",
      "finished_at": "ISO-8601 or null", "duration_seconds": 0.0,
      "error": "str or null", "output_file": "task-1-output.md", "output_bytes": 0}
@@ -1113,6 +1131,7 @@ job.json (atomic writes on every transition):
 | `MYTHIFY_FANOUT_MAX_TOKENS` | 8000 | API engines' max_tokens. |
 | `MYTHIFY_FANOUT_MAX_TURNS` | 25 | claude-cli `--max-turns`. |
 | `MYTHIFY_FANOUT_TIMEOUT_SECONDS` | 600 | Per-worker timeout; on expiry the worker is killed and the task fails with a timeout error. |
+| `MYTHIFY_FANOUT_PRICING_URL` | unset | Optional pricing reference recorded for `openai` fanout engine cost metadata. No estimates are computed. |
 | `MYTHIFY_FANOUT_CONTEXT_BYTES` | 200000 | Total inlined context per task. |
 | `MYTHIFY_FANOUT_CLAUDE_BIN` | resolved | Path to the claude binary. |
 | `MYTHIFY_FANOUT_CLAUDE_ARGS` | empty | Extra claude args, for example `--allowedTools "Bash"`. |

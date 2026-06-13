@@ -30,6 +30,9 @@ import {
   ROLE_PROVIDER_ENV_NAMES,
   ROLE_PROVIDER_FALLBACK_POLICY,
   ROLE_PROVIDER_PROFILES,
+  ROLE_COST_METADATA_FIELDS,
+  ROLE_TIMEOUT_DEFAULTS,
+  ROLE_TIMEOUT_METADATA_FIELDS,
   REVIEWER_STRENGTH_MODES,
   SPAWN_CEILINGS,
   SPEED_LEVELS,
@@ -1935,6 +1938,8 @@ function buildProviderDefaults() {
     version: 1,
     precedence: ["future_explicit_role_input", "env", "built_in"],
     fallback_policy: ROLE_PROVIDER_FALLBACK_POLICY,
+    timeout_metadata_fields: ROLE_TIMEOUT_METADATA_FIELDS,
+    cost_metadata_fields: ROLE_COST_METADATA_FIELDS,
     provider_catalog: roleProviderCatalog(),
     api_provider_contract: apiProviderContract(),
     roles,
@@ -1950,6 +1955,38 @@ function roleProviderFields(providerDefaults, role) {
     provider_status: provider.status,
     provider_fallback_policy: provider.fallback_policy,
     provider_profile: provider.provider_profile || {},
+  };
+}
+
+function roleTimeoutMetadata(role, timeoutSeconds, timeoutSource) {
+  const metadata = { ...(ROLE_TIMEOUT_DEFAULTS[role] || {}) };
+  if (timeoutSeconds !== undefined) {
+    metadata.timeout_seconds = timeoutSeconds;
+  }
+  if (timeoutSource !== undefined) {
+    metadata.timeout_source = timeoutSource;
+  }
+  return metadata;
+}
+
+function roleCostMetadata(providerDefaults, role, pricingUrl = "") {
+  const providerRecord = providerDefaults.roles[role];
+  const provider = providerRecord.provider;
+  const profile = providerRecord.provider_profile || {};
+  return {
+    billing: profile.billing || "unknown",
+    cost_estimate_supported: false,
+    cost_estimate_status: "not_estimated",
+    cost_estimate_cents: null,
+    pricing_url: pricingUrl,
+    usage_metadata_fields: provider === "api_provider" ? apiProviderContract().cost_metadata_fields : [],
+  };
+}
+
+function roleBudgetFields(providerDefaults, role, timeoutSeconds, timeoutSource, pricingUrl = "") {
+  return {
+    timeout: roleTimeoutMetadata(role, timeoutSeconds, timeoutSource),
+    cost: roleCostMetadata(providerDefaults, role, pricingUrl),
   };
 }
 
@@ -1993,6 +2030,7 @@ function buildModelPolicy(classification, options) {
       control: "host_selected",
       platform,
       ...roleProviderFields(providerDefaults, "session"),
+      ...roleBudgetFields(providerDefaults, "session"),
       model: sessionModel.model,
       model_source: sessionModel.source,
       model_tier: sessionTier,
@@ -2018,6 +2056,12 @@ function buildModelPolicy(classification, options) {
       role: "problem_framing",
       spawn: classification.model_triage || "skip",
       ...roleProviderFields(providerDefaults, "triage"),
+      ...roleBudgetFields(
+        providerDefaults,
+        "triage",
+        timeoutSeconds,
+        "triage_timeout_seconds_or_default"
+      ),
       engine: triageEngine || "auto",
       engine_policy: triageEnginePolicy,
       model: triageModel,
@@ -2037,6 +2081,7 @@ function buildModelPolicy(classification, options) {
       role: "read_only_material_inspection",
       spawn: "optional",
       ...roleProviderFields(providerDefaults, "reader"),
+      ...roleBudgetFields(providerDefaults, "reader"),
       model_policy: "local_openai_compatible_when_configured",
       model_relation_to_session: "lower_preferred",
       effort: "low",
@@ -2051,6 +2096,7 @@ function buildModelPolicy(classification, options) {
       role: "independent_subtask",
       spawn: classification.fanout || "not_recommended",
       ...roleProviderFields(providerDefaults, "fanout_worker"),
+      ...roleBudgetFields(providerDefaults, "fanout_worker"),
       engine: "auto",
       engine_policy: "local_first",
       model_policy: "per_task_over_job_over_env_over_engine_default",
@@ -2076,6 +2122,7 @@ function buildModelPolicy(classification, options) {
       role: "independent_review",
       spawn: reviewerSpawnPolicy(classification),
       ...roleProviderFields(providerDefaults, "reviewer"),
+      ...roleBudgetFields(providerDefaults, "reviewer"),
       engine: "auto",
       engine_policy: "local_first",
       model_policy: "prefer_stronger_than_worker_when_available",
@@ -2097,6 +2144,7 @@ function buildModelPolicy(classification, options) {
       role: "evidence",
       spawn: "not_model_based",
       ...roleProviderFields(providerDefaults, "verifier"),
+      ...roleBudgetFields(providerDefaults, "verifier"),
       engine: "local_command",
       model_policy: "none_when_executable_check_exists",
       model_relation_to_session: roleModelRelation("verifier", sessionTier, spawnCeiling.ceiling),

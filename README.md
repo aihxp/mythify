@@ -326,6 +326,9 @@ have to guess which model setting applies where:
   fanout worker, reviewer, and verifier roles. These fields do not route work
   by themselves. They make the default provider posture explicit and use
   `fallback_policy: "no_implicit_cross_provider_fallback"`.
+  `provider_defaults.timeout_metadata_fields` and
+  `provider_defaults.cost_metadata_fields` name the standardized fields Mythify
+  records for timeouts and cost posture.
   `provider_defaults.provider_catalog` records the provider posture for
   `host`, `host_cli`, `local_openai_compatible`, `api_provider`, `command`,
   and `local_command`: allowed roles, default roles, billing posture,
@@ -336,6 +339,11 @@ have to guess which model setting applies where:
   endpoints. It records auth env names, billing posture, timeout fields, cost
   metadata fields, pricing URLs, and `execution_enabled: false` until a later
   slice adds explicit hosted execution.
+  Each resolved role also includes `timeout` and `cost` objects. `timeout`
+  records the timeout seconds, source, enforcer, and whether callers can
+  override it. `cost` records billing posture, estimate support, explicit
+  `not_estimated` status, nullable estimate cents, pricing URL, and usage
+  metadata fields. Mythify does not estimate dollars without real usage data.
 - `session`: the active conversation model is host-selected. Codex Desktop,
   Claude Desktop, Cursor Desktop, and CLI hosts own that dropdown or command
   flag. `host_model_switch` and `host-model switch` can record the intended
@@ -344,7 +352,7 @@ have to guess which model setting applies where:
   target profile, target model, thinking, speed, and whether to keep,
   downgrade, upgrade, or set the host model.
 - `triage`: the optional fast problem-framing worker, including spawned engine,
-  spawned model policy, effort, timeout, and sandbox.
+  spawned model policy, effort, timeout, cost posture, and sandbox.
 - `reader`: optional read-only model role for inspecting supplied material.
   It defaults to the localhost OpenAI-compatible provider path and can use the
   explicit Ollama profile. It returns material, not verification evidence.
@@ -558,6 +566,18 @@ Platform mapping:
   `effort: "high"`, and `speed: "fast"` resolves to
   `gpt-5.3-codex-high-fast` when that model is available.
 
+### Cost and timeout metadata
+
+Fanout records the resolved timeout and cost posture in `job.json` and each
+task. `timeout_source` is `explicit`, `env:MYTHIFY_FANOUT_TIMEOUT_SECONDS`,
+`default`, or `default_invalid_env_ignored`.
+
+Cost fields are descriptive, not estimates. Each job and task records
+`billing`, `pricing_url`, `cost_tracking: "metadata_only_no_estimate"`,
+`cost_estimate_status: "not_estimated"`, and `cost_estimate_cents: null`.
+CLI subscription workers, hosted API workers, and user commands therefore stay
+auditable without Mythify inventing token or dollar math.
+
 ### Configuration
 
 | Env | Default | Meaning |
@@ -602,6 +622,7 @@ Platform mapping:
 | `MYTHIFY_FANOUT_MAX_TOKENS` | 8000 | API engines' max_tokens. |
 | `MYTHIFY_FANOUT_MAX_TURNS` | 25 | claude-cli `--max-turns`. |
 | `MYTHIFY_FANOUT_TIMEOUT_SECONDS` | 600 | Per-worker timeout; on expiry the worker is killed and the task fails with a timeout error. |
+| `MYTHIFY_FANOUT_PRICING_URL` | unset | Optional pricing reference recorded for `openai` fanout engine cost metadata. No estimates are computed. |
 | `MYTHIFY_FANOUT_CONTEXT_BYTES` | 200000 | Total inlined context per task. |
 | `MYTHIFY_FANOUT_CLAUDE_BIN` | resolved | Path to the claude binary. |
 | `MYTHIFY_FANOUT_CLAUDE_ARGS` | empty | Extra claude args, for example `--allowedTools "Bash"`. |

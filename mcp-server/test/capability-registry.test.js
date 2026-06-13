@@ -11,6 +11,9 @@ import {
   ROLE_PROVIDER_DEFAULTS,
   ROLE_PROVIDER_ENV_NAMES,
   ROLE_PROVIDER_PROFILES,
+  ROLE_COST_METADATA_FIELDS,
+  ROLE_TIMEOUT_DEFAULTS,
+  ROLE_TIMEOUT_METADATA_FIELDS,
   TRIAGE_ENGINES,
   getHostCapability,
   listAdapterCandidates,
@@ -79,6 +82,23 @@ test("role provider defaults stay explicit", () => {
   assert.equal(ROLE_PROVIDER_PROFILES.api_provider.billing, "metered_external_account");
   assert.equal(ROLE_PROVIDER_PROFILES.local_openai_compatible.local_only, true);
   assert.equal(ROLE_PROVIDER_PROFILES.local_command.evidence_status, "executed_verification");
+  assert.deepEqual(ROLE_TIMEOUT_METADATA_FIELDS, [
+    "timeout_seconds",
+    "timeout_source",
+    "timeout_enforced_by",
+    "can_override",
+  ]);
+  assert.deepEqual(ROLE_COST_METADATA_FIELDS, [
+    "billing",
+    "cost_estimate_supported",
+    "cost_estimate_status",
+    "cost_estimate_cents",
+    "pricing_url",
+    "usage_metadata_fields",
+  ]);
+  assert.equal(ROLE_TIMEOUT_DEFAULTS.triage.timeout_seconds, 120);
+  assert.equal(ROLE_TIMEOUT_DEFAULTS.fanout_worker.timeout_enforced_by, "fanout_worker");
+  assert.equal(ROLE_TIMEOUT_DEFAULTS.verifier.timeout_source, "verify_run_default");
 });
 
 test("researched future adapters are candidates, not public host platforms", () => {

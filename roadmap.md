@@ -21,20 +21,19 @@ Status markers:
 
 ## Active Now
 
-- [>] Cost and timeout controls per role.
-  - Current goal: record provider and worker cost or timeout posture in the
-    places where role policy and worker execution already resolve.
-  - Next step: map which records need timeout, duration, provider, model, and
-    pricing metadata without estimating costs too early.
-  - Guardrail: do not invent pricing math where provider token or billing data
-    is not available.
+- [>] Custom command or HTTP adapter path.
+  - Current goal: decide how user-defined command and HTTP adapters graduate
+    from metadata to bounded execution.
+  - Next step: map command templates, HTTP requests, auth, timeout,
+    state-write, and evidence boundaries.
+  - Guardrail: no hidden provider fallback, no unbounded command execution,
+    and no treating adapter output as verification evidence.
 
 ## Next Queue
 
-1. [ ] Custom command or HTTP adapter path.
-2. [ ] Workflow dashboard or phase view that reveals evidence without
+1. [ ] Workflow dashboard or phase view that reveals evidence without
    decorating self-report.
-3. [ ] One-core architecture decision after the registry prototype proves
+2. [ ] One-core architecture decision after the registry prototype proves
    enough value.
 
 ## Open Work By Track
@@ -68,7 +67,7 @@ Already shipped in this track:
 
 What remains:
 
-- [ ] Cost and timeout controls per role.
+Nothing open right now.
 
 Already shipped in this track:
 
@@ -79,6 +78,7 @@ Already shipped in this track:
 - [x] Stronger reviewer opt-in flow.
 - [x] Provider-specific role defaults in CLI and MCP `model_policy`.
 - [x] API provider metadata exposed before hosted execution exists.
+- [x] Cost and timeout metadata per role and fanout worker records.
 
 Role model:
 
@@ -245,6 +245,10 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add cost and timeout metadata to role policy and fanout
+  worker records. Mythify records timeout source, billing posture, pricing
+  references, and explicit not-estimated cost status without guessing dollar
+  costs.
 - [x] 2026-06-13: add guarded Google Colab CLI remote execution through
   `execution_run`. The adapter wraps the official `colab run` ephemeral path,
   requires billing, data movement, and cleanup acknowledgements, writes no
@@ -397,7 +401,7 @@ Preserve:
 
 - [x] API provider adapter path.
 - [x] Per-role provider defaults.
-- [ ] Cost and timeout metadata in worker records.
+- [x] Cost and timeout metadata in worker records.
 - [x] CLI/MCP interop matrix for shared mutating operations.
 - [x] Kimi Code CLI adapter proof of concept.
 - [x] OpenCode CLI adapter proof of concept.

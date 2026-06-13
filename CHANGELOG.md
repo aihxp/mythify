@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Cost and timeout metadata for role policy and fanout workers. CLI and MCP
+  `model_policy` roles now expose `timeout` and `cost` objects, and fanout
+  job and task records store billing, timeout source, pricing reference, and
+  explicit `not_estimated` cost status without computing dollar estimates.
 - MCP `execution_probe` for Google Colab CLI availability checks. The probe
   runs only version and help commands, returns explicit non-billable and
   no-remote-execution guard fields, and records no verification evidence.

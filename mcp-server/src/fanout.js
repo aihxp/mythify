@@ -95,6 +95,18 @@ function intEnv(name, fallback) {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
+function positiveIntEnvWithSource(name, fallback) {
+  const raw = (process.env[name] || "").trim();
+  if (raw === "") {
+    return { value: fallback, source: "default" };
+  }
+  const value = Number.parseInt(raw, 10);
+  if (Number.isFinite(value) && value > 0) {
+    return { value, source: `env:${name}` };
+  }
+  return { value: fallback, source: "default_invalid_env_ignored" };
+}
+
 function envSet(name) {
   return (process.env[name] || "").trim() !== "";
 }
@@ -769,6 +781,39 @@ function engineAvailabilityError(engine, model) {
     return envSet("MYTHIFY_FANOUT_COMMAND") ? null : "engine command: MYTHIFY_FANOUT_COMMAND is not set.";
   }
   return `unknown engine "${engine}"; valid engines: ${ENGINES.join(", ")}.`;
+}
+
+function engineBilling(engine) {
+  if (["claude-cli", "codex-cli", "cursor-agent"].includes(engine)) {
+    return "host_cli_subscription_or_local_quota";
+  }
+  if (["anthropic", "openai"].includes(engine)) {
+    return "metered_external_account";
+  }
+  if (engine === "command") {
+    return "user_defined";
+  }
+  return "unknown";
+}
+
+function enginePricingUrl(engine) {
+  if (engine === "anthropic") {
+    return "https://docs.anthropic.com/en/docs/about-claude/pricing";
+  }
+  if (engine === "openai") {
+    return (process.env.MYTHIFY_FANOUT_PRICING_URL || "").trim();
+  }
+  return "";
+}
+
+function engineCostMetadata(engine) {
+  return {
+    billing: engineBilling(engine),
+    cost_tracking: "metadata_only_no_estimate",
+    cost_estimate_status: "not_estimated",
+    cost_estimate_cents: null,
+    pricing_url: enginePricingUrl(engine),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1679,10 +1724,12 @@ function handleFanoutStart({
     jobSpeedSelection.speed
   );
   const jobModelCeiling = ceilingCheck(sessionModel, spawnCeiling.ceiling, jobModelRecord);
-  const jobTimeout =
+  const timeoutSelection =
     typeof timeout_seconds === "number" && timeout_seconds > 0
-      ? timeout_seconds
-      : intEnv("MYTHIFY_FANOUT_TIMEOUT_SECONDS", 600);
+      ? { value: timeout_seconds, source: "explicit" }
+      : positiveIntEnvWithSource("MYTHIFY_FANOUT_TIMEOUT_SECONDS", 600);
+  const jobTimeout = timeoutSelection.value;
+  const jobCostMetadata = engineCostMetadata(jobEngineRecord);
   const jobId = `fo-${io.stampNow()}-${crypto.randomBytes(2).toString("hex")}`;
   const jobDir = path.join(stateDir, "fanout", jobId);
   const now = io.isoNow();
@@ -1690,6 +1737,7 @@ function handleFanoutStart({
     id: jobId,
     created: now,
     engine: jobEngineRecord,
+    ...jobCostMetadata,
     model: jobModelRecord,
     model_source: jobModelSelection.modelSource,
     model_tier: jobModelCeiling.workerTier,
@@ -1710,29 +1758,36 @@ function handleFanoutStart({
     visibility_reason: visibilitySelection.reason,
     purpose: typeof purpose === "string" ? purpose : "",
     timeout_seconds: jobTimeout,
+    timeout_source: timeoutSelection.source,
     last_updated: now,
-    tasks: resolvedTasks.map((resolved, i) => ({
-      id: i + 1,
-      title: resolved.title,
-      role: resolved.role,
-      status: "pending",
-      engine: resolved.engine,
-      model: resolved.model,
-      model_source: resolved.modelSource,
-      model_tier: resolved.modelTier,
-      model_ceiling_status: resolved.modelCeilingStatus,
-      stronger_reviewer_opt_in: resolved.strongerReviewerOptIn,
-      effort: resolved.effort,
-      effort_source: resolved.effortSource,
-      speed: resolved.speed,
-      speed_source: resolved.speedSource,
-      started_at: null,
-      finished_at: null,
-      duration_seconds: 0,
-      error: null,
-      output_file: `task-${i + 1}-output.md`,
-      output_bytes: 0,
-    })),
+    tasks: resolvedTasks.map((resolved, i) => {
+      const taskCostMetadata = engineCostMetadata(resolved.engine);
+      return {
+        id: i + 1,
+        title: resolved.title,
+        role: resolved.role,
+        status: "pending",
+        engine: resolved.engine,
+        ...taskCostMetadata,
+        model: resolved.model,
+        model_source: resolved.modelSource,
+        model_tier: resolved.modelTier,
+        model_ceiling_status: resolved.modelCeilingStatus,
+        stronger_reviewer_opt_in: resolved.strongerReviewerOptIn,
+        effort: resolved.effort,
+        effort_source: resolved.effortSource,
+        speed: resolved.speed,
+        speed_source: resolved.speedSource,
+        timeout_seconds: jobTimeout,
+        timeout_source: timeoutSelection.source,
+        started_at: null,
+        finished_at: null,
+        duration_seconds: 0,
+        error: null,
+        output_file: `task-${i + 1}-output.md`,
+        output_bytes: 0,
+      };
+    }),
   };
   io.writeJsonAtomic(path.join(jobDir, "job.json"), job);
   jobRegistry.set(jobId, { running: true });
