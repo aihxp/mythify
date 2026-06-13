@@ -21,13 +21,14 @@ Status markers:
 
 ## Active Now
 
-- [>] Outcome loop progress.
-  - Current goal: show active and recent outcome loops with iteration progress,
-    last verifier result, and next action.
-  - Next step: map outcome goal files and iteration logs into progress rows
-    without changing outcome control semantics.
-  - Guardrail: progress displays recorded verifier results; it does not make
-    attempts, stop loops, or treat notes as verification.
+- [>] Release readiness view.
+  - Current goal: show whether a release has the expected executable evidence,
+    generated-file checks, protocol checks, docs checks, and git state needed
+    before tagging.
+  - Next step: map existing gate inputs into readiness rows without inventing
+    approval or rerunning checks inside the read-only view.
+  - Guardrail: readiness reports recorded evidence and check status; it does
+    not declare a release safe without executed gates.
 
 ## Next Queue
 
@@ -214,13 +215,14 @@ Already shipped in this track:
 
 What remains:
 
-- [>] Outcome loop progress.
-- [ ] Release readiness view.
+- [>] Release readiness view.
 
 Principle: reveal evidence, do not decorate self-report.
 
 Already shipped in this track:
 
+- [x] Outcome loop progress through CLI `progress` and MCP
+  `outcome_progress`.
 - [x] Verification history through CLI `history` and MCP
   `verification_history`.
 - [x] Fanout worker timeline through CLI `timeline` and MCP
@@ -253,6 +255,11 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add read-only outcome progress. CLI `progress` and MCP
+  `outcome_progress` show active and recent outcome loops, iteration budget,
+  last verifier exit details, metric score when present, and next action
+  without running checks, making attempts, stopping loops, or treating notes as
+  verification.
 - [x] 2026-06-13: add read-only verification history. CLI `history` and MCP
   `verification_history` show executed and attested records, verdicts, exit
   codes, duration, and plan or step context without rerunning checks or

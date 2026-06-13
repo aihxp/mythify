@@ -611,6 +611,36 @@ test("mythify MCP server smoke test", async (t) => {
       assert.ok(stopped.startsWith("[OK]"), `outcome_stop succeeds: ${stopped}`);
     });
 
+    await t.test("outcome_progress shows read-only verifier progress", async () => {
+      const before = snapshotStateDir(stateDir);
+      const text = textOf(
+        await client.callTool({
+          name: "outcome_progress",
+          arguments: { recent: 3 },
+        })
+      );
+      assert.ok(text.startsWith("[OK] Outcome progress"), `outcome_progress reports [OK]: ${text}`);
+      assert.match(text, /Outcomes:/);
+      assert.match(text, /make-the-smoke-verifier-pass/);
+      assert.match(text, /metric: exit 0, score 9.5/);
+      assert.match(text, /Guardrail: progress displays recorded outcome verifier results only/);
+      assert.deepEqual(snapshotStateDir(stateDir), before, "outcome_progress leaves state unchanged");
+
+      const jsonText = textOf(
+        await client.callTool({
+          name: "outcome_progress",
+          arguments: { recent: 3, format: "json" },
+        })
+      );
+      const parsed = JSON.parse(jsonText.replace(/^\[OK\] /, ""));
+      assert.equal(parsed.counts.succeeded, 1);
+      assert.equal(parsed.counts.stopped, 1);
+      const byId = Object.fromEntries(parsed.outcomes.map((outcome) => [outcome.id, outcome]));
+      assert.equal(byId["make-the-smoke-verifier-pass"].last_check.metric_score, 9.5);
+      assert.equal(byId["fail-within-one-iteration"].status, "stopped");
+      assert.deepEqual(snapshotStateDir(stateDir), before, "outcome_progress json leaves state unchanged");
+    });
+
     await t.test("background_status shows read-only outcome and fanout state", async () => {
       const jobId = "fo-20260613131313-abcd";
       const jobDir = path.join(stateDir, "fanout", jobId);

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Mythify MCP server v2.5.0
 // Exposes the Mythify state model (memory, plans, lessons, verifications,
-// reflections) as 31 core MCP tools over stdio, plus the 3 fanout tools for
-// parallel delegation (src/fanout.js), 34 tools in total. On-disk formats are
+// reflections) as 32 core MCP tools over stdio, plus the 3 fanout tools for
+// parallel delegation (src/fanout.js), 35 tools in total. On-disk formats are
 // shared with the Python CLI (scripts/mythify.py); both implementations must
 // interoperate on the same .mythify state directory. Fanout is MCP-only; the
 // CLI deliberately does not implement it.
@@ -1418,6 +1418,151 @@ function formatBackgroundView(view) {
   if (view.outcomes.length === 0 && view.fanout_jobs.length === 0) {
     lines.push("No background tasks found.");
   }
+  return lines.join("\n");
+}
+
+function summarizeOutcomeProgress(slug, goal) {
+  const iterations = readOutcomeIterations(slug);
+  const lastIteration = iterations.length > 0 ? iterations[iterations.length - 1] : null;
+  const iterationCount = Number(goal.iteration_count || 0);
+  const maxIterations = Number(goal.max_iterations || 1);
+  const metric = lastIteration && lastIteration.metric ? lastIteration.metric : null;
+  const verify = lastIteration && lastIteration.verify ? lastIteration.verify : {};
+  const lastCheck = lastIteration
+    ? {
+        iteration: lastIteration.iteration,
+        timestamp: lastIteration.timestamp || "",
+        verified: lastIteration.verified,
+        status_after: lastIteration.status_after || "",
+        notes: lastIteration.notes || "",
+        verify_exit_code: verify.exit_code,
+        verify_duration_seconds: verify.duration_seconds || 0,
+        verify_verified: verify.verified,
+        metric_exit_code: metric ? metric.exit_code : null,
+        metric_score: metric ? metric.score : null,
+        metric_verified: metric ? metric.verified : null,
+      }
+    : null;
+  return {
+    id: slug,
+    goal: goal.goal || "",
+    success_criteria: goal.success_criteria || "",
+    status: goal.status || "active",
+    iteration_count: iterationCount,
+    max_iterations: maxIterations,
+    iterations_remaining: Math.max(0, maxIterations - iterationCount),
+    progress_percent: maxIterations ? Math.round((iterationCount / maxIterations) * 1000) / 10 : 0,
+    visibility: goal.visibility || "summary",
+    created: goal.created || "",
+    updated: goal.updated || "",
+    last_verified: goal.last_verified,
+    last_check: lastCheck,
+    next_action: lastIteration
+      ? lastIteration.next_action
+      : "make a bounded attempt, then call outcome_check",
+    verify_command: goal.verify_command || "",
+    metric_command: goal.metric_command || "",
+    best_metric_score: goal.best_metric_score,
+    allowed_paths: Array.isArray(goal.allowed_paths) ? goal.allowed_paths : [],
+    stop_reason: goal.stop_reason,
+  };
+}
+
+function listOutcomeProgressRows() {
+  let names;
+  try {
+    names = fs.readdirSync(outcomesDir());
+  } catch {
+    return [];
+  }
+  const rows = [];
+  for (const name of names.sort()) {
+    const goalPath = outcomeGoalPath(name);
+    if (!fs.existsSync(goalPath)) {
+      continue;
+    }
+    const goal = readJsonRecover(goalPath, () => null);
+    if (goal && typeof goal === "object") {
+      rows.push(summarizeOutcomeProgress(name, goal));
+    }
+  }
+  return rows.sort((left, right) =>
+    `${left.updated || left.created || ""}${left.id || ""}`.localeCompare(
+      `${right.updated || right.created || ""}${right.id || ""}`
+    )
+  );
+}
+
+function buildOutcomeProgressView(recent = 5) {
+  const outcomes = listOutcomeProgressRows();
+  const activeOutcomeSlug = readActiveOutcomeSlug();
+  const counts = countStatuses(outcomes, ["active", "succeeded", "failed", "stopped"]);
+  return {
+    state_dir: resolveStateDir(),
+    active_outcome: outcomes.find((outcome) => outcome.id === activeOutcomeSlug) || null,
+    outcomes: backgroundRecent(outcomes, recent),
+    counts: { total: outcomes.length, ...counts },
+    guardrail:
+      "progress displays recorded outcome verifier results only; it does not run checks, make attempts, stop loops, or treat notes as verification",
+  };
+}
+
+function formatOutcomeProgressRow(row) {
+  const icon = BACKGROUND_STATUS_ICONS[row.status] || "[ ]";
+  const lines = [
+    `  ${icon} ${row.id}: ${compactLabel(row.goal, "outcome")} ` +
+      `(${row.status}, ${row.iteration_count}/${row.max_iterations} iterations, ` +
+      `${row.iterations_remaining} remaining)`,
+  ];
+  const last = row.last_check;
+  if (last) {
+    lines.push(
+      `      verifier: iteration ${last.iteration}, exit ${last.verify_exit_code}, ` +
+        `verified=${last.verify_verified}, at ${last.timestamp || "unknown-time"}`
+    );
+    if (last.metric_exit_code !== null && last.metric_exit_code !== undefined) {
+      let metricLine = `      metric: exit ${last.metric_exit_code}`;
+      if (last.metric_score !== null && last.metric_score !== undefined) {
+        metricLine += `, score ${last.metric_score}`;
+      }
+      lines.push(metricLine);
+    }
+  } else {
+    lines.push("      verifier: no recorded iterations yet");
+  }
+  if (row.next_action) {
+    lines.push(`      next: ${row.next_action}`);
+  }
+  return lines;
+}
+
+function formatOutcomeProgressView(view) {
+  const lines = [`[OK] Outcome progress: ${view.state_dir}`];
+  const counts = view.counts;
+  lines.push(
+    `Outcomes: ${counts.total} total; ${counts.active || 0} active, ` +
+      `${counts.succeeded || 0} succeeded, ${counts.failed || 0} failed, ` +
+      `${counts.stopped || 0} stopped`
+  );
+  const active = view.active_outcome;
+  if (active) {
+    lines.push(
+      `Active outcome: ${active.id} (${active.status}, ` +
+        `${active.iteration_count}/${active.max_iterations} iterations, ` +
+        `${active.iterations_remaining} remaining)`
+    );
+  } else {
+    lines.push("Active outcome: none");
+  }
+  if (view.outcomes.length > 0) {
+    lines.push("Recent outcomes:");
+    for (const row of view.outcomes) {
+      lines.push(...formatOutcomeProgressRow(row));
+    }
+  } else {
+    lines.push("No outcome loops found.");
+  }
+  lines.push(`Guardrail: ${view.guardrail}.`);
   return lines.join("\n");
 }
 
@@ -5557,6 +5702,32 @@ server.registerTool(
       return `[OK] ${JSON.stringify(view, null, 2)}`;
     }
     return formatBackgroundView(view);
+  })
+);
+
+server.registerTool(
+  "outcome_progress",
+  {
+    title: "Show outcome loop progress",
+    description:
+      "Show a read-only progress view of active and recent outcome loops, including iteration budget, verifier exit details, metric score when present, and next action from durable state. " +
+      "Use this to inspect verifier-backed outcome progress without running checks, making attempts, stopping loops, or treating notes as verification.",
+    inputSchema: {
+      recent: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe("Number of recent outcomes to include. Defaults to 5."),
+      format: z.enum(["text", "json"]).optional().describe("Return text or JSON. Defaults to text."),
+    },
+  },
+  guarded(({ recent, format }) => {
+    const view = buildOutcomeProgressView(typeof recent === "number" ? recent : 5);
+    if (format === "json") {
+      return `[OK] ${JSON.stringify(view, null, 2)}`;
+    }
+    return formatOutcomeProgressView(view);
   })
 );
 

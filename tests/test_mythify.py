@@ -1753,6 +1753,64 @@ class TestStatusAndSummary(CliTestCase):
         self.assertEqual(payload["counts"]["fanout_tasks"]["running"], 1)
         self.assertEqual(payload["fanout_jobs"][0]["id"], job_id)
 
+    def test_progress_includes_outcome_iteration_details_without_mutation(self):
+        state = self.init_workspace()
+        started = self.run_cli(
+            "outcome",
+            "start",
+            "Ship the progress view",
+            "--success",
+            "python exits zero",
+            "--verify",
+            shell_py("raise SystemExit(0)"),
+            "--metric",
+            shell_py("import sys; sys.stdout.write('7.25')"),
+            "--max-iterations",
+            "2",
+            "--name",
+            "ship-progress-view",
+        )
+        self.assertEqual(started.returncode, 0, started.stderr)
+        checked = self.run_cli("outcome", "check", "ship-progress-view")
+        self.assertEqual(checked.returncode, 0, checked.stderr)
+        active = self.run_cli(
+            "outcome",
+            "start",
+            "Watch progress budget",
+            "--success",
+            "manual follow-up",
+            "--verify",
+            shell_py("raise SystemExit(0)"),
+            "--max-iterations",
+            "3",
+            "--name",
+            "watch-progress-budget",
+        )
+        self.assertEqual(active.returncode, 0, active.stderr)
+
+        before = self.state_snapshot(state)
+        result = self.run_cli("progress", "--recent", "2")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("[OK] Outcome progress", result.stdout)
+        self.assertIn("Outcomes: 2 total; 1 active, 1 succeeded, 0 failed, 0 stopped", result.stdout)
+        self.assertIn("Active outcome: watch-progress-budget (active, 0/3 iterations, 3 remaining)", result.stdout)
+        self.assertIn("ship-progress-view", result.stdout)
+        self.assertIn("verifier: iteration 1, exit 0, verified=True", result.stdout)
+        self.assertIn("metric: exit 0, score 7.25", result.stdout)
+        self.assertIn("Guardrail: progress displays recorded outcome verifier results only", result.stdout)
+        self.assertEqual(self.state_snapshot(state), before)
+
+        json_result = self.run_cli("progress", "--json", "--recent", "2")
+        self.assertEqual(json_result.returncode, 0, json_result.stderr)
+        payload = json.loads(json_result.stdout)
+        self.assertEqual(payload["counts"]["active"], 1)
+        self.assertEqual(payload["counts"]["succeeded"], 1)
+        self.assertEqual(payload["active_outcome"]["id"], "watch-progress-budget")
+        by_id = {row["id"]: row for row in payload["outcomes"]}
+        self.assertEqual(by_id["ship-progress-view"]["last_check"]["metric_score"], 7.25)
+        self.assertEqual(by_id["watch-progress-budget"]["iterations_remaining"], 3)
+        self.assertEqual(self.state_snapshot(state), before)
+
     def test_timeline_includes_fanout_worker_events_without_mutation(self):
         state = self.init_workspace()
         job_id = "fo-20260613141414-abcd"

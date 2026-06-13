@@ -28,7 +28,7 @@ from pathlib import Path
 WORKSPACE_DIR_NAME = ".mythify"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
-PROTOCOL_SOURCE_SHA256 = "2a721de8f6dc2c8c07eaf1a7f58b301f1c4bdf1f5399c54b398ebc35eaaf6001"
+PROTOCOL_SOURCE_SHA256 = "23a9b10229613fe634aade96358c3d939d33101120c43318879b2715708a407f"
 PROTOCOL_HASH_PREFIX = "<!-- Mythify protocol-sha256: "
 PROTOCOL_COPY_CANDIDATES = ("CLAUDE.md", "AGENTS.md", ".cursorrules")
 NO_WORKSPACE_MESSAGE = (
@@ -3555,6 +3555,172 @@ def cmd_background(args, state):
     return 0
 
 
+def summarize_outcome_progress(state, slug, goal):
+    iterations = read_jsonl(outcome_iterations_path(state, slug))
+    last_iteration = iterations[-1] if iterations else None
+    iteration_count = int(goal.get("iteration_count", 0) or 0)
+    max_iterations = int(goal.get("max_iterations", 1) or 1)
+    remaining = max(0, max_iterations - iteration_count)
+    last_check = None
+    if last_iteration:
+        verify = last_iteration.get("verify") or {}
+        metric = last_iteration.get("metric") or {}
+        last_check = {
+            "iteration": last_iteration.get("iteration"),
+            "timestamp": last_iteration.get("timestamp", ""),
+            "verified": last_iteration.get("verified"),
+            "status_after": last_iteration.get("status_after", ""),
+            "notes": last_iteration.get("notes", ""),
+            "verify_exit_code": verify.get("exit_code"),
+            "verify_duration_seconds": verify.get("duration_seconds", 0),
+            "verify_verified": verify.get("verified"),
+            "metric_exit_code": metric.get("exit_code") if metric else None,
+            "metric_score": metric.get("score") if metric else None,
+            "metric_verified": metric.get("verified") if metric else None,
+        }
+    return {
+        "id": slug,
+        "goal": goal.get("goal", ""),
+        "success_criteria": goal.get("success_criteria", ""),
+        "status": goal.get("status", "active"),
+        "iteration_count": iteration_count,
+        "max_iterations": max_iterations,
+        "iterations_remaining": remaining,
+        "progress_percent": round((iteration_count / max_iterations) * 100, 1)
+        if max_iterations
+        else 0,
+        "visibility": goal.get("visibility", "summary"),
+        "created": goal.get("created", ""),
+        "updated": goal.get("updated", ""),
+        "last_verified": goal.get("last_verified"),
+        "last_check": last_check,
+        "next_action": (
+            last_iteration.get("next_action")
+            if last_iteration
+            else "make a bounded attempt, then run outcome check"
+        ),
+        "verify_command": goal.get("verify_command", ""),
+        "metric_command": goal.get("metric_command", ""),
+        "best_metric_score": goal.get("best_metric_score"),
+        "allowed_paths": goal.get("allowed_paths") or [],
+        "stop_reason": goal.get("stop_reason"),
+    }
+
+
+def list_outcome_progress_rows(state):
+    rows = [
+        summarize_outcome_progress(state, slug, goal)
+        for slug, goal in list_outcomes(state)
+    ]
+    return sorted(
+        rows,
+        key=lambda item: (
+            item.get("updated") or item.get("created") or "",
+            item.get("id") or "",
+        ),
+    )
+
+
+def build_outcome_progress_view(state, recent=5):
+    rows = list_outcome_progress_rows(state)
+    active_slug = get_active_outcome_slug(state)
+    counts = count_statuses(rows, ("active", "succeeded", "failed", "stopped"))
+    return {
+        "state_dir": str(state),
+        "active_outcome": next(
+            (row for row in rows if row.get("id") == active_slug),
+            None,
+        ),
+        "outcomes": background_recent(rows, recent),
+        "counts": {"total": len(rows), **counts},
+        "guardrail": (
+            "progress displays recorded outcome verifier results only; it does "
+            "not run checks, make attempts, stop loops, or treat notes as verification"
+        ),
+    }
+
+
+def format_outcome_progress_row(row):
+    icon = BACKGROUND_STATUS_ICONS.get(row.get("status"), "[ ]")
+    lines = [
+        "  {0} {1}: {2} ({3}, {4}/{5} iterations, {6} remaining)".format(
+            icon,
+            row.get("id"),
+            compact_label(row.get("goal"), "outcome"),
+            row.get("status"),
+            row.get("iteration_count"),
+            row.get("max_iterations"),
+            row.get("iterations_remaining"),
+        )
+    ]
+    last = row.get("last_check")
+    if last:
+        lines.append(
+            "      verifier: iteration {0}, exit {1}, verified={2}, at {3}".format(
+                last.get("iteration"),
+                last.get("verify_exit_code"),
+                last.get("verify_verified"),
+                last.get("timestamp") or "unknown-time",
+            )
+        )
+        if last.get("metric_exit_code") is not None:
+            metric_line = "      metric: exit {0}".format(
+                last.get("metric_exit_code")
+            )
+            if last.get("metric_score") is not None:
+                metric_line += ", score {0}".format(last.get("metric_score"))
+            lines.append(metric_line)
+    else:
+        lines.append("      verifier: no recorded iterations yet")
+    if row.get("next_action"):
+        lines.append("      next: {0}".format(row.get("next_action")))
+    return lines
+
+
+def format_outcome_progress_view(view):
+    lines = ["[OK] Outcome progress: {0}".format(view["state_dir"])]
+    counts = view["counts"]
+    lines.append(
+        "Outcomes: {0} total; {1} active, {2} succeeded, {3} failed, {4} stopped".format(
+            counts["total"],
+            counts.get("active", 0),
+            counts.get("succeeded", 0),
+            counts.get("failed", 0),
+            counts.get("stopped", 0),
+        )
+    )
+    active = view.get("active_outcome")
+    if active:
+        lines.append(
+            "Active outcome: {0} ({1}, {2}/{3} iterations, {4} remaining)".format(
+                active.get("id"),
+                active.get("status"),
+                active.get("iteration_count"),
+                active.get("max_iterations"),
+                active.get("iterations_remaining"),
+            )
+        )
+    else:
+        lines.append("Active outcome: none")
+    if view["outcomes"]:
+        lines.append("Recent outcomes:")
+        for row in view["outcomes"]:
+            lines.extend(format_outcome_progress_row(row))
+    else:
+        lines.append("No outcome loops found.")
+    lines.append("Guardrail: {0}.".format(view["guardrail"]))
+    return "\n".join(lines)
+
+
+def cmd_progress(args, state):
+    view = build_outcome_progress_view(state, args.recent)
+    if args.json_output:
+        print(json.dumps(view, indent=2))
+    else:
+        print(format_outcome_progress_view(view))
+    return 0
+
+
 TIMELINE_EVENT_ICONS = {
     "job_created": "[ ]",
     "task_started": "[>]",
@@ -5083,6 +5249,24 @@ def build_parser():
     )
     p.add_argument("--json", dest="json_output", action="store_true", help="Print JSON.")
     p.set_defaults(handler=cmd_background)
+
+    p = sub.add_parser(
+        "progress",
+        help="Show read-only outcome loop progress.",
+        description=(
+            "Read-only outcome loop progress: active and recent outcomes, "
+            "iteration budget, verifier exit details, metric score when present, "
+            "and next action from durable state."
+        ),
+    )
+    p.add_argument(
+        "--recent",
+        type=int,
+        default=5,
+        help="Number of recent outcomes to show. Defaults to 5.",
+    )
+    p.add_argument("--json", dest="json_output", action="store_true", help="Print JSON.")
+    p.set_defaults(handler=cmd_progress)
 
     p = sub.add_parser(
         "timeline",

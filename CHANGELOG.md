@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CLI `progress` and MCP `outcome_progress` read-only outcome progress views.
+  The view shows active and recent outcome loops, iteration budget, verifier
+  exit details, metric score when present, and next action without running
+  checks, making attempts, stopping loops, or treating notes as verification.
 - CLI `history` and MCP `verification_history` read-only verification history
   views. The view shows executed and attested records, verdicts, exit codes,
   duration, and plan or step context without rerunning checks or upgrading
