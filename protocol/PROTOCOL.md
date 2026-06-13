@@ -98,7 +98,7 @@ Reorient any time with `status`. Report the whole session with `summary`.
 | `init` | Create `./.mythify` for this project. Safe to re-run. |
 | `protocol check [PATH ...] [--json]` | Verify copied protocol files match the CLI's embedded source protocol hash. |
 | `status` | Orient: active plan, next pending step, state counts. |
-| `classify TASK [--json] [--triage never\|auto\|always] [--platform P] [--effort E] [--speed S] [--session-model M] [--spawn-ceiling C]` | Identify task type, risk, ambiguity, ceremony, execution profile, verification strategy, fanout fit, fast model triage fit, and model policy. |
+| `classify TASK [--json] [--triage never\|auto\|always] [--platform P] [--effort E] [--speed S] [--session-model M] [--spawn-ceiling C] [--reviewer-strength R]` | Identify task type, risk, ambiguity, ceremony, execution profile, verification strategy, fanout fit, fast model triage fit, and model policy. |
 | `host-model switch MODEL [--platform P] [--current-model M] [--thinking E] [--speed S] [--reason TEXT] [--json]` | Record a requested host chat model switch in `.mythify/host-model.json`; the host still owns the actual current chat model. |
 | `host-model status [--json]` | Show the recorded host model switch. |
 | `host-model clear [--json]` | Clear the recorded host model switch. |
@@ -157,8 +157,11 @@ Google Agents CLI and ADK CLI availability with version, help, and eval-help
 commands without scaffolding projects, running evals, deploying, publishing,
 mutating cloud resources, or writing project state. Probe output is material,
 not verification evidence. `classify_task` mirrors CLI triage and model
-policy. Fanout workers accept `engine`, `model`, `effort`, and `speed`;
-stronger workers require `spawn_ceiling: "allow_stronger"` when tier is known.
+policy. Fanout workers accept `engine`, `model`, `effort`, `speed`, and
+`role`; stronger non-review workers require `spawn_ceiling: "allow_stronger"`
+when tier is known. A stronger reviewer requires a task with
+`role: "reviewer"` plus `reviewer_allow_stronger: true`, or the broader
+`spawn_ceiling: "allow_stronger"` opt-in.
 
 Delegation discipline for fanout:
 

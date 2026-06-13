@@ -18,6 +18,7 @@ const ENGINES = ["claude-cli", "codex-cli", "cursor-agent", "anthropic", "openai
 const EFFORT_LEVELS = ["auto", "low", "medium", "high"];
 const SPEED_LEVELS = ["auto", "standard", "fast"];
 const SPAWN_CEILINGS = ["auto", "lower_only", "same_or_lower", "allow_stronger"];
+const TASK_ROLES = ["worker", "reviewer"];
 const FANOUT_VISIBILITY_MODES = ["auto", "quiet", "summary", "verbose", "threaded"];
 const MODEL_TIER_RANK = {
   unknown: 0,
@@ -512,7 +513,7 @@ function resolveSpawnCeiling(spawnCeiling) {
   return { ceiling: "same_or_lower", source: "default" };
 }
 
-function ceilingCheck(session, ceiling, workerModel) {
+function ceilingCheck(session, ceiling, workerModel, options = {}) {
   const workerTier = classifyModelTier(workerModel);
   if (ceiling === "allow_stronger") {
     return { ok: true, workerTier, status: "allowed_stronger" };
@@ -526,6 +527,9 @@ function ceilingCheck(session, ceiling, workerModel) {
     return { ok: false, workerTier, status: "violates_lower_only" };
   }
   if (ceiling === "same_or_lower" && workerRank > sessionRank) {
+    if (options.taskRole === "reviewer" && options.reviewerAllowStronger === true) {
+      return { ok: true, workerTier, status: "reviewer_stronger_opt_in" };
+    }
     return { ok: false, workerTier, status: "violates_same_or_lower" };
   }
   return { ok: true, workerTier, status: "within_ceiling" };
@@ -1543,6 +1547,7 @@ function handleFanoutStart({
   visibility,
   session_model,
   spawn_ceiling,
+  reviewer_allow_stronger,
   timeout_seconds,
 }) {
   const disabled = killSwitchText();
@@ -1579,11 +1584,13 @@ function handleFanoutStart({
   const contextBytesCap = intEnv("MYTHIFY_FANOUT_CONTEXT_BYTES", 200000);
   const sessionModel = resolveSessionModel(session_model);
   const spawnCeiling = resolveSpawnCeiling(spawn_ceiling);
+  const reviewerAllowStronger = reviewer_allow_stronger === true;
   const visibilitySelection = resolveVisibilitySelection(visibility, purpose, tasks);
   const resolvedTasks = [];
   for (let i = 0; i < tasks.length; i += 1) {
     const task = tasks[i] || {};
     const title = typeof task.title === "string" ? task.title : "";
+    const taskRole = TASK_ROLES.includes(task.role) ? task.role : "worker";
     const label = `Task ${i + 1}${title !== "" ? ` ("${title}")` : ""}`;
     if (typeof task.prompt !== "string" || task.prompt.trim() === "") {
       return `[FAIL] ${label}: prompt must be a non-empty string. No job was started.`;
@@ -1612,12 +1619,19 @@ function handleFanoutStart({
       effortSelection.effort,
       speedSelection.speed
     );
-    const modelCeiling = ceilingCheck(sessionModel, spawnCeiling.ceiling, taskModel);
+    const modelCeiling = ceilingCheck(sessionModel, spawnCeiling.ceiling, taskModel, {
+      taskRole,
+      reviewerAllowStronger,
+    });
     if (!modelCeiling.ok) {
+      const optInHint =
+        taskRole === "reviewer" && modelCeiling.status === "violates_same_or_lower"
+          ? 'Pass reviewer_allow_stronger: true with role: "reviewer", or pass spawn_ceiling: "allow_stronger", to opt in.'
+          : 'Pass spawn_ceiling: "allow_stronger" to opt in.';
       return (
         `[FAIL] ${label}: spawned model "${taskModel}" (tier ${modelCeiling.workerTier}) ` +
         `exceeds session model "${sessionModel.model}" (tier ${sessionModel.tier}) ` +
-        `under spawn ceiling ${spawnCeiling.ceiling}. Pass spawn_ceiling: "allow_stronger" to opt in. No job was started.`
+        `under spawn ceiling ${spawnCeiling.ceiling}. ${optInHint} No job was started.`
       );
     }
     const availability = engineAvailabilityError(taskEngine, taskModel);
@@ -1634,11 +1648,13 @@ function handleFanoutStart({
     }
     resolvedTasks.push({
       title,
+      role: taskRole,
       engine: taskEngine,
       model: taskModel,
       modelSource: modelSelection.modelSource,
       modelTier: modelCeiling.workerTier,
       modelCeilingStatus: modelCeiling.status,
+      strongerReviewerOptIn: modelCeiling.status === "reviewer_stronger_opt_in",
       effort: effortSelection.effort,
       effortSource: effortSelection.effortSource,
       speed: speedSelection.speed,
@@ -1683,6 +1699,7 @@ function handleFanoutStart({
     session_model_tier: sessionModel.tier,
     spawn_ceiling: spawnCeiling.ceiling,
     spawn_ceiling_source: spawnCeiling.source,
+    reviewer_allow_stronger: reviewerAllowStronger,
     effort: jobEffortSelection.effort,
     effort_source: jobEffortSelection.effortSource,
     speed: jobSpeedSelection.speed,
@@ -1697,12 +1714,14 @@ function handleFanoutStart({
     tasks: resolvedTasks.map((resolved, i) => ({
       id: i + 1,
       title: resolved.title,
+      role: resolved.role,
       status: "pending",
       engine: resolved.engine,
       model: resolved.model,
       model_source: resolved.modelSource,
       model_tier: resolved.modelTier,
       model_ceiling_status: resolved.modelCeilingStatus,
+      stronger_reviewer_opt_in: resolved.strongerReviewerOptIn,
       effort: resolved.effort,
       effort_source: resolved.effortSource,
       speed: resolved.speed,
@@ -1741,13 +1760,16 @@ function handleFanoutStart({
   const lines = [
     `[OK] Fanout job ${jobId} started: ${job.tasks.length} ${job.tasks.length === 1 ? "task" : "tasks"}, concurrency ${concurrency}, ceiling ${job.spawn_ceiling}, visibility ${job.visibility}, timeout ${jobTimeout}s per worker.`,
   ];
+  lines.push(
+    `Reviewer stronger opt-in: ${job.reviewer_allow_stronger ? "enabled" : "disabled"}.`
+  );
   lines.push(visibilityGuidance(job.visibility));
   if (job.visibility === "quiet") {
     lines.push("Worker list suppressed by quiet visibility; use fanout_status for aggregate progress.");
   } else {
     for (const task of job.tasks) {
       lines.push(
-        `[ ] ${task.id}. ${task.title} (engine: ${task.engine}${task.model !== "" ? `, model: ${task.model}` : ""}, effort: ${task.effort}, speed: ${task.speed})`
+        `[ ] ${task.id}. ${task.title} (role: ${task.role || "worker"}, engine: ${task.engine}${task.model !== "" ? `, model: ${task.model}` : ""}, effort: ${task.effort}, speed: ${task.speed})`
       );
     }
   }
@@ -1782,6 +1804,9 @@ function handleFanoutStatus({ job_id }) {
   if (interruptedNote) {
     lines.push(interruptedNote);
   }
+  lines.push(
+    `Reviewer stronger opt-in: ${job.reviewer_allow_stronger ? "enabled" : "disabled"}.`
+  );
   lines.push(visibilityGuidance(job.visibility || "summary"));
   lines.push(
     `Tasks: ${job.tasks.length} total; ${counts.completed} completed, ${counts.failed} failed, ${counts.running} running, ${counts.pending} pending, ${counts.interrupted} interrupted.`
@@ -1794,7 +1819,7 @@ function handleFanoutStatus({ job_id }) {
   } else {
     for (const task of job.tasks) {
       const icon = TASK_STATUS_ICONS[task.status] || "[ ]";
-      let line = `${icon} ${task.id}. ${task.title} (${task.status}; engine: ${task.engine}`;
+      let line = `${icon} ${task.id}. ${task.title} (${task.status}; role: ${task.role || "worker"}; engine: ${task.engine}`;
       if (task.model) {
         line += `, model: ${task.model}`;
       }
@@ -1945,6 +1970,12 @@ export function registerFanoutTools(server, deps) {
                 .describe(
                   "Files to inline into the worker prompt as labeled fenced blocks. Relative paths resolve against the project root (the parent of .mythify); absolute paths are allowed. Total inlined context per task is capped at MYTHIFY_FANOUT_CONTEXT_BYTES."
                 ),
+              role: z
+                .enum(TASK_ROLES)
+                .optional()
+                .describe(
+                  "Task role for model ceiling policy: worker by default, or reviewer for independent review tasks."
+                ),
               model: z
                 .string()
                 .optional()
@@ -2017,6 +2048,12 @@ export function registerFanoutTools(server, deps) {
           .optional()
           .describe(
             "Maximum spawned model tier relative to session_model: auto, lower_only, same_or_lower, or allow_stronger. Defaults to MYTHIFY_SPAWN_CEILING or same_or_lower."
+          ),
+        reviewer_allow_stronger: z
+          .boolean()
+          .optional()
+          .describe(
+            'Reviewer-only opt-in that permits tasks with role: "reviewer" to exceed session_model under same_or_lower. It does not affect worker tasks or lower_only.'
           ),
         timeout_seconds: z
           .number()

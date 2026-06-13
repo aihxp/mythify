@@ -51,6 +51,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Per-role provider defaults in CLI and MCP `model_policy`, covering session,
   triage, reader, fanout worker, reviewer, and verifier roles with explicit
   no-implicit-fallback metadata.
+- Stronger reviewer opt-in policy. CLI and MCP classification now expose
+  reviewer strength defaults, and `fanout_start` allows stronger reviewer
+  models only when the task is marked `role: "reviewer"` and the job sets
+  `reviewer_allow_stronger: true`, unless the broader spawn ceiling opt-in is
+  used.
 
 ## [2.5.0] - 2026-06-12
 

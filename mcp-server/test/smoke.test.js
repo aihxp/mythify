@@ -162,6 +162,9 @@ test("mythify MCP server smoke test", async (t) => {
       assert.equal(parsed.model_policy.provider_defaults.roles.reviewer.status, "invalid_env_ignored");
       assert.equal(parsed.model_policy.reader.provider, "host");
       assert.equal(parsed.model_policy.reader.evidence_status, "model_output_not_verification");
+      assert.equal(parsed.model_policy.reviewer.stronger_model_policy, "same_or_lower");
+      assert.equal(parsed.model_policy.reviewer.stronger_model_policy_source, "default");
+      assert.equal(parsed.model_policy.reviewer.stronger_models_allowed, false);
 
       const directText = textOf(
         await client.callTool({
@@ -201,6 +204,26 @@ test("mythify MCP server smoke test", async (t) => {
       assert.equal(research.model_policy.session.recommendation.target_model, "opus");
       assert.equal(research.model_policy.session.recommendation.thinking, "high");
       assert.equal(research.model_policy.session.recommendation.speed, "standard");
+
+      const strongerReviewerText = textOf(
+        await client.callTool({
+          name: "classify_task",
+          arguments: {
+            task: "audit this release for hidden regressions",
+            format: "json",
+            session_model: "haiku",
+            reviewer_strength: "allow_stronger",
+          },
+        })
+      );
+      const strongerReviewer = JSON.parse(strongerReviewerText.replace(/^\[OK\] /, ""));
+      assert.equal(strongerReviewer.model_policy.reviewer.stronger_model_policy, "allow_stronger");
+      assert.equal(strongerReviewer.model_policy.reviewer.stronger_model_policy_source, "explicit");
+      assert.equal(strongerReviewer.model_policy.reviewer.stronger_models_allowed, true);
+      assert.equal(
+        strongerReviewer.model_policy.reviewer.model_relation_to_session,
+        "may_exceed_session_with_reviewer_opt_in"
+      );
 
       const triagedText = textOf(
         await client.callTool({

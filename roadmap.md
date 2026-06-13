@@ -21,26 +21,25 @@ Status markers:
 
 ### In Progress
 
-- [>] Add stronger reviewer opt-in flow
-  - Current goal: require explicit permission before stronger reviewer models
-    can exceed the initiating session model.
-  - Next step: map current reviewer spawn policy, spawn ceiling behavior, and
-    fanout model validation paths.
-  - Guardrail: stronger reviewer paths must be opt-in, visible, and verified
-    without weakening same-or-lower worker defaults.
+- [>] Ollama setup profile.
+  - Current goal: make Ollama the first explicit local-model onboarding path.
+  - Next step: map existing OpenAI-compatible local model probe and
+    `local_model_run` behavior against Ollama's local API shape.
+  - Guardrail: setup support must stay local-only, mark model output as
+    material not verification evidence, and avoid provisioning or installing
+    anything without an explicit user action.
 
 ### Next To Do
 
-1. [ ] Ollama setup profile.
-   - Start local model onboarding with the most common developer path.
-2. [ ] LM Studio setup profile.
+1. [ ] LM Studio setup profile.
    - Follow Ollama with an OpenAI-compatible local desktop path.
-3. [ ] llama.cpp profile for GGUF power users.
+2. [ ] llama.cpp profile for GGUF power users.
    - Keep an explicit path for users who already manage GGUF models.
+3. [ ] vLLM profile for workstation, server, and team-local inference.
+   - Keep server-style local inference separate from desktop onboarding.
 
 ### Later
 
-- [ ] vLLM profile for workstation, server, and team-local inference.
 - [ ] API provider adapter path with cost and timeout metadata.
 - [ ] Role defaults per provider.
 - [ ] Antigravity worker adapter after local `agy -p`, model controls, workspace
@@ -99,6 +98,8 @@ Status markers:
   protected by Node and CI drift checks.
 - [x] 2026-06-13: add advisory per-role provider defaults to CLI and MCP
   `model_policy`, including reader role metadata and no implicit fallback.
+- [x] 2026-06-13: add stronger reviewer opt-in policy for classifier output
+  and fanout tasks, keeping ordinary workers same-or-lower by default.
 
 ## Track Backlogs
 
@@ -145,11 +146,12 @@ Roles:
 Open:
 
 - [ ] Provider-neutral role assignment.
-- [ ] Stronger reviewer opt-in flow.
 - [ ] Cost and timeout controls per role.
 
 Done:
 
+- [x] Stronger reviewer opt-in flow requires explicit classifier or fanout
+  policy before review tasks can exceed the initiating session model.
 - [x] Per-role provider defaults are explicit in CLI and MCP `model_policy`.
 - [x] Platform-aware model policy.
 - [x] Task-based host model recommendations.

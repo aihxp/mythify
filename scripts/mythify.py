@@ -28,7 +28,7 @@ from pathlib import Path
 WORKSPACE_DIR_NAME = ".mythify"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
-PROTOCOL_SOURCE_SHA256 = "b19f80f85d0a17ac2cdbb909596a1f2b1a9ef572dc4c85bf480d5aebe2020de5"
+PROTOCOL_SOURCE_SHA256 = "ab0c64dd60885e7189bd01c211a081d2fee52e65e67302faed31319fae19dd84"
 PROTOCOL_HASH_PREFIX = "<!-- Mythify protocol-sha256: "
 PROTOCOL_COPY_CANDIDATES = ("CLAUDE.md", "AGENTS.md", ".cursorrules")
 NO_WORKSPACE_MESSAGE = (
@@ -91,6 +91,7 @@ EFFORT_LEVELS = ("auto", "low", "medium", "high")
 SPEED_LEVELS = ("auto", "standard", "fast")
 HOST_THINKING_LEVELS = ("auto", "low", "medium", "high", "xhigh", "max")
 SPAWN_CEILINGS = ("auto", "lower_only", "same_or_lower", "allow_stronger")
+REVIEWER_STRENGTH_MODES = ("auto", "same_or_lower", "allow_stronger")
 FANOUT_VISIBILITY_MODES = ("auto", "quiet", "summary", "verbose", "threaded")
 HOST_MODEL_STATE_FILE = "host-model.json"
 MODEL_TIERS = ("unknown", "small", "fast", "standard", "strong", "frontier")
@@ -1471,6 +1472,16 @@ def format_classification(result):
             )
         )
         lines.append(
+            "reviewer opt-in: {0} ({1})".format(
+                policy.get("reviewer", {}).get(
+                    "stronger_model_policy", "same_or_lower"
+                ),
+                policy.get("reviewer", {}).get(
+                    "stronger_model_policy_source", "default"
+                ),
+            )
+        )
+        lines.append(
             "host recommendation: {0} to {1}/{2} thinking={3} speed={4}".format(
                 recommendation.get("action", "recommend_set"),
                 recommendation.get("target_profile", "standard"),
@@ -1746,6 +1757,16 @@ def resolve_spawn_ceiling(spawn_ceiling):
     return "same_or_lower", "default"
 
 
+def resolve_reviewer_strength(reviewer_strength):
+    explicit = (reviewer_strength or "auto").strip()
+    if explicit and explicit != "auto":
+        return explicit, "explicit"
+    env_strength = os.environ.get("MYTHIFY_REVIEWER_STRENGTH", "").strip()
+    if env_strength in REVIEWER_STRENGTH_MODES and env_strength != "auto":
+        return env_strength, "env"
+    return "same_or_lower", "default"
+
+
 def role_model_relation(role, session_tier, ceiling):
     if role == "verifier":
         return "none"
@@ -1960,6 +1981,9 @@ def build_model_policy(classification, args):
     spawn_ceiling, spawn_ceiling_source = resolve_spawn_ceiling(
         getattr(args, "spawn_ceiling", "auto")
     )
+    reviewer_strength, reviewer_strength_source = resolve_reviewer_strength(
+        getattr(args, "reviewer_strength", "auto")
+    )
     triage_engine, triage_engine_source = select_triage_engine(
         getattr(args, "triage_engine", ""), platform
     )
@@ -2020,7 +2044,9 @@ def build_model_policy(classification, args):
             "session_model_source": session_model_source,
             "session_model_tier": session_tier,
             "default": "same_or_lower",
-            "stronger_requires": "spawn_ceiling_allow_stronger",
+            "stronger_requires": (
+                "spawn_ceiling_allow_stronger_or_reviewer_specific_opt_in"
+            ),
         },
         "triage": {
             "role": "problem_framing",
@@ -2096,8 +2122,16 @@ def build_model_policy(classification, args):
             "engine": "auto",
             "engine_policy": "local_first",
             "model_policy": "prefer_stronger_than_worker_when_available",
-            "model_relation_to_session": role_model_relation(
-                "reviewer", session_tier, spawn_ceiling
+            "stronger_model_policy": reviewer_strength,
+            "stronger_model_policy_source": reviewer_strength_source,
+            "stronger_models_allowed": reviewer_strength == "allow_stronger",
+            "stronger_requires": (
+                "reviewer_strength_allow_stronger_or_fanout_reviewer_allow_stronger"
+            ),
+            "model_relation_to_session": (
+                "may_exceed_session_with_reviewer_opt_in"
+                if reviewer_strength == "allow_stronger"
+                else role_model_relation("reviewer", session_tier, spawn_ceiling)
             ),
             "effort": reviewer_effort,
             "effort_policy": reviewer_effort_source,
@@ -3621,6 +3655,16 @@ def build_parser():
         help=(
             "Maximum spawned model tier relative to the session model. Auto "
             "uses MYTHIFY_SPAWN_CEILING or same_or_lower."
+        ),
+    )
+    p.add_argument(
+        "--reviewer-strength",
+        choices=REVIEWER_STRENGTH_MODES,
+        default="auto",
+        help=(
+            "Reviewer model strength relative to the session. Auto uses "
+            "MYTHIFY_REVIEWER_STRENGTH or same_or_lower; allow_stronger is "
+            "an explicit reviewer-only opt-in."
         ),
     )
     p.set_defaults(handler=cmd_classify, needs_state=False)

@@ -370,6 +370,78 @@ test("fanout with the command engine", async (t) => {
       assert.equal(job.tasks[0].model_ceiling_status, "allowed_stronger");
     });
 
+    await t.test("stronger reviewer opt-in is explicit and scoped", async () => {
+      const refusedReviewer = textOf(
+        await client.callTool({
+          name: "fanout_start",
+          arguments: {
+            session_model: "haiku",
+            tasks: [
+              {
+                title: "Reviewer without opt-in",
+                role: "reviewer",
+                prompt: "This reviewer should not run without opt-in.",
+                model: "opus",
+              },
+            ],
+          },
+        })
+      );
+      assert.ok(refusedReviewer.startsWith("[FAIL]"), `stronger reviewer refuses: ${refusedReviewer}`);
+      assert.match(refusedReviewer, /reviewer_allow_stronger/, "the refusal names the reviewer opt-in");
+
+      const refusedWorker = textOf(
+        await client.callTool({
+          name: "fanout_start",
+          arguments: {
+            session_model: "haiku",
+            reviewer_allow_stronger: true,
+            tasks: [
+              {
+                title: "Worker cannot borrow reviewer opt-in",
+                prompt: "This worker should not run.",
+                model: "opus",
+              },
+            ],
+          },
+        })
+      );
+      assert.ok(refusedWorker.startsWith("[FAIL]"), `stronger worker still refuses: ${refusedWorker}`);
+      assert.match(refusedWorker, /spawn_ceiling/, "worker refusal keeps the normal ceiling opt-in");
+
+      const allowedReviewer = textOf(
+        await client.callTool({
+          name: "fanout_start",
+          arguments: {
+            session_model: "haiku",
+            reviewer_allow_stronger: true,
+            tasks: [
+              {
+                title: "Reviewer with opt-in",
+                role: "reviewer",
+                prompt: "This reviewer is explicitly allowed to use a stronger model.",
+                model: "opus",
+              },
+            ],
+          },
+        })
+      );
+      assert.ok(allowedReviewer.startsWith("[OK]"), `stronger reviewer starts: ${allowedReviewer}`);
+      assert.match(allowedReviewer, /Reviewer stronger opt-in: enabled/);
+      const jobId = jobIdOf(allowedReviewer);
+      await waitForAllFinished(client, jobId);
+      const job = JSON.parse(
+        fs.readFileSync(path.join(stateDir, "fanout", jobId, "job.json"), "utf8")
+      );
+      assert.equal(job.spawn_ceiling, "same_or_lower");
+      assert.equal(job.reviewer_allow_stronger, true);
+      assert.equal(job.tasks[0].role, "reviewer");
+      assert.equal(job.tasks[0].model, "opus");
+      assert.equal(job.tasks[0].model_tier, "frontier");
+      assert.equal(job.tasks[0].model_ceiling_status, "reviewer_stronger_opt_in");
+      assert.equal(job.tasks[0].stronger_reviewer_opt_in, true);
+    });
+
     await t.test("recorded host model is used as the session model by default", async () => {
       const hostModelFile = path.join(stateDir, "host-model.json");
       fs.writeFileSync(
@@ -468,6 +540,7 @@ test("fanout with the command engine", async (t) => {
           "model_source",
           "model_tier",
           "purpose",
+          "reviewer_allow_stronger",
           "session_model",
           "session_model_source",
           "session_model_tier",
@@ -504,6 +577,7 @@ test("fanout with the command engine", async (t) => {
       assert.equal(job.visibility_requested, "auto");
       assert.equal(typeof job.visibility_reason, "string");
       assert.equal(job.purpose, "");
+      assert.equal(job.reviewer_allow_stronger, false);
       assert.equal(job.timeout_seconds, 600, "the per-worker timeout defaults to 600");
       assert.equal(typeof job.created, "string");
       assert.equal(typeof job.last_updated, "string");
@@ -527,21 +601,25 @@ test("fanout with the command engine", async (t) => {
             "model_tier",
             "output_bytes",
             "output_file",
+            "role",
             "speed",
             "speed_source",
             "started_at",
             "status",
+            "stronger_reviewer_opt_in",
             "title",
           ],
           "each task record has the exact contract fields"
         );
         assert.equal(task.id, index + 1);
         assert.equal(task.title, titles[index]);
+        assert.equal(task.role, "worker");
         assert.equal(task.status, "completed");
         assert.equal(task.engine, "command");
         assert.equal(typeof task.model, "string");
         assert.equal(task.model_tier, "unknown");
         assert.equal(task.model_ceiling_status, "uncheckable");
+        assert.equal(task.stronger_reviewer_opt_in, false);
         assert.equal(task.model_source, "command_default");
         assert.equal(task.effort, "medium");
         assert.equal(task.effort_source, "model_default");

@@ -376,6 +376,60 @@ class TestClassification(CliTestCase):
             "model_output_not_verification",
         )
 
+    def test_classify_defaults_reviewers_to_same_or_lower(self):
+        result = self.run_cli(
+            "classify",
+            "audit this release for hidden regressions",
+            "--json",
+            "--session-model",
+            "haiku",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        reviewer = payload["model_policy"]["reviewer"]
+        self.assertEqual(reviewer["spawn"], "recommended")
+        self.assertEqual(reviewer["stronger_model_policy"], "same_or_lower")
+        self.assertEqual(reviewer["stronger_model_policy_source"], "default")
+        self.assertFalse(reviewer["stronger_models_allowed"])
+        self.assertEqual(reviewer["model_relation_to_session"], "same_or_lower")
+
+    def test_classify_accepts_explicit_stronger_reviewer_opt_in(self):
+        result = self.run_cli(
+            "classify",
+            "audit this release for hidden regressions",
+            "--json",
+            "--session-model",
+            "haiku",
+            "--reviewer-strength",
+            "allow_stronger",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        reviewer = payload["model_policy"]["reviewer"]
+        self.assertEqual(reviewer["stronger_model_policy"], "allow_stronger")
+        self.assertEqual(reviewer["stronger_model_policy_source"], "explicit")
+        self.assertTrue(reviewer["stronger_models_allowed"])
+        self.assertEqual(
+            reviewer["model_relation_to_session"],
+            "may_exceed_session_with_reviewer_opt_in",
+        )
+
+    def test_classify_accepts_env_stronger_reviewer_opt_in(self):
+        result = self.run_cli(
+            "classify",
+            "audit this release for hidden regressions",
+            "--json",
+            "--session-model",
+            "haiku",
+            env_extra={"MYTHIFY_REVIEWER_STRENGTH": "allow_stronger"},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        reviewer = payload["model_policy"]["reviewer"]
+        self.assertEqual(reviewer["stronger_model_policy"], "allow_stronger")
+        self.assertEqual(reviewer["stronger_model_policy_source"], "env")
+        self.assertTrue(reviewer["stronger_models_allowed"])
+
     def test_classify_role_provider_env_override_and_invalid_guard(self):
         result = self.run_cli(
             "classify",

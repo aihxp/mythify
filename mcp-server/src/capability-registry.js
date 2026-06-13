@@ -17,6 +17,7 @@ export const EFFORT_LEVELS = ["auto", "low", "medium", "high"];
 export const SPEED_LEVELS = ["auto", "standard", "fast"];
 export const HOST_THINKING_LEVELS = ["auto", "low", "medium", "high", "xhigh", "max"];
 export const SPAWN_CEILINGS = ["auto", "lower_only", "same_or_lower", "allow_stronger"];
+export const REVIEWER_STRENGTH_MODES = ["auto", "same_or_lower", "allow_stronger"];
 export const FANOUT_VISIBILITY_MODES = ["auto", "quiet", "summary", "verbose", "threaded"];
 
 export const MODEL_TIER_RANK = {

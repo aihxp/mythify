@@ -431,7 +431,7 @@ datetime, pathlib, tempfile). Subcommand grammar:
 | `verify run COMMAND [--claim TEXT] [--timeout N]` | Execute COMMAND through the shell, capture exit code, duration, and output tails, append an executed record, print the verdict. Default timeout 300 seconds. If `MYTHIFY_DISABLE_RUN=1`, refuse: execute nothing, record nothing, print `[FAIL] verify run is disabled: MYTHIFY_DISABLE_RUN=1 is set. No command was executed and nothing was recorded. Unset it to enable execution, or use verify claim to record a self-reported attestation.` and exit 2 (the unverified code, so callers branching on verify run treat a disabled run as not verified). | 0 if verified, 2 if unverified or disabled |
 | `verify claim CLAIM EVIDENCE` | Append an attested record and print the `[WARN] ATTESTED` line. | 0 |
 | `reflect [JSON]` or `reflect --action A --outcome O --observation OBS --next N [--root-cause R] [--lesson L]` | Record a structured reflection. Required keys: action, outcome (enum success, partial, failure), observation, next. A provided lesson is auto-recorded as a project lesson tagged `auto-reflected`. JSON positional takes precedence over flags. Missing keys or bad outcome: `[FAIL]`, exit 1. | 0 |
-| `classify TASK [--json] [--triage never\|auto\|always] [--platform auto\|codex-desktop\|claude-desktop\|cursor-desktop] [--effort auto\|low\|medium\|high] [--speed auto\|standard\|fast] [--session-model MODEL] [--spawn-ceiling auto\|lower_only\|same_or_lower\|allow_stronger]` | Classify a task before planning. Returns task type, risk, ambiguity, ceremony level, execution profile, verification strategy, fanout recommendation, fast model triage fit, model policy, task-based host recommendation, signals, and next action. `--triage auto` runs one fast local model only when the gate is recommended or required. Does not require `.mythify` state unless the selected local model command does. | 0 |
+| `classify TASK [--json] [--triage never\|auto\|always] [--platform auto\|codex-desktop\|claude-desktop\|cursor-desktop] [--effort auto\|low\|medium\|high] [--speed auto\|standard\|fast] [--session-model MODEL] [--spawn-ceiling auto\|lower_only\|same_or_lower\|allow_stronger] [--reviewer-strength auto\|same_or_lower\|allow_stronger]` | Classify a task before planning. Returns task type, risk, ambiguity, ceremony level, execution profile, verification strategy, fanout recommendation, fast model triage fit, model policy, task-based host recommendation, signals, and next action. `--triage auto` runs one fast local model only when the gate is recommended or required. Does not require `.mythify` state unless the selected local model command does. | 0 |
 | `summary` | Full session report: plans and progress, memory count, project and global lesson counts, verification stats (executed passed, executed failed, attested count), reflection count. | 0 |
 
 Implementation notes:
@@ -458,7 +458,7 @@ does AND when to use it, since descriptions drive tool selection.
 
 | Tool | Input schema | Behavior |
 | :--- | :--- | :--- |
-| `classify_task` | `{task: string, format?: enum(text, json), triage?: enum(never, auto, always), triage_engine?: enum(claude-cli, codex-cli, cursor-agent, command), triage_model?: string, triage_timeout_seconds?: number, platform?: enum(auto, unknown, codex-desktop, codex-cli, claude-desktop, claude-code, cursor-desktop, cursor-agent), effort?: enum(auto, low, medium, high), speed?: enum(auto, standard, fast), session_model?: string, spawn_ceiling?: enum(auto, lower_only, same_or_lower, allow_stronger)}` | Classify a task before planning. Returns task type, risk, ambiguity, ceremony level, execution profile, verification strategy, fanout recommendation, fast model triage fit, model policy, task-based host recommendation, signals, and next action. With `triage: auto`, run one fast local model only when the deterministic gate recommends it. |
+| `classify_task` | `{task: string, format?: enum(text, json), triage?: enum(never, auto, always), triage_engine?: enum(claude-cli, codex-cli, cursor-agent, command), triage_model?: string, triage_timeout_seconds?: number, platform?: enum(auto, unknown, codex-desktop, codex-cli, claude-desktop, claude-code, cursor-desktop, cursor-agent), effort?: enum(auto, low, medium, high), speed?: enum(auto, standard, fast), session_model?: string, spawn_ceiling?: enum(auto, lower_only, same_or_lower, allow_stronger), reviewer_strength?: enum(auto, same_or_lower, allow_stronger)}` | Classify a task before planning. Returns task type, risk, ambiguity, ceremony level, execution profile, verification strategy, fanout recommendation, fast model triage fit, model policy, task-based host recommendation, signals, and next action. With `triage: auto`, run one fast local model only when the deterministic gate recommends it. |
 | `host_model_switch` | `{action?: enum(switch, status, clear), platform?: enum(auto, unknown, codex-desktop, codex-cli, claude-desktop, claude-code, cursor-desktop, cursor-agent), target_model?: string, current_model?: string, thinking?: enum(auto, low, medium, high, xhigh, max), speed?: enum(auto, standard, fast), reason?: string, format?: enum(text, json)}` | Record, show, or clear a requested host chat model switch. `switch` writes `.mythify/host-model.json`, returns platform-specific switch guidance, registry-backed `host_capability`, and `switch_result`, and makes later `classify_task` and `fanout_start` calls use the recorded target as the session model when no explicit or env session model is supplied. It does not claim to mutate the current host chat unless a future host integration exposes that capability and confirms the result. |
 | `provider_probe` | `{provider?: enum(generic-openai-compatible), base_url?: string, model?: string, check?: enum(models, chat, both), api_key_env?: string, timeout_seconds?: number, prompt?: string, format?: enum(text, json)}` | Probe a generic OpenAI-compatible provider by calling `/v1/models` and, when requested, `/v1/chat/completions`. Defaults: `MYTHIFY_OPENAI_COMPAT_BASE_URL`, `MYTHIFY_OPENAI_COMPAT_MODEL`, and `MYTHIFY_OPENAI_COMPAT_API_KEY`. Returns provider availability, model presence, chat response tail, and `material_not_evidence: true`. It does not write state, spawn workers, or count as verification evidence. |
 | `local_model_run` | `{role?: enum(reader, triage), base_url?: string, model?: string, prompt: string, api_key_env?: string, timeout_seconds?: number, max_tokens?: number, format?: enum(text, json)}` | Run a role-limited prompt against a localhost OpenAI-compatible provider. Defaults: `MYTHIFY_OPENAI_COMPAT_BASE_URL`, `MYTHIFY_OPENAI_COMPAT_MODEL`, and `MYTHIFY_OPENAI_COMPAT_API_KEY`. The base URL must be `localhost`, `127.0.0.1`, `::1`, or `0.0.0.0`. Returns model output with `material_not_evidence: true`, `evidence_status: "model_output_not_verification"`, `writes_state: false`, and `verification_recorded: false`. It does not edit files, run commands, write state, or count model output as verification evidence. |
@@ -540,7 +540,12 @@ Classification always returns `model_policy`. It separates:
   timeout, max turns, and sandbox.
 - `fanout_worker`: default policy for independent fanout tasks, including
   chat visibility (`quiet`, `summary`, `verbose`, or `threaded`).
-- `reviewer`: whether a separate reviewer worker is useful and its effort.
+- `reviewer`: whether a separate reviewer worker is useful, its effort, and
+  the explicit stronger-model policy. Reviewers default to same-or-lower than
+  the initiating session; `reviewer_strength: "allow_stronger"` records
+  classifier policy. Actual fanout still requires `role: "reviewer"` plus
+  `reviewer_allow_stronger: true` before reviewer fanout may exceed the
+  session without the broader `spawn_ceiling: "allow_stronger"` escape hatch.
 - `verifier`: command-first verification policy, no model when an executable
   check exists.
 
@@ -566,8 +571,10 @@ worker. `--session-model`, MCP `session_model`, and
 if neither is set, Mythify uses `.mythify/host-model.json` when present.
 `--spawn-ceiling`, MCP `spawn_ceiling`, and `MYTHIFY_SPAWN_CEILING` may be
 `auto`, `lower_only`, `same_or_lower`, or `allow_stronger`; auto defaults to
-`same_or_lower`. Auto effort keeps triage cheap and scales fanout or reviewer
-effort by risk and ceremony.
+`same_or_lower`. `--reviewer-strength`, MCP `reviewer_strength`, and
+`MYTHIFY_REVIEWER_STRENGTH` may be `auto`, `same_or_lower`, or
+`allow_stronger`; auto defaults to `same_or_lower`. Auto effort keeps triage
+cheap and scales fanout or reviewer effort by risk and ceremony.
 
 Host recommendations are profile-based, then mapped to platform model names.
 Direct low-risk prompts use profile `fast`, thinking `low`, and speed `fast`.
@@ -935,12 +942,15 @@ prompt, not other tasks' outputs).
 Spawn ceiling is checked after model resolution. `session_model` comes from the
 tool call, `MYTHIFY_SESSION_MODEL`, or `.mythify/host-model.json`; `spawn_ceiling`
 comes from the tool call or `MYTHIFY_SPAWN_CEILING`, defaulting to
-`same_or_lower`. Mythify classifies
-known model names into rough tiers: `small`, `fast`, `standard`, `strong`,
-`frontier`, or `unknown`. If both the session model and spawned model have
-known tiers, `fanout_start` refuses stronger spawned models unless the ceiling
-is `allow_stronger`. Unknown tiers are recorded as `uncheckable`; Mythify does
-not guess blank local CLI defaults.
+`same_or_lower`. Mythify classifies known model names into rough tiers:
+`small`, `fast`, `standard`, `strong`, `frontier`, or `unknown`. If both the
+session model and spawned model have known tiers, `fanout_start` refuses
+stronger spawned models unless the ceiling is `allow_stronger`. A safer narrow
+path exists for review: a task with `role: "reviewer"` may exceed the session
+under `same_or_lower` only when the job also sets
+`reviewer_allow_stronger: true`. That reviewer opt-in does not affect worker
+tasks and does not override `lower_only`. Unknown tiers are recorded as
+`uncheckable`; Mythify does not guess blank local CLI defaults.
 
 Effort is a separate field with the same precedence: per-task `effort`
 overrides per-job `effort`, which overrides `MYTHIFY_FANOUT_EFFORT`, which
@@ -966,11 +976,11 @@ Platform mapping:
   `gpt-5.3-codex-high-fast` when that id is available. If no matching encoded
   id is found, Mythify leaves the requested model unchanged.
 
-### Tools (3, total 25)
+### Tools (3, total 28)
 
 | Tool | Input schema | Behavior |
 | :--- | :--- | :--- |
-| `fanout_start` | `{tasks: [{title: string, prompt: string, context_paths?: string[], model?: string, engine?: string, effort?: enum(auto, low, medium, high), speed?: enum(auto, standard, fast)}], purpose?: string, model?: string, engine?: string, effort?: enum(auto, low, medium, high), speed?: enum(auto, standard, fast), visibility?: enum(auto, quiet, summary, verbose, threaded), session_model?: string, spawn_ceiling?: enum(auto, lower_only, same_or_lower, allow_stronger), timeout_seconds?: number}` | Validate (1 to `MYTHIFY_FANOUT_MAX_TASKS` tasks, non-empty prompts, engine resolvable, kill switch and depth guard, context files readable, spawned model does not exceed the ceiling). Create `.mythify/fanout/<job_id>/job.json`, return the job id IMMEDIATELY, run workers in the background with a concurrency pool. Tasks must be fully independent; the description says so and says each task is a fresh model call that costs real money, subscription quota, or local compute. Visibility defaults to summary unless `visibility`, `purpose`, or task prompts request quiet, verbose, or threaded reporting. |
+| `fanout_start` | `{tasks: [{title: string, prompt: string, context_paths?: string[], role?: enum(worker, reviewer), model?: string, engine?: string, effort?: enum(auto, low, medium, high), speed?: enum(auto, standard, fast)}], purpose?: string, model?: string, engine?: string, effort?: enum(auto, low, medium, high), speed?: enum(auto, standard, fast), visibility?: enum(auto, quiet, summary, verbose, threaded), session_model?: string, spawn_ceiling?: enum(auto, lower_only, same_or_lower, allow_stronger), reviewer_allow_stronger?: boolean, timeout_seconds?: number}` | Validate (1 to `MYTHIFY_FANOUT_MAX_TASKS` tasks, non-empty prompts, engine resolvable, kill switch and depth guard, context files readable, spawned model does not exceed the ceiling unless a reviewer-specific opt-in applies). Create `.mythify/fanout/<job_id>/job.json`, return the job id IMMEDIATELY, run workers in the background with a concurrency pool. Tasks must be fully independent; the description says so and says each task is a fresh model call that costs real money, subscription quota, or local compute. Visibility defaults to summary unless `visibility`, `purpose`, or task prompts request quiet, verbose, or threaded reporting. |
 | `fanout_status` | `{job_id?: string}` | Default: most recent job. Per-task lines with the step icon convention plus counts, engine, model, model tier, effort, speed, visibility, and elapsed. Quiet jobs show aggregate progress and failures only. If the job is marked running on disk but unknown to the in-memory registry (server restarted), mark its running tasks `interrupted` and say so. |
 | `fanout_results` | `{job_id?: string, task_id?: number}` | Return outputs of completed and failed tasks (failures include the error and remediation). Per-task text in the tool result is capped at 20000 characters with a note pointing at the full output file. Warns when tasks are still running. |
 
@@ -1007,7 +1017,8 @@ job.json (atomic writes on every transition):
   "model_source": "str", "model_tier": "str", "model_ceiling_status": "str",
   "session_model": "str", "session_model_source": "str",
   "session_model_tier": "str", "spawn_ceiling": "str",
-  "spawn_ceiling_source": "str", "effort": "low|medium|high",
+  "spawn_ceiling_source": "str", "reviewer_allow_stronger": false,
+  "effort": "low|medium|high",
   "effort_source": "str", "speed": "auto|standard|fast",
   "speed_source": "str", "visibility": "quiet|summary|verbose|threaded",
   "visibility_source": "explicit|env|prompt|default",
@@ -1016,8 +1027,9 @@ job.json (atomic writes on every transition):
   "timeout_seconds": 600, "last_updated": "ISO-8601",
   "tasks": [
     {"id": 1, "title": "str", "status": "pending|running|completed|failed|interrupted",
-     "engine": "str", "model": "str", "model_source": "str",
+     "role": "worker|reviewer", "engine": "str", "model": "str", "model_source": "str",
      "model_tier": "str", "model_ceiling_status": "str",
+     "stronger_reviewer_opt_in": false,
      "effort": "low|medium|high", "effort_source": "str",
      "speed": "auto|standard|fast", "speed_source": "str",
      "started_at": "ISO-8601 or null",
@@ -1036,6 +1048,7 @@ job.json (atomic writes on every transition):
 | `MYTHIFY_FANOUT_MODEL` | engine default | Default worker model. |
 | `MYTHIFY_SESSION_MODEL` | recorded host model or unknown | Current host session model used for spawn ceiling checks. Beats `.mythify/host-model.json` when set. |
 | `MYTHIFY_SPAWN_CEILING` | `same_or_lower` | Spawn ceiling: `auto`, `lower_only`, `same_or_lower`, or `allow_stronger`. |
+| `MYTHIFY_REVIEWER_STRENGTH` | `same_or_lower` | Reviewer strength policy: `auto`, `same_or_lower`, or `allow_stronger`. |
 | `MYTHIFY_HOST_FAST_MODEL` | platform default | Host recommendation model for direct, trivial, or focused low-risk prompts. |
 | `MYTHIFY_HOST_STANDARD_MODEL` | platform default | Host recommendation model for balanced implementation, debugging, review, and docs prompts. |
 | `MYTHIFY_HOST_STRONG_MODEL` | platform default | Host recommendation model for research, benchmarks, design, release, migration, and security prompts. |

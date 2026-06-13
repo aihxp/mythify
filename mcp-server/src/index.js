@@ -29,6 +29,7 @@ import {
   ROLE_PROVIDER_DEFAULTS,
   ROLE_PROVIDER_ENV_NAMES,
   ROLE_PROVIDER_FALLBACK_POLICY,
+  REVIEWER_STRENGTH_MODES,
   SPAWN_CEILINGS,
   SPEED_LEVELS,
   STRONG_HOST_TASK_TYPES,
@@ -1271,6 +1272,10 @@ function formatClassification(result) {
       `verifier=${policy.verifier?.engine || "local_command"}`
     );
     lines.push(
+      `reviewer opt-in: ${policy.reviewer?.stronger_model_policy || "same_or_lower"} ` +
+      `(${policy.reviewer?.stronger_model_policy_source || "default"})`
+    );
+    lines.push(
       `host recommendation: ${recommendation.action || "recommend_set"} to ` +
       `${recommendation.target_profile || "standard"}/${recommendation.target_model || ""} ` +
       `thinking=${recommendation.thinking || "medium"} speed=${recommendation.speed || "auto"}`
@@ -1631,6 +1636,18 @@ function resolveSpawnCeiling(spawnCeiling) {
   return { ceiling: "same_or_lower", source: "default" };
 }
 
+function resolveReviewerStrength(reviewerStrength) {
+  const explicit = (reviewerStrength || "auto").trim();
+  if (explicit !== "" && explicit !== "auto") {
+    return { policy: explicit, source: "explicit" };
+  }
+  const envStrength = (process.env.MYTHIFY_REVIEWER_STRENGTH || "").trim();
+  if (REVIEWER_STRENGTH_MODES.includes(envStrength) && envStrength !== "auto") {
+    return { policy: envStrength, source: "env" };
+  }
+  return { policy: "same_or_lower", source: "default" };
+}
+
 function roleModelRelation(role, sessionTier, ceiling) {
   if (role === "verifier") {
     return "none";
@@ -1878,6 +1895,7 @@ function buildModelPolicy(classification, options) {
   const sessionModel = resolveSessionModel(options.session_model || "");
   const sessionTier = classifyModelTier(sessionModel.model);
   const spawnCeiling = resolveSpawnCeiling(options.spawn_ceiling || "auto");
+  const reviewerStrength = resolveReviewerStrength(options.reviewer_strength || "auto");
   const { engine: triageEngine, enginePolicy: triageEnginePolicy } = selectTriageEngine(
     options.triage_engine || "",
     platform
@@ -1929,7 +1947,7 @@ function buildModelPolicy(classification, options) {
       session_model_source: sessionModel.source,
       session_model_tier: sessionTier,
       default: "same_or_lower",
-      stronger_requires: "spawn_ceiling_allow_stronger",
+      stronger_requires: "spawn_ceiling_allow_stronger_or_reviewer_specific_opt_in",
     },
     triage: {
       role: "problem_framing",
@@ -1996,7 +2014,14 @@ function buildModelPolicy(classification, options) {
       engine: "auto",
       engine_policy: "local_first",
       model_policy: "prefer_stronger_than_worker_when_available",
-      model_relation_to_session: roleModelRelation("reviewer", sessionTier, spawnCeiling.ceiling),
+      stronger_model_policy: reviewerStrength.policy,
+      stronger_model_policy_source: reviewerStrength.source,
+      stronger_models_allowed: reviewerStrength.policy === "allow_stronger",
+      stronger_requires: "reviewer_strength_allow_stronger_or_fanout_reviewer_allow_stronger",
+      model_relation_to_session:
+        reviewerStrength.policy === "allow_stronger"
+          ? "may_exceed_session_with_reviewer_opt_in"
+          : roleModelRelation("reviewer", sessionTier, spawnCeiling.ceiling),
       effort: reviewerEffort.effort,
       effort_policy: reviewerEffort.effortPolicy,
       speed: reviewerSpeed.speed,
@@ -3491,6 +3516,12 @@ server.registerTool(
         .describe(
           "Maximum spawned model tier relative to the session model. Auto uses MYTHIFY_SPAWN_CEILING or same_or_lower."
         ),
+      reviewer_strength: z
+        .enum(REVIEWER_STRENGTH_MODES)
+        .optional()
+        .describe(
+          "Reviewer model strength relative to the session. Auto uses MYTHIFY_REVIEWER_STRENGTH or same_or_lower; allow_stronger is a reviewer-only opt-in."
+        ),
     },
   },
   guarded(({
@@ -3505,6 +3536,7 @@ server.registerTool(
     speed,
     session_model,
     spawn_ceiling,
+    reviewer_strength,
   }) => {
     const result = classifyTaskText(task);
     result.model_policy = buildModelPolicy(result, {
@@ -3516,6 +3548,7 @@ server.registerTool(
       speed: speed || "auto",
       session_model: session_model || "",
       spawn_ceiling: spawn_ceiling || "auto",
+      reviewer_strength: reviewer_strength || "auto",
     });
     if ((triage || "never") !== "never") {
       result.model_triage_run = runModelTriage(task, result, {
