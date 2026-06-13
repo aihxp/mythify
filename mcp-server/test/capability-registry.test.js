@@ -91,6 +91,7 @@ test("researched future adapters are candidates, not public host platforms", () 
     "google-agents-cli",
     "google-colab-cli",
     "kimi-code",
+    "kimi-work",
     "llama-cpp",
     "lm-studio",
     "ollama",
@@ -174,6 +175,10 @@ test("researched future adapters are candidates, not public host platforms", () 
     listAdapterCandidates("host").map((candidate) => candidate.name).sort(),
     ["antigravity", "kimi-code", "opencode"]
   );
+  assert.deepEqual(
+    listAdapterCandidates("desktop_agent").map((candidate) => candidate.name).sort(),
+    ["kimi-work"]
+  );
   assert.equal(ADAPTER_CANDIDATES.antigravity.status, "worker_supported");
   assert.equal(ADAPTER_CANDIDATES.antigravity.can_probe, true);
   assert.equal(ADAPTER_CANDIDATES.antigravity.can_run_noninteractive_prompt, true);
@@ -186,6 +191,12 @@ test("researched future adapters are candidates, not public host platforms", () 
   assert.equal(ADAPTER_CANDIDATES["kimi-code"].can_run_noninteractive_prompt, true);
   assert.equal(ADAPTER_CANDIDATES["kimi-code"].can_run_bounded_worker, true);
   assert.equal(ADAPTER_CANDIDATES["kimi-code"].worker_output_is_evidence, false);
+  assert.equal(ADAPTER_CANDIDATES["kimi-work"].status, "metadata_only");
+  assert.equal(ADAPTER_CANDIDATES["kimi-work"].can_probe, false);
+  assert.equal(ADAPTER_CANDIDATES["kimi-work"].can_run_bounded_worker, false);
+  assert.equal(ADAPTER_CANDIDATES["kimi-work"].metadata_only, true);
+  assert.equal(ADAPTER_CANDIDATES["kimi-work"].permission_policy, "manual_ask_before_acting");
+  assert.equal(ADAPTER_CANDIDATES["kimi-work"].automation_policy, "no_documented_cli_or_api");
   assert.equal(ADAPTER_CANDIDATES.opencode.status, "worker_supported");
   assert.equal(ADAPTER_CANDIDATES.opencode.can_probe, true);
   assert.equal(ADAPTER_CANDIDATES.opencode.can_run_noninteractive_prompt, true);

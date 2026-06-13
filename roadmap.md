@@ -21,9 +21,9 @@ Status markers:
 
 ## Active Now
 
-- [>] Kimi Work desktop lane after CLI adapters are stable.
-  - Current goal: decide whether Kimi Work should be a desktop host lane,
-    adapter candidate, or backlog-only research item.
+- [>] OpenCode Desktop lane after CLI and server adapters prove useful.
+  - Current goal: decide whether OpenCode Desktop should be a desktop host
+    lane, adapter candidate, or backlog-only research item.
   - Next step: map available local entry points, model controls, workspace
     boundary, automation hooks, and MCP or CLI compatibility.
   - Guardrail: do not claim desktop control or spawning unless a local probe or
@@ -31,14 +31,13 @@ Status markers:
 
 ## Next Queue
 
-1. [ ] OpenCode Desktop lane after CLI and server adapters prove useful.
-2. [ ] Colab remote execution adapter after explicit billing, data movement,
+1. [ ] Colab remote execution adapter after explicit billing, data movement,
    and cleanup posture are designed.
-3. [ ] Cost and timeout controls per role.
-4. [ ] Custom command or HTTP adapter path.
-5. [ ] Workflow dashboard or phase view that reveals evidence without
+2. [ ] Cost and timeout controls per role.
+3. [ ] Custom command or HTTP adapter path.
+4. [ ] Workflow dashboard or phase view that reveals evidence without
    decorating self-report.
-6. [ ] One-core architecture decision after the registry prototype proves
+5. [ ] One-core architecture decision after the registry prototype proves
    enough value.
 
 ## Open Work By Track
@@ -47,8 +46,7 @@ Status markers:
 
 What remains:
 
-- [>] Kimi Work desktop lane.
-- [ ] OpenCode Desktop lane.
+- [>] OpenCode Desktop lane.
 
 Decision needed:
 
@@ -59,6 +57,7 @@ Decision needed:
 
 Already shipped in this track:
 
+- [x] Kimi Work desktop lane mapped as metadata-only `desktop_agent`.
 - [x] Kimi Code CLI probe.
 - [x] OpenCode CLI probe.
 - [x] Kimi Code bounded worker run through `host_cli_run`.
@@ -246,6 +245,10 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: map Kimi Work desktop as a metadata-only `desktop_agent`
+  candidate in the capability registry. Kimi Work remains manual for
+  model-switching and spawning until a documented or locally probeable
+  automation surface exists.
 - [x] 2026-06-13: refactor roadmap navigation around `Active Now`,
   `Next Queue`, `Open Work By Track`, and `Shipped Work`, so unfinished items
   appear before completed history in each track.
@@ -395,7 +398,7 @@ Preserve:
 
 - [ ] Stable cross-platform role assignment.
 - [ ] Stable adapter interface.
-- [ ] Desktop local-agent lane for Kimi Work style workflows.
+- [x] Desktop local-agent lane for Kimi Work style workflows.
 - [ ] Execution adapter lane for Colab CLI style remote jobs.
 - [ ] Agent lifecycle lane for Agents CLI and ADK style workflows.
 - [ ] One-core architecture decision based on the registry prototype.

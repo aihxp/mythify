@@ -83,6 +83,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   include a provider catalog for `host`, `host_cli`, `local_openai_compatible`,
   `api_provider`, `command`, and `local_command`, plus each resolved role's
   selected provider profile.
+- Kimi Work desktop metadata. The capability registry now tracks Kimi Work as
+  a metadata-only `desktop_agent` candidate with manual model-switching and
+  spawning posture until a documented or locally probeable automation contract
+  exists.
 
 ## [2.5.0] - 2026-06-12
 

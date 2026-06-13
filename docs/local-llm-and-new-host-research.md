@@ -241,7 +241,7 @@ Sources:
 
 ### Kimi Work Desktop
 
-Fit: later desktop local-agent surface.
+Fit: metadata-only desktop local-agent candidate.
 
 Why:
 
@@ -251,20 +251,24 @@ Why:
 - It has an Ask before acting safeguard for file modification, overwrites, and
   code execution.
 - It is available as a macOS Apple silicon download and a Windows download.
+- Kimi WebBridge works with the Kimi Desktop App in Kimi Work mode and pairs a
+  local service with a browser extension.
+- Kimi Work was not visible under `/Applications` in this local environment.
 
 Mythify implication:
 
 - Do not treat Kimi Work as a simple coding CLI.
-- Track it as a desktop workflow surface once Mythify has a desktop adapter
-  story for current-session capabilities, permissions, local files, browser
-  automation, scheduled tasks, and verification evidence.
+- Track it in the capability registry as `kind: "desktop_agent"` and
+  `status: "metadata_only"`.
 - Until an automation contract is documented or locally probeable, Kimi Work
-  should be `manual` for model switching and `manual` for spawning.
+  should be `manual` for model switching and `manual` for spawning. It should
+  not be accepted as a public host platform, host CLI worker, or verifier.
 
 Sources:
 
 - [Kimi Work](https://www.kimi.com/products/kimi-work)
 - [Kimi products](https://www.kimi.com/products/)
+- [Kimi WebBridge](https://www.kimi.com/features/webbridge)
 
 ### OpenCode
 

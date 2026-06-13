@@ -116,6 +116,8 @@ Registry rules:
 Adapter kinds:
 
 - `host`: coding host, desktop app, or agent CLI.
+- `desktop_agent`: local desktop agent surface without a stable automation
+  contract.
 - `model_provider`: API or local model endpoint.
 - `execution_substrate`: runtime that executes remote or local jobs and returns logs,
   files, or artifacts.
@@ -125,9 +127,11 @@ The current public host platforms remain `auto`, `unknown`, `codex-desktop`,
 `codex-cli`, `claude-desktop`, `claude-code`, `cursor-desktop`, and
 `cursor-agent`. Adapter profiles such as generic OpenAI-compatible local
 providers, Ollama, LM Studio, llama.cpp, vLLM, Kimi Code, OpenCode,
-Antigravity, Google Colab CLI, Google Agents CLI, and Google ADK CLI live in
-the registry instead of the host platform enum. New candidates must enter the
-registry first, then earn public schema support in a separate verified slice.
+Antigravity, Kimi Work, Google Colab CLI, Google Agents CLI, and Google ADK
+CLI live in the registry instead of the host platform enum. Kimi Work is a
+metadata-only `desktop_agent` until a documented or locally probeable
+automation surface exists. New candidates must enter the registry first, then
+earn public schema support in a separate verified slice.
 
 ## Operation registry
 
