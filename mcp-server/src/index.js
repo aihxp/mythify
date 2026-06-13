@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Mythify MCP server v2.5.0
 // Exposes the Mythify state model (memory, plans, lessons, verifications,
-// reflections) as 21 core MCP tools over stdio, plus the 3 fanout tools for
-// parallel delegation (src/fanout.js), 24 tools in total. On-disk formats are
+// reflections) as 22 core MCP tools over stdio, plus the 3 fanout tools for
+// parallel delegation (src/fanout.js), 25 tools in total. On-disk formats are
 // shared with the Python CLI (scripts/mythify.py); both implementations must
 // interoperate on the same .mythify state directory. Fanout is MCP-only; the
 // CLI deliberately does not implement it.
@@ -2590,6 +2590,153 @@ function formatHostCliProbe(result) {
   return lines.join("\n");
 }
 
+const EXECUTION_PROBES = {
+  "google-colab-cli": {
+    envName: "MYTHIFY_COLAB_BIN",
+    binaryNames: ["colab", "colab-cli", "google-colab"],
+    fallbacks: [
+      path.join(os.homedir(), ".local", "bin", "colab"),
+      path.join(os.homedir(), ".local", "bin", "colab-cli"),
+      "/opt/homebrew/bin/colab",
+      "/opt/homebrew/bin/colab-cli",
+      "/usr/local/bin/colab",
+      "/usr/local/bin/colab-cli",
+    ],
+    checks: [
+      { name: "version", args: ["--version"] },
+      { name: "help", args: ["--help"] },
+    ],
+  },
+};
+
+function resolveExecutionProbeBinary(adapter, explicitBin) {
+  const config = EXECUTION_PROBES[adapter];
+  if (!config) {
+    return { bin: "", source: "unsupported", error: `Unsupported execution adapter ${adapter}.` };
+  }
+  const explicit = String(explicitBin || "").trim();
+  if (explicit !== "") {
+    return isExecutableFile(explicit)
+      ? { bin: explicit, source: "explicit", error: "" }
+      : { bin: "", source: "explicit", error: `Configured binary is not executable: ${explicit}` };
+  }
+  const envBin = envValue(config.envName);
+  if (envBin !== "") {
+    return isExecutableFile(envBin)
+      ? { bin: envBin, source: `env:${config.envName}`, error: "" }
+      : { bin: "", source: `env:${config.envName}`, error: `Configured binary is not executable: ${envBin}` };
+  }
+  for (const binaryName of config.binaryNames) {
+    const found = findExecutableOnPath(binaryName);
+    if (found !== null) {
+      return { bin: found, source: "path", error: "" };
+    }
+  }
+  for (const candidate of config.fallbacks) {
+    if (isExecutableFile(candidate)) {
+      return { bin: candidate, source: "fallback", error: "" };
+    }
+  }
+  return {
+    bin: "",
+    source: "missing",
+    error: `No ${adapter} binary found. Set ${config.envName} or pass bin.`,
+  };
+}
+
+function inferExecutionProbeFeatures(adapter, checks) {
+  if (adapter === "google-colab-cli") {
+    const checksOk = checks.length > 0 && checks.every((item) => item.ok);
+    return {
+      feature_evidence: checksOk
+        ? "version and help commands succeeded; no remote runtime, accelerator, upload, or job was requested"
+        : "version or help command failed before any remote job was attempted",
+    };
+  }
+  return { feature_evidence: "unsupported execution adapter" };
+}
+
+function probeExecutionAdapter({ adapter, bin, timeout_seconds }) {
+  const selectedAdapter = adapter || "google-colab-cli";
+  const config = EXECUTION_PROBES[selectedAdapter];
+  const timeoutSeconds =
+    typeof timeout_seconds === "number" && timeout_seconds > 0 ? timeout_seconds : 10;
+  const adapterInfo = ADAPTER_CANDIDATES[selectedAdapter] || {};
+  const resolved = resolveExecutionProbeBinary(selectedAdapter, bin);
+  const result = {
+    adapter: selectedAdapter,
+    adapter_kind: adapterInfo.kind || "execution_substrate",
+    status: "blocked",
+    binary: resolved.bin,
+    binary_source: resolved.source,
+    material_not_evidence: true,
+    evidence_status: "probe_only_not_verification",
+    non_billable: true,
+    job_execution_enabled: false,
+    can_run_remote_job: false,
+    remote_runtime_provisioned: false,
+    accelerator_requested: false,
+    data_uploaded: false,
+    artifact_retrieval_enabled: false,
+    billing_guard: "probe_only_no_runtime_provisioning",
+    feature_evidence: "",
+    checks: [],
+    error: resolved.error,
+  };
+  if (!config) {
+    result.error = `execution_probe does not support ${selectedAdapter}.`;
+    return result;
+  }
+  if (resolved.bin === "") {
+    return result;
+  }
+  result.checks = config.checks.map((check) => ({
+    name: check.name,
+    ...runCliProbeCommand(resolved.bin, check.args, timeoutSeconds),
+  }));
+  const features = inferExecutionProbeFeatures(selectedAdapter, result.checks);
+  result.feature_evidence = features.feature_evidence;
+  const checksOk = result.checks.every((item) => item.ok);
+  result.status = checksOk ? "available" : "blocked";
+  result.error = result.status === "available"
+    ? ""
+    : result.checks.find((item) => !item.ok)?.error || features.feature_evidence || "execution probe failed";
+  return result;
+}
+
+function formatExecutionProbe(result) {
+  const prefix = result.status === "available" ? "[OK]" : "[FAIL]";
+  const lines = [
+    `${prefix} Execution probe ${result.status}.`,
+    `adapter: ${result.adapter}`,
+    `binary: ${result.binary || "not found"}`,
+    `binary source: ${result.binary_source}`,
+    `non-billable probe: ${result.non_billable ? "yes" : "no"}`,
+    `job execution enabled: ${result.job_execution_enabled ? "yes" : "no"}`,
+    `remote runtime provisioned: ${result.remote_runtime_provisioned ? "yes" : "no"}`,
+    `accelerator requested: ${result.accelerator_requested ? "yes" : "no"}`,
+    `data uploaded: ${result.data_uploaded ? "yes" : "no"}`,
+    `feature evidence: ${result.feature_evidence || "none"}`,
+    `billing guard: ${result.billing_guard}`,
+    "evidence: probe output is material, not verification evidence.",
+  ];
+  for (const item of result.checks || []) {
+    const details = [
+      `${item.name}: ${item.ok ? "ok" : "failed"}`,
+      `exit=${item.exit_code}`,
+      `command=${item.command}`,
+    ];
+    if (item.error) {
+      details.push(`error=${item.error}`);
+    }
+    lines.push(details.join("; "));
+  }
+  if (result.error && (!result.checks || result.checks.length === 0)) {
+    lines.push(`error: ${result.error}`);
+  }
+  return lines.join("\n");
+}
+
 // Handlers never throw on bad state: any unexpected error becomes an
 // explanatory [FAIL] text result.
 function guarded(handler) {
@@ -2873,7 +3020,7 @@ server.registerTool(
   {
     title: "Probe a host CLI adapter",
     description:
-      "Probe Kimi Code or OpenCode CLI availability by running only version and help commands. " +
+      "Probe Kimi Code, OpenCode, or Antigravity CLI availability by running only version and help commands. " +
       "Use this before enabling a host CLI adapter. The result is material, not verification evidence, and does not execute a prompt or start workers.",
     inputSchema: {
       host: z
@@ -2903,6 +3050,48 @@ server.registerTool(
     });
     const prefix = result.status === "available" ? "[OK] " : "[FAIL] ";
     return format === "json" ? prefix + JSON.stringify(result, null, 2) : formatHostCliProbe(result);
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Execution adapter probe tool
+// ---------------------------------------------------------------------------
+
+server.registerTool(
+  "execution_probe",
+  {
+    title: "Probe an execution adapter",
+    description:
+      "Probe Google Colab CLI availability by running only version and help commands. " +
+      "Use this before planning remote execution work. The result is material, not verification evidence, and does not provision runtimes, request accelerators, upload data, execute jobs, or retrieve artifacts.",
+    inputSchema: {
+      adapter: z
+        .enum(["google-colab-cli"])
+        .optional()
+        .describe("Execution adapter to probe. Defaults to google-colab-cli."),
+      bin: z
+        .string()
+        .optional()
+        .describe("Explicit CLI binary path. Defaults to MYTHIFY_COLAB_BIN, then PATH and common install paths."),
+      timeout_seconds: z
+        .number()
+        .positive()
+        .optional()
+        .describe("Timeout per version or help command in seconds. Defaults to 10."),
+      format: z
+        .enum(["text", "json"])
+        .optional()
+        .describe("Return text by default, or JSON for machine-readable probes."),
+    },
+  },
+  guarded(({ adapter, bin, timeout_seconds, format }) => {
+    const result = probeExecutionAdapter({
+      adapter: adapter || "google-colab-cli",
+      bin: bin || "",
+      timeout_seconds,
+    });
+    const prefix = result.status === "available" ? "[OK] " : "[FAIL] ";
+    return format === "json" ? prefix + JSON.stringify(result, null, 2) : formatExecutionProbe(result);
   })
 );
 

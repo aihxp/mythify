@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased changes.
+### Added
+
+- MCP `execution_probe` for Google Colab CLI availability checks. The probe
+  runs only version and help commands, returns explicit non-billable and
+  no-remote-execution guard fields, and records no verification evidence.
+- `docs/colab-cli-spike-plan.md` to document the safe Colab CLI spike scope
+  and the future evidence fields required before any billable remote execution.
 
 ## [2.5.0] - 2026-06-12
 

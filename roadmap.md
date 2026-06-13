@@ -287,6 +287,7 @@ providers.
 Google Colab CLI:
 
 - Classify as an `execution_substrate`, not a `model_provider`.
+- [x] 2026-06-12: add non-billable Google Colab CLI probe and spike plan.
 - Useful for GPU, TPU, notebook, training, artifact, and heavy verification
   workflows.
 - Track remote command exit, session id, accelerator type, logs, artifacts,

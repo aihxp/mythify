@@ -26,6 +26,10 @@ Implementation status:
   `docs/antigravity-mcp-setup.md`: `agy` can be checked through version and
   help commands, and MCP setup guidance is documented without enabling worker
   execution.
+- Colab CLI spike-plan slice landed in `execution_probe` and
+  `docs/colab-cli-spike-plan.md`: Google Colab CLI can be checked through
+  version and help commands without provisioning runtimes, requesting
+  accelerators, uploading data, or executing jobs.
 - Local provider worker execution is not supported yet. The next slice should
   add a role-limited execution path before claiming reader or triage support.
 
@@ -457,5 +461,6 @@ This prevents Colab CLI and Agents CLI from being squeezed into the wrong box.
 5. Add a real OpenCode adapter spike:
    `opencode run --format json --model <provider/model>`.
 6. Done 2026-06-12: add Antigravity CLI probe and MCP setup guide.
-7. Create a Colab CLI spike plan without running billable accelerator work.
+7. Done 2026-06-12: create a Colab CLI spike plan without running billable
+   accelerator work.
 8. Create an Agents CLI spike plan around `agents-cli eval`, not deployment.

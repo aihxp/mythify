@@ -78,4 +78,12 @@ test("researched future adapters are candidates, not public host platforms", () 
   assert.equal(ADAPTER_CANDIDATES.opencode.status, "probe_supported");
   assert.equal(ADAPTER_CANDIDATES.opencode.can_probe, true);
   assert.equal(ADAPTER_CANDIDATES.opencode.can_run_noninteractive_prompt, false);
+  assert.deepEqual(
+    listAdapterCandidates("execution_substrate").map((candidate) => candidate.name).sort(),
+    ["google-colab-cli"]
+  );
+  assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].status, "probe_supported");
+  assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].can_probe, true);
+  assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].can_run_remote_job, false);
+  assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].non_billable_probe, true);
 });

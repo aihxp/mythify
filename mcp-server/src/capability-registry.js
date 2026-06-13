@@ -193,9 +193,12 @@ export const ADAPTER_CANDIDATES = {
   },
   "google-colab-cli": {
     kind: "execution_substrate",
-    status: "candidate",
+    status: "probe_supported",
     local: false,
     openai_compatible: false,
+    can_probe: true,
+    can_run_remote_job: false,
+    non_billable_probe: true,
   },
   "google-agents-cli": {
     kind: "agent_lifecycle",
