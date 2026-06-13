@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Mythify MCP server v2.5.0
 // Exposes the Mythify state model (memory, plans, lessons, verifications,
-// reflections) as 23 core MCP tools over stdio, plus the 3 fanout tools for
-// parallel delegation (src/fanout.js), 26 tools in total. On-disk formats are
+// reflections) as 24 core MCP tools over stdio, plus the 3 fanout tools for
+// parallel delegation (src/fanout.js), 27 tools in total. On-disk formats are
 // shared with the Python CLI (scripts/mythify.py); both implementations must
 // interoperate on the same .mythify state directory. Fanout is MCP-only; the
 // CLI deliberately does not implement it.
@@ -2370,6 +2370,162 @@ function formatProviderProbe(result) {
   return lines.join("\n");
 }
 
+const LOCAL_MODEL_ROLES = ["reader", "triage"];
+const LOCAL_MODEL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"]);
+
+function normalizeLocalProviderBaseUrl(raw) {
+  const base = normalizeProviderBaseUrl(providerBaseUrl(raw));
+  if (!base.ok) {
+    return {
+      ok: false,
+      baseUrl: "",
+      error: base.error.replace(/^provider_probe/, "local_model_run"),
+    };
+  }
+  const parsed = new URL(base.baseUrl);
+  if (!LOCAL_MODEL_HOSTS.has(parsed.hostname)) {
+    return {
+      ok: false,
+      baseUrl: base.baseUrl,
+      error: "local_model_run requires a localhost, 127.0.0.1, ::1, or 0.0.0.0 base_url.",
+    };
+  }
+  return base;
+}
+
+function localModelSystemPrompt(role) {
+  if (role === "triage") {
+    return [
+      "You are a local triage model helping Mythify frame a task before planning.",
+      "Return concise material for the orchestrator to inspect.",
+      "Do not claim verification, run commands, edit files, or decide completion.",
+    ].join(" ");
+  }
+  return [
+    "You are a local read-only model helping Mythify inspect supplied material.",
+    "Summarize, extract facts, and note uncertainty for the orchestrator to inspect.",
+    "Do not claim verification, run commands, edit files, or decide completion.",
+  ].join(" ");
+}
+
+async function runLocalModelRole({ role, base_url, model, api_key_env, timeout_seconds, prompt, max_tokens }) {
+  const selectedRole = role || "reader";
+  const timeoutSeconds =
+    typeof timeout_seconds === "number" && timeout_seconds > 0 ? timeout_seconds : 30;
+  const selectedMaxTokens =
+    typeof max_tokens === "number" && max_tokens > 0 ? Math.min(Math.floor(max_tokens), 2048) : 512;
+  const base = normalizeLocalProviderBaseUrl(base_url);
+  const selectedModel = providerModel(model);
+  const keyEnv = providerApiKeyEnv(api_key_env);
+  const adapter = ADAPTER_CANDIDATES["generic-openai-compatible"] || {};
+  const result = {
+    provider: "generic-openai-compatible",
+    provider_kind: adapter.kind || "model_provider",
+    role: selectedRole,
+    status: "blocked",
+    base_url: base.baseUrl,
+    model: selectedModel,
+    local_only: true,
+    material_not_evidence: true,
+    evidence_status: "model_output_not_verification",
+    writes_state: false,
+    verification_recorded: false,
+    can_answer_prompt: false,
+    max_tokens: selectedMaxTokens,
+    output_tail: "",
+    checks: [],
+    error: "",
+  };
+  if (!LOCAL_MODEL_ROLES.includes(selectedRole)) {
+    result.error = "local_model_run role must be reader or triage.";
+    return result;
+  }
+  if (!base.ok) {
+    result.error = base.error;
+    return result;
+  }
+  if (selectedModel === "") {
+    result.error = "local_model_run requires model or MYTHIFY_OPENAI_COMPAT_MODEL.";
+    return result;
+  }
+  const userPrompt = String(prompt || "").trim();
+  if (userPrompt === "") {
+    result.error = "local_model_run requires prompt.";
+    return result;
+  }
+  const headersResult = providerHeaders(keyEnv);
+  if (!headersResult.ok) {
+    result.error = headersResult.error;
+    return result;
+  }
+  const body = {
+    model: selectedModel,
+    messages: [
+      { role: "system", content: localModelSystemPrompt(selectedRole) },
+      { role: "user", content: userPrompt },
+    ],
+    max_tokens: selectedMaxTokens,
+    temperature: 0,
+  };
+  const chat = await fetchProviderJson(
+    providerEndpoint(base.baseUrl, "chat/completions"),
+    {
+      method: "POST",
+      headers: { ...headersResult.headers, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    },
+    timeoutSeconds
+  );
+  const content = chatContentFromCompletion(chat.json);
+  result.checks.push({
+    name: "chat",
+    ok: chat.ok && content !== "",
+    status_code: chat.status_code,
+    duration_seconds: chat.duration_seconds,
+    error: chat.ok && content !== "" ? "" : chat.error || "empty chat completion content",
+    timed_out: chat.timed_out,
+  });
+  result.output_tail = tailText(content, 4000);
+  result.can_answer_prompt = chat.ok && content !== "";
+  result.status = result.can_answer_prompt ? "available" : "blocked";
+  result.error = result.status === "available"
+    ? ""
+    : result.checks.find((item) => !item.ok)?.error || "local model run failed";
+  return result;
+}
+
+function formatLocalModelRun(result) {
+  const prefix = result.status === "available" ? "[OK]" : "[FAIL]";
+  const lines = [
+    `${prefix} Local model run ${result.status}.`,
+    `role: ${result.role}`,
+    `provider: ${result.provider}`,
+    `base_url: ${result.base_url || "unset"}`,
+    `model: ${result.model || "unset"}`,
+    `local only: ${result.local_only ? "yes" : "no"}`,
+    `writes state: ${result.writes_state ? "yes" : "no"}`,
+    `verification recorded: ${result.verification_recorded ? "yes" : "no"}`,
+    "evidence: model output is material, not verification evidence.",
+  ];
+  if (result.output_tail) {
+    lines.push(`output: ${result.output_tail}`);
+  }
+  for (const item of result.checks || []) {
+    const details = [
+      `${item.name}: ${item.ok ? "ok" : "failed"}`,
+      `status=${item.status_code}`,
+    ];
+    if (item.error) {
+      details.push(`error=${item.error}`);
+    }
+    lines.push(details.join("; "));
+  }
+  if (result.error && (!result.checks || result.checks.length === 0)) {
+    lines.push(`error: ${result.error}`);
+  }
+  return lines.join("\n");
+}
+
 const HOST_CLI_PROBES = {
   "kimi-code": {
     envName: "MYTHIFY_KIMI_BIN",
@@ -3180,6 +3336,68 @@ server.registerTool(
     });
     const prefix = result.status === "available" ? "[OK] " : "[FAIL] ";
     return format === "json" ? prefix + JSON.stringify(result, null, 2) : formatProviderProbe(result);
+  })
+);
+
+// ---------------------------------------------------------------------------
+// Local model role runner
+// ---------------------------------------------------------------------------
+
+server.registerTool(
+  "local_model_run",
+  {
+    title: "Run a role-limited local model",
+    description:
+      "Run a reader or triage prompt against a localhost OpenAI-compatible model provider. " +
+      "Use this for low-risk local model material before the orchestrator verifies claims with commands. The result is material, not verification evidence, and the tool writes no Mythify state.",
+    inputSchema: {
+      role: z
+        .enum(LOCAL_MODEL_ROLES)
+        .optional()
+        .describe("Role to run. Defaults to reader. Allowed roles are reader and triage."),
+      base_url: z
+        .string()
+        .optional()
+        .describe("Local OpenAI-compatible /v1 base URL. Defaults to MYTHIFY_OPENAI_COMPAT_BASE_URL and must be localhost, 127.0.0.1, ::1, or 0.0.0.0."),
+      model: z
+        .string()
+        .optional()
+        .describe("Local model id. Defaults to MYTHIFY_OPENAI_COMPAT_MODEL."),
+      prompt: z
+        .string()
+        .describe("Prompt or material for the local model."),
+      api_key_env: z
+        .string()
+        .optional()
+        .describe("Environment variable containing an optional local provider API key. Defaults to MYTHIFY_OPENAI_COMPAT_API_KEY."),
+      timeout_seconds: z
+        .number()
+        .positive()
+        .optional()
+        .describe("HTTP timeout in seconds. Defaults to 30."),
+      max_tokens: z
+        .number()
+        .positive()
+        .optional()
+        .describe("Maximum requested completion tokens, capped at 2048. Defaults to 512."),
+      format: z
+        .enum(["text", "json"])
+        .optional()
+        .describe("Return text by default, or JSON for machine-readable local model runs."),
+    },
+  },
+  guarded(async ({ role, base_url, model, prompt, api_key_env, timeout_seconds, max_tokens, format }) => {
+    const result = await runLocalModelRole({
+      role: role || "reader",
+      base_url,
+      model,
+      prompt,
+      api_key_env,
+      timeout_seconds,
+      max_tokens,
+    });
+    const prefix = result.status === "available" ? "[OK] " : "[FAIL] ";
+    return format === "json" ? prefix + JSON.stringify(result, null, 2) : formatLocalModelRun(result);
   })
 );
 

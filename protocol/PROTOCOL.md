@@ -127,14 +127,14 @@ Reorient any time with `status`. Report the whole session with `summary`.
 ## MCP note
 
 Clients using the Mythify MCP server instead of the CLI get the same contract
-through exactly 26 tools: `classify_task`, `host_model_switch`,
-`provider_probe`, `host_cli_probe`, `execution_probe`, `lifecycle_probe`,
-`outcome_start`, `outcome_check`, `outcome_status`, `outcome_results`,
-`outcome_stop`, `memory_store`, `memory_recall`, `memory_clear`,
-`lesson_record`, `lesson_recall`, `plan_create`, `plan_add_step`,
-`plan_update_step`, `plan_status`, `verify_run`, `verify_claim`, `reflect`,
-plus the parallel delegation tools `fanout_start`, `fanout_status`, and
-`fanout_results`. Same
+through exactly 27 tools: `classify_task`, `host_model_switch`,
+`provider_probe`, `local_model_run`, `host_cli_probe`, `execution_probe`,
+`lifecycle_probe`, `outcome_start`, `outcome_check`, `outcome_status`,
+`outcome_results`, `outcome_stop`, `memory_store`, `memory_recall`,
+`memory_clear`, `lesson_record`, `lesson_recall`, `plan_create`,
+`plan_add_step`, `plan_update_step`, `plan_status`, `verify_run`,
+`verify_claim`, `reflect`, plus the parallel delegation tools `fanout_start`,
+`fanout_status`, and `fanout_results`. Same
 state directory, same file formats, same evidence rules:
 `verify_run` and `outcome_check` execute and record; `verify_claim` only attests;
 `plan_update_step` refuses `completed` or `failed` without a `result`.
@@ -142,16 +142,18 @@ Outcome loops are host-supervised and stored in `.mythify/outcomes/`: make a
 bounded attempt, call `outcome_check`, then report success, retry, or stop.
 `host_model_switch` records intended host chat changes but does not mutate the
 host unless it exposes that capability. `provider_probe` can probe a configured
-OpenAI-compatible provider, and `host_cli_probe` can probe Kimi Code,
-OpenCode, or Antigravity CLI availability with version and help commands.
-`execution_probe` can probe Google Colab CLI availability without provisioning
-remote runtimes or accelerators. `lifecycle_probe` can probe Google Agents CLI
-and ADK CLI availability with version, help, and eval-help commands without
-scaffolding projects, running evals, deploying, publishing, mutating cloud
-resources, or writing project state. Probe output is material, not verification
-evidence. `classify_task` mirrors CLI triage and model policy. Fanout workers
-accept `engine`, `model`, `effort`, and `speed`; stronger workers require
-`spawn_ceiling: "allow_stronger"` when tier is known.
+OpenAI-compatible provider. `local_model_run` can run reader or triage prompts
+against a localhost OpenAI-compatible provider, writing no state and returning
+model output as material, not verification evidence. `host_cli_probe` can probe
+Kimi Code, OpenCode, or Antigravity CLI availability with version and help
+commands. `execution_probe` can probe Google Colab CLI availability without
+provisioning remote runtimes or accelerators. `lifecycle_probe` can probe
+Google Agents CLI and ADK CLI availability with version, help, and eval-help
+commands without scaffolding projects, running evals, deploying, publishing,
+mutating cloud resources, or writing project state. Probe output is material,
+not verification evidence. `classify_task` mirrors CLI triage and model
+policy. Fanout workers accept `engine`, `model`, `effort`, and `speed`;
+stronger workers require `spawn_ceiling: "allow_stronger"` when tier is known.
 
 Delegation discipline for fanout:
 

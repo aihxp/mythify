@@ -35,8 +35,9 @@ Implementation status:
   checked through version, help, and eval-help commands without scaffolding
   projects, running evals, deploying, publishing, mutating cloud resources, or
   writing project state.
-- Local provider worker execution is not supported yet. The next slice should
-  add a role-limited execution path before claiming reader or triage support.
+- Local model backend slice landed in `local_model_run`: localhost
+  OpenAI-compatible providers can run role-limited reader or triage prompts,
+  with output marked as material, not verification evidence.
 
 Near-term fit:
 
@@ -470,3 +471,5 @@ This prevents Colab CLI and Agents CLI from being squeezed into the wrong box.
    accelerator work.
 8. Done 2026-06-13: create an Agents CLI and ADK spike plan around eval-help
    probes, not deployment.
+9. Done 2026-06-13: add a role-limited local model backend for localhost
+   OpenAI-compatible reader and triage runs.

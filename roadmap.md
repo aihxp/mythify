@@ -21,26 +21,24 @@ Status markers:
 
 ### In Progress
 
-- [>] First local model backend
-  - Current goal: turn the generic OpenAI-compatible probe path into a
-    role-limited local reader or triage adapter.
-  - Next step: design the execution boundary so local model output remains
-    material until an executable verifier checks it.
-  - Guardrail: do not let local model output count as proof.
+- [>] Kimi Code and OpenCode worker adapter spikes
+  - Current goal: verify real non-interactive worker execution paths before
+    claiming worker support.
+  - Next step: design a bounded prompt execution contract for Kimi and
+    OpenCode.
+  - Guardrail: worker output is material until the orchestrator verifies the
+    merged work with commands.
 
 ### Next To Do
 
-1. [ ] Add the first local model backend.
-   - Start with generic OpenAI-compatible local provider support.
-   - Keep local model output material until an executable verifier checks it.
-2. [ ] Add real Kimi Code and OpenCode worker adapter spikes.
+1. [ ] Add real Kimi Code and OpenCode worker adapter spikes.
    - Kimi: verify `kimi -p` behavior locally before claiming worker support.
    - OpenCode: verify `opencode run` behavior locally before claiming worker
      support.
-3. [ ] Add step-bound verification records.
+2. [ ] Add step-bound verification records.
    - Bind verification records to plan and step ids.
    - Make completion evidence easier to audit later.
-4. [ ] Expand CLI/MCP interop coverage.
+3. [ ] Expand CLI/MCP interop coverage.
    - Move from spot checks to every mutating operation.
 
 ### Later
@@ -90,6 +88,8 @@ Status markers:
   status lanes.
 - [x] 2026-06-13: add non-deploying Google Agents CLI and ADK lifecycle probe
   and spike plan.
+- [x] 2026-06-13: add role-limited local model backend for localhost
+  OpenAI-compatible reader and triage runs.
 
 ## Track Backlogs
 
@@ -168,20 +168,20 @@ They should enter through adapters, not special cases.
 
 Open:
 
-- [ ] Generic OpenAI-compatible local adapter with explicit base URL, model id,
-  timeout, and key handling.
 - [ ] Ollama profile.
 - [ ] LM Studio profile.
 - [ ] llama.cpp profile.
 - [ ] vLLM profile.
-- [ ] Local reader role.
-- [ ] Local triage role.
-- [ ] Tests proving local output remains material, not evidence.
 
 Done:
 
 - [x] Generic OpenAI-compatible provider probe can call `/v1/models` and
   `/v1/chat/completions`.
+- [x] Generic OpenAI-compatible local adapter can run localhost reader and
+  triage prompts through `local_model_run`.
+- [x] Local model output is marked material, not verification evidence.
+- [x] Focused tests cover reader, triage, non-local refusal, and no verification
+  state writes.
 
 ### API Provider Support
 
@@ -337,10 +337,10 @@ Preserve:
 
 ### v2.7
 
-- [>] First supported local model backend.
-- [ ] Local reader or triage role.
-- [ ] Tests proving local output remains material, not evidence.
-- [ ] Generic OpenAI-compatible localhost adapter.
+- [x] First supported local model backend.
+- [x] Local reader and triage roles.
+- [x] Tests proving local output remains material, not evidence.
+- [x] Generic OpenAI-compatible localhost adapter.
 - [ ] Ollama and LM Studio setup profiles.
 - [ ] Host adapter proof of concept for model and thinking overrides where the
   host exposes them.

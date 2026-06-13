@@ -137,11 +137,14 @@ export const HOST_CAPABILITIES = {
 export const ADAPTER_CANDIDATES = {
   "generic-openai-compatible": {
     kind: "model_provider",
-    status: "probe_supported",
+    status: "local_backend_supported",
     local: true,
     openai_compatible: true,
     can_probe: true,
     can_answer_prompt: false,
+    can_run_local_roles: true,
+    local_roles: ["reader", "triage"],
+    output_is_evidence: false,
   },
   ollama: {
     kind: "model_provider",
