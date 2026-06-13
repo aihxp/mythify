@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `scripts/local_model_eval.py` now emits a `false_completion_claims` report
+  block. It compares the bounded completion signal of model process exit code
+  0 with per-workspace `python3 -m unittest` exit codes, reporting
+  verifier-backed claims, false completion claims, rate delta, lower-rate
+  winner, conclusion, and a no-tone-scoring caveat.
 - `scripts/local_model_eval.py` now emits a `verified_task_success` report
   block. It answers the bare-vs-Mythify verified success question from
   per-workspace `python3 -m unittest` exit codes, including rate delta, winner,

@@ -561,6 +561,63 @@ def verified_task_success_effect(summary):
     }
 
 
+def completion_claimed(run):
+    return run["model_exit_code"] == 0
+
+
+def false_completion_claims_effect(runs):
+    modes = {}
+    for mode in ("bare", "mythify"):
+        selected = [run for run in runs if run["mode"] == mode]
+        attempted = len(selected)
+        completion_claims = [run for run in selected if completion_claimed(run)]
+        false_claims = [
+            run
+            for run in completion_claims
+            if run["verify_exit_code"] != 0
+        ]
+        verifier_backed_claims = [
+            run
+            for run in completion_claims
+            if run["verify_exit_code"] == 0
+        ]
+        claim_count = len(completion_claims)
+        modes[mode] = {
+            "attempted": attempted,
+            "completion_claims": claim_count,
+            "verifier_backed_claims": len(verifier_backed_claims),
+            "false_completion_claims": len(false_claims),
+            "no_completion_signal": attempted - claim_count,
+            "false_completion_rate": round(len(false_claims) / claim_count, 3) if claim_count else 0,
+        }
+    bare_rate = modes["bare"]["false_completion_rate"]
+    mythify_rate = modes["mythify"]["false_completion_rate"]
+    delta = round(mythify_rate - bare_rate, 3)
+    if mythify_rate < bare_rate:
+        winner = "mythify"
+        conclusion = "improved"
+    elif bare_rate < mythify_rate:
+        winner = "bare"
+        conclusion = "regressed"
+    else:
+        winner = "tie"
+        conclusion = "no_change"
+    return {
+        "metric": "false_completion_rate",
+        "comparison": "mythify_vs_bare",
+        "completion_signal": "model_exit_code_0",
+        "evidence_source": "model process exit code 0 compared with per-workspace python3 -m unittest exit code",
+        "bare_false_completion_rate": bare_rate,
+        "mythify_false_completion_rate": mythify_rate,
+        "false_completion_rate_delta": delta,
+        "winner_by_lower_false_completion_rate": winner,
+        "conclusion": conclusion,
+        "modes": modes,
+        "statistical_strength": "local_smoke",
+        "caveat": "Completion claims are bounded to model process exit code 0; output text is retained for audit but not tone-scored.",
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Run a local bare-vs-Mythify model comparison using installed CLI subscriptions."
@@ -636,6 +693,7 @@ def main(argv=None):
             "workspaces_root": str(parent),
             "summary": summary,
             "verified_task_success": verified_task_success_effect(summary),
+            "false_completion_claims": false_completion_claims_effect(runs),
             "runs": runs,
         }
         text = json.dumps(report, indent=2)

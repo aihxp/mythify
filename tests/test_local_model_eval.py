@@ -151,6 +151,12 @@ class LocalModelEvalTests(unittest.TestCase):
         self.assertEqual(effect["evidence_source"], "per-workspace python3 -m unittest exit code")
         self.assertEqual(effect["conclusion"], "no_change")
         self.assertEqual(effect["statistical_strength"], "local_smoke")
+        false_claims = report["false_completion_claims"]
+        self.assertEqual(false_claims["metric"], "false_completion_rate")
+        self.assertEqual(false_claims["completion_signal"], "model_exit_code_0")
+        self.assertEqual(false_claims["conclusion"], "no_change")
+        self.assertEqual(false_claims["modes"]["bare"]["false_completion_claims"], 0)
+        self.assertEqual(false_claims["modes"]["mythify"]["false_completion_claims"], 0)
 
     def test_command_engine_runs_all_scenarios_with_summary(self):
         worker = self.write_worker()
@@ -187,6 +193,7 @@ class LocalModelEvalTests(unittest.TestCase):
         self.assertEqual(report["summary"]["winner_by_verified_success_rate"], "tie")
         self.assertEqual(report["verified_task_success"]["paired_task_count"], 3)
         self.assertEqual(report["verified_task_success"]["winner"], "tie")
+        self.assertEqual(report["false_completion_claims"]["winner_by_lower_false_completion_rate"], "tie")
 
     def test_verified_task_success_effect_uses_verifier_exit_codes(self):
         runs = [
@@ -214,6 +221,34 @@ class LocalModelEvalTests(unittest.TestCase):
         self.assertEqual(effect["verified_success_rate_delta"], 1.0)
         self.assertEqual(effect["mythify_evidence_success_rate"], 1.0)
         self.assertEqual(effect["avg_model_duration_delta_seconds"], 1.0)
+
+    def test_false_completion_claims_effect_uses_verifier_exit_codes(self):
+        runs = [
+            {
+                "mode": "bare",
+                "model_exit_code": 0,
+                "verify_exit_code": 1,
+                "model_duration_seconds": 1.0,
+                "mythify_records": {"verifications": 0, "plans": 0},
+            },
+            {
+                "mode": "mythify",
+                "mythify_profile": "fast",
+                "model_exit_code": 0,
+                "verify_exit_code": 0,
+                "model_duration_seconds": 2.0,
+                "mythify_records": {"verifications": 1, "plans": 0},
+            },
+        ]
+        effect = local_model_eval.false_completion_claims_effect(runs)
+
+        self.assertEqual(effect["winner_by_lower_false_completion_rate"], "mythify")
+        self.assertEqual(effect["conclusion"], "improved")
+        self.assertEqual(effect["bare_false_completion_rate"], 1.0)
+        self.assertEqual(effect["mythify_false_completion_rate"], 0.0)
+        self.assertEqual(effect["false_completion_rate_delta"], -1.0)
+        self.assertEqual(effect["modes"]["bare"]["false_completion_claims"], 1)
+        self.assertEqual(effect["modes"]["mythify"]["verifier_backed_claims"], 1)
 
     def test_standard_profile_requires_plan_evidence(self):
         worker = self.write_worker()

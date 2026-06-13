@@ -21,13 +21,13 @@ Status markers:
 
 ## Active Now
 
-- [>] False completion claim evaluation.
-  - Current goal: measure whether Mythify reduces completion claims that are
-    not backed by passing verifiers.
-  - Next step: map where the local evaluation harness stores model output,
-    verifier exit codes, and Mythify evidence records.
-  - Guardrail: false-completion evidence must compare claims with executed
-    verifier results, not model tone or confidence.
+- [>] Profile overhead evaluation.
+  - Current goal: measure how much time overhead each Mythify profile adds in
+    the local evaluation harness.
+  - Next step: map current duration fields, profile selection, and speed
+    controls before adding any new overhead report.
+  - Guardrail: overhead evidence comes from measured run durations, not
+    estimates or model self-report.
 
 ## Next Queue
 
@@ -238,14 +238,18 @@ Already shipped in this track:
 
 What remains:
 
-- [>] Does it reduce false completion claims?
-- [ ] How much overhead does each profile add?
+- [>] How much overhead does each profile add?
 - [ ] Which tasks benefit from local models?
 - [ ] Which roles require stronger models?
 - [ ] Where does fanout help, and where does it waste tokens?
 
 Already shipped in this track:
 
+- [x] False completion claims are reported through the local eval harness
+  `false_completion_claims` JSON block, comparing model process exit code 0
+  with executed verifier results and reporting verifier-backed claims, false
+  completion claims, rate delta, lower-rate winner, conclusion, and a
+  no-tone-scoring caveat.
 - [x] Verified task success is reported through the local eval harness
   `verified_task_success` JSON block, with rate delta, winner, conclusion,
   Mythify evidence rate, duration delta, and a local smoke-test caveat derived
@@ -259,6 +263,12 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add false completion claim evaluation reporting.
+  `scripts/local_model_eval.py` now emits `false_completion_claims`, a
+  bare-vs-Mythify smoke comparison that counts model process exit code 0 as a
+  bounded completion signal, then checks it against per-workspace unittest
+  exits to report verifier-backed claims, false completion claims, rate delta,
+  lower-rate winner, conclusion, and a no-tone-scoring caveat.
 - [x] 2026-06-13: add verified task success evaluation reporting.
   `scripts/local_model_eval.py` now emits `verified_task_success`, a direct
   bare-vs-Mythify smoke comparison based on per-workspace unittest exit codes,

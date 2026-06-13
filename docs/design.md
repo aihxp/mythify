@@ -1043,6 +1043,12 @@ The JSON report must include:
   "per-workspace python3 -m unittest exit code"`, bare and Mythify rates,
   the rate delta, winner, conclusion, Mythify evidence rate, duration delta,
   and `statistical_strength: "local_smoke"`.
+- `false_completion_claims`: the direct answer to the false-completion
+  question. It records `metric: "false_completion_rate"`, `completion_signal:
+  "model_exit_code_0"`, the evidence source, per-mode completion signals,
+  verifier-backed claims, false completion claims, false-completion rates,
+  rate delta, lower-rate winner, conclusion, and the local smoke-test caveat.
+  The harness must not classify tone or confidence in model prose as evidence.
 - `runs`: per-workspace model exit details, verifier exit details, output
   tails, and Mythify evidence counts.
 
