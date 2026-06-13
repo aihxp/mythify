@@ -716,6 +716,11 @@ Operation registry tests compare the memory CLI and MCP behavior with
 `protocol/operation-registry.json` so duplicated operation contracts cannot
 quietly drift.
 
+`docs/adapter-candidates.md` is generated from
+`mcp-server/src/capability-registry.js` by `node scripts/build_registry_docs.mjs`.
+The Node suite and CI hygiene job compare the committed file with fresh
+registry output, so adapter docs cannot quietly drift from the registry.
+
 ## Limitations
 
 - No published npm package yet. You can get the code by cloning the repository or
@@ -736,9 +741,10 @@ repository rules are non-negotiable:
 
 1. [docs/design.md](docs/design.md) is the contract for all CLI, MCP, and on-disk
    interfaces. Behavior changes start there.
-2. The generated protocol variants (`CLAUDE.md`, `AGENTS.md`, `.cursorrules`) are
-   never edited by hand. Edit `protocol/PROTOCOL.md` and regenerate them with
-   `scripts/build_variants.py`.
+2. Generated files are never edited by hand. Edit `protocol/PROTOCOL.md` and
+   regenerate protocol variants with `scripts/build_variants.py`; edit
+   `mcp-server/src/capability-registry.js` and regenerate
+   `docs/adapter-candidates.md` with `node scripts/build_registry_docs.mjs`.
 
 ## License
 

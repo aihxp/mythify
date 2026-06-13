@@ -21,26 +21,24 @@ Status markers:
 
 ### In Progress
 
-- [>] Generate docs tables, schemas, or fixtures from the registry
-  - Current goal: reduce docs and schema drift by deriving one protected surface
-    from registry data.
-  - Next step: choose the smallest duplicated registry-backed docs table or
-    fixture and add a drift check before generation grows.
-  - Guardrail: generate only from an existing registry contract and keep the
-    first slice small.
+- [>] Add per-role provider defaults
+  - Current goal: make role assignment explicit before provider routing grows.
+  - Next step: map current session, triage, reader, worker, reviewer, and
+    verifier defaults across CLI and MCP policy outputs.
+  - Guardrail: defaults guide selection only; no surprise cross-provider
+    fallback and no hidden model upgrades.
 
 ### Next To Do
 
-1. [ ] Add per-role provider defaults.
-   - Keep role assignment explicit before provider routing grows.
-2. [ ] Add stronger reviewer opt-in flow.
+1. [ ] Add stronger reviewer opt-in flow.
    - Require explicit permission before spawning stronger reviewer models.
-3. [ ] Ollama setup profile.
+2. [ ] Ollama setup profile.
    - Start local model onboarding with the most common developer path.
+3. [ ] LM Studio setup profile.
+   - Follow Ollama with an OpenAI-compatible local desktop path.
 
 ### Later
 
-- [ ] LM Studio setup profile.
 - [ ] llama.cpp profile for GGUF power users.
 - [ ] vLLM profile for workstation, server, and team-local inference.
 - [ ] API provider adapter path with cost and timeout metadata.
@@ -97,6 +95,8 @@ Status markers:
   and current-chat confirmation fields.
 - [x] 2026-06-13: add CLI log compaction for top-level verification and
   reflection logs, with raw archives under `.mythify/logs/archive/`.
+- [x] 2026-06-13: generate adapter candidate docs from the capability registry,
+  protected by Node and CI drift checks.
 
 ## Track Backlogs
 
@@ -108,13 +108,15 @@ product work.
 
 Open:
 
-- [ ] Generate docs tables, schemas, or fixtures from the registry only after a
-  drift test protects the output.
+- [ ] Expand registry-backed generation only when another duplicated surface
+  has a focused drift test.
 
 Done:
 
 - [x] Log compaction archives raw top-level verification and reflection logs
   before trimming active logs to recent valid records.
+- [x] Generated adapter candidate docs come from
+  `mcp-server/src/capability-registry.js` and are protected by drift checks.
 - [x] Capability registry exists in `mcp-server/src/capability-registry.js`.
 - [x] Registry data is shown in `host_model_switch` status output.
 - [x] Verification records include active plan and in-progress step context.
@@ -140,7 +142,7 @@ Roles:
 
 Open:
 
-- [ ] Per-role provider defaults.
+- [>] Per-role provider defaults.
 - [ ] Provider-neutral role assignment.
 - [ ] Stronger reviewer opt-in flow.
 - [ ] Cost and timeout controls per role.

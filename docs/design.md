@@ -43,6 +43,7 @@ mythify/
 |-- scripts/
 |   |-- mythify.py               zero-dependency CLI orchestrator
 |   |-- build_variants.py        generates CLAUDE.md, AGENTS.md, .cursorrules
+|   |-- build_registry_docs.mjs  generates registry-backed docs
 |   |-- local_model_eval.py      local bare-vs-Mythify comparison harness
 |   `-- package_skill.py         builds dist/mythify.skill from skills/mythify/
 |-- mcp-server/
@@ -77,6 +78,7 @@ mythify/
     |-- design.md                this document
     |-- codex-integrations.md    Codex Desktop, CLI, MCP, and benchmark setup
     |-- claude-integrations.md   Claude Desktop and Claude Code guide
+    |-- adapter-candidates.md    generated from the capability registry
     |-- antigravity-mcp-setup.md Antigravity CLI probe and MCP setup guide
     |-- agents-cli-adk-spike-plan.md Google Agents CLI and ADK probe plan
     |-- colab-cli-spike-plan.md  Google Colab CLI non-billable spike plan
@@ -102,6 +104,14 @@ Registry rules:
   was applied.
 - Generated docs, schemas, and fixtures may be derived from the registry only after a
   drift test protects the generated output.
+- The first generated registry-backed document is `docs/adapter-candidates.md`,
+  built from `mcp-server/src/capability-registry.js` by
+  `node scripts/build_registry_docs.mjs`.
+- The generated adapter document is informational. It must not become a public
+  input schema, router, or behavior switch.
+- The drift gate is byte-for-byte equality between the generated output and
+  `docs/adapter-candidates.md`. The Node registry test also compares the
+  generated text against the committed file.
 
 Adapter kinds:
 

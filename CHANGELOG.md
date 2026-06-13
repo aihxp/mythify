@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CLI `logs compact` maintenance command for top-level verification and
   reflection logs. It archives raw originals, keeps recent valid active
   records, supports dry runs, and records no verification evidence.
+- Generated `docs/adapter-candidates.md`, built from the capability registry
+  by `node scripts/build_registry_docs.mjs` and protected by Node and CI drift
+  checks.
 
 ## [2.5.0] - 2026-06-12
 

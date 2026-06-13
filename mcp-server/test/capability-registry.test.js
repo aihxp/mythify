@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   ADAPTER_CANDIDATES,
   HOST_CAPABILITIES,
@@ -9,6 +11,11 @@ import {
   getHostCapability,
   listAdapterCandidates,
 } from "../src/capability-registry.js";
+import { renderAdapterCandidatesDoc } from "../../scripts/build_registry_docs.mjs";
+
+const adapterDocPath = fileURLToPath(
+  new URL("../../docs/adapter-candidates.md", import.meta.url)
+);
 
 test("capability registry preserves current public MCP enums", () => {
   assert.deepEqual(HOST_PLATFORMS, [
@@ -108,4 +115,10 @@ test("researched future adapters are candidates, not public host platforms", () 
   assert.equal(ADAPTER_CANDIDATES["google-adk-cli"].can_probe_eval, true);
   assert.equal(ADAPTER_CANDIDATES["google-adk-cli"].can_run_eval, false);
   assert.equal(ADAPTER_CANDIDATES["google-adk-cli"].can_deploy, false);
+});
+
+test("generated adapter candidate docs stay in sync with registry", () => {
+  const generated = renderAdapterCandidatesDoc();
+  const committed = fs.readFileSync(adapterDocPath, "utf8");
+  assert.equal(committed, generated);
 });
