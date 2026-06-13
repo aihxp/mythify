@@ -169,6 +169,12 @@ class LocalModelEvalTests(unittest.TestCase):
         self.assertIn("string_processing_bugfix", benefit["candidate_categories"])
         self.assertEqual(benefit["scenarios"][0]["local_model_candidate_roles"], ["reader", "triage"])
         self.assertEqual(benefit["scenarios"][0]["observed_benefit"], "neutral")
+        strength = report["role_strength"]
+        self.assertEqual(strength["metric"], "stronger_model_role_requirement")
+        self.assertEqual(strength["required_stronger_roles"], [])
+        self.assertEqual(strength["scoped_stronger_opt_in_roles"], ["reviewer"])
+        self.assertIn("fanout_worker", strength["broad_stronger_opt_in_roles"])
+        self.assertEqual(strength["conclusion"], "no_role_requires_stronger_by_default")
 
     def test_command_engine_runs_all_scenarios_with_summary(self):
         worker = self.write_worker()
@@ -212,6 +218,8 @@ class LocalModelEvalTests(unittest.TestCase):
             sorted(report["local_model_benefit"]["candidate_categories"]),
             ["numeric_data_bugfix", "standard_library_bugfix", "string_processing_bugfix"],
         )
+        self.assertEqual(report["role_strength"]["observed_harness"]["mythify_attempted"], 3)
+        self.assertEqual(report["role_strength"]["observed_harness"]["observed_profiles"], ["fast"])
 
     def test_verified_task_success_effect_uses_verifier_exit_codes(self):
         runs = [
@@ -324,6 +332,40 @@ class LocalModelEvalTests(unittest.TestCase):
         self.assertEqual(effect["scenarios"][0]["verified_success_rate_delta"], 1.0)
         self.assertEqual(effect["categories"][0]["mythify_verified_success_rate"], 1.0)
         self.assertIn("provider-specific benefit requires rerunning", effect["caveat"])
+
+    def test_role_strength_effect_uses_policy_and_verifier_outcomes(self):
+        runs = [
+            {
+                "scenario": "word_count_bugfix",
+                "mode": "bare",
+                "model_exit_code": 0,
+                "verify_exit_code": 1,
+                "model_duration_seconds": 1.0,
+                "mythify_records": {"verifications": 0, "plans": 0},
+            },
+            {
+                "scenario": "word_count_bugfix",
+                "mode": "mythify",
+                "mythify_profile": "fast",
+                "model_exit_code": 0,
+                "verify_exit_code": 0,
+                "model_duration_seconds": 2.0,
+                "mythify_records": {"verifications": 1, "plans": 0},
+            },
+        ]
+        summary = local_model_eval.summarize_runs(runs)
+        effect = local_model_eval.role_strength_effect(summary, runs)
+
+        self.assertEqual(effect["required_stronger_roles"], [])
+        self.assertEqual(effect["scoped_stronger_opt_in_roles"], ["reviewer"])
+        self.assertEqual(effect["default_spawn_ceiling"], "same_or_lower")
+        by_role = {row["role"]: row for row in effect["roles"]}
+        self.assertEqual(
+            by_role["reviewer"]["stronger_model_requirement"],
+            "conditional_not_default",
+        )
+        self.assertEqual(by_role["verifier"]["stronger_model_allowed"], "no")
+        self.assertEqual(effect["observed_harness"]["mythify_verified_success_rate"], 1.0)
 
     def test_standard_profile_requires_plan_evidence(self):
         worker = self.write_worker()

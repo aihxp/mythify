@@ -1063,6 +1063,12 @@ The JSON report must include:
   Mythify evidence rates, category summaries, and the local smoke-test caveat.
   The harness must not claim provider-specific local model benefit unless the
   report came from a local-model-backed command or provider check.
+- `role_strength`: the direct answer to the stronger-model role question. It
+  records `metric: "stronger_model_role_requirement"`, default spawn ceiling,
+  required stronger roles, scoped reviewer opt-in roles, broad stronger opt-in
+  roles, per-role policy rows, observed harness rates, and the local
+  smoke-test caveat. The harness must not claim bigger models are generally
+  better; stronger-model benefit requires a paired run with the role isolated.
 - `runs`: per-workspace model exit details, verifier exit details, output
   tails, and Mythify evidence counts.
 

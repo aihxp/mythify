@@ -21,12 +21,13 @@ Status markers:
 
 ## Active Now
 
-- [>] Stronger-model role evaluation.
-  - Current goal: identify which roles actually require stronger models.
-  - Next step: map role policy, reviewer opt-in, model tiers, and current eval
-    result fields before adding any role-strength report.
-  - Guardrail: stronger-model evidence must come from role outcomes or
-    explicit reviewer policy, not blanket "bigger is better" assumptions.
+- [>] Fanout value evaluation.
+  - Current goal: identify where fanout helps and where it wastes tokens,
+    quota, or local compute.
+  - Next step: map fanout job records, task status fields, visibility policy,
+    and verification boundaries before adding any fanout-value report.
+  - Guardrail: fanout value evidence must compare independent task outcomes
+    with verified merged results, not worker enthusiasm or parallelism itself.
 
 ## Next Queue
 
@@ -237,11 +238,15 @@ Already shipped in this track:
 
 What remains:
 
-- [>] Which roles require stronger models?
-- [ ] Where does fanout help, and where does it waste tokens?
+- [>] Where does fanout help, and where does it waste tokens?
 
 Already shipped in this track:
 
+- [x] Stronger-model role requirements are reported through the local eval
+  harness `role_strength` JSON block, showing that no role requires stronger
+  models by default, reviewers have a scoped stronger-model opt-in, broader
+  stronger workers require `spawn_ceiling: "allow_stronger"`, and verifiers
+  remain command-first.
 - [x] Local model task benefit is reported through the local eval harness
   `local_model_benefit` JSON block, identifying scenario task categories that
   fit local reader and triage roles, observed verifier-backed outcomes,
@@ -271,6 +276,12 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add stronger-model role evaluation reporting.
+  `scripts/local_model_eval.py` now emits `role_strength`, a policy and
+  harness-evidence report showing required stronger roles, scoped reviewer
+  opt-in, broader stronger-worker opt-in, per-role boundaries, observed
+  harness rates, and a caveat that stronger-model benefit requires a paired
+  role-isolated run.
 - [x] 2026-06-13: add local model benefit evaluation reporting.
   `scripts/local_model_eval.py` now emits `local_model_benefit`, mapping
   built-in scenario categories to local reader and triage candidate roles and

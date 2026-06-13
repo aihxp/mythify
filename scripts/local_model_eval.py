@@ -162,6 +162,58 @@ SCENARIOS = {
 }
 
 
+ROLE_STRENGTH_POLICY = [
+    {
+        "role": "session",
+        "purpose": "current conversation",
+        "default_strength": "host_selected",
+        "stronger_model_requirement": "not_applicable",
+        "stronger_model_allowed": "host_controls_current_chat",
+        "evidence_boundary": "Mythify may recommend a host model but the host applies or confirms the current chat model.",
+    },
+    {
+        "role": "triage",
+        "purpose": "problem framing",
+        "default_strength": "cheap_or_fast",
+        "stronger_model_requirement": "not_required",
+        "stronger_model_allowed": "no_default_stronger_path",
+        "evidence_boundary": "Triage is advisory material and stays cheap unless explicitly configured outside this harness.",
+    },
+    {
+        "role": "reader",
+        "purpose": "read-only material inspection",
+        "default_strength": "local_or_privacy_preferred",
+        "stronger_model_requirement": "not_required",
+        "stronger_model_allowed": "no_default_stronger_path",
+        "evidence_boundary": "Reader output is material, not verification evidence.",
+    },
+    {
+        "role": "fanout_worker",
+        "purpose": "independent subtask",
+        "default_strength": "same_or_lower",
+        "stronger_model_requirement": "not_required",
+        "stronger_model_allowed": "only_with_spawn_ceiling_allow_stronger",
+        "evidence_boundary": "Worker output is material and must be merged, then verified by commands.",
+    },
+    {
+        "role": "reviewer",
+        "purpose": "independent review",
+        "default_strength": "same_or_lower",
+        "stronger_model_requirement": "conditional_not_default",
+        "stronger_model_allowed": "reviewer_strength_allow_stronger_and_reviewer_allow_stronger",
+        "evidence_boundary": "Only reviewer tasks get the scoped stronger-model opt-in without broad worker escalation.",
+    },
+    {
+        "role": "verifier",
+        "purpose": "evidence",
+        "default_strength": "local_command",
+        "stronger_model_requirement": "not_model_based",
+        "stronger_model_allowed": "no",
+        "evidence_boundary": "Verifier evidence comes from executable commands and exit codes, not model strength.",
+    },
+]
+
+
 def repo_root():
     return Path(__file__).resolve().parent.parent
 
@@ -778,6 +830,68 @@ def local_model_benefit_effect(runs, scenario_names):
     }
 
 
+def role_strength_effect(summary, runs):
+    mythify_runs = [run for run in runs if run["mode"] == "mythify"]
+    observed_profiles = sorted({
+        run.get("mythify_profile") or "unknown"
+        for run in mythify_runs
+    })
+    observed_scenarios = sorted({
+        run.get("scenario", "unknown")
+        for run in mythify_runs
+    })
+    roles = []
+    for row in ROLE_STRENGTH_POLICY:
+        role = dict(row)
+        if role["role"] == "reviewer":
+            role["harness_evidence"] = "policy_only_no_reviewer_worker_in_local_eval"
+        elif role["role"] == "verifier":
+            role["harness_evidence"] = "python3 -m unittest verifies every run"
+        elif role["role"] in ("reader", "triage"):
+            role["harness_evidence"] = "local_model_benefit marks candidate task categories for this role"
+        elif role["role"] == "fanout_worker":
+            role["harness_evidence"] = "local eval runs one worker path, not fanout isolation"
+        else:
+            role["harness_evidence"] = "host session model not controlled by local eval"
+        roles.append(role)
+
+    required_roles = [
+        row["role"]
+        for row in roles
+        if row["stronger_model_requirement"] == "required"
+    ]
+    scoped_opt_in_roles = [
+        row["role"]
+        for row in roles
+        if "reviewer_strength_allow_stronger" in row["stronger_model_allowed"]
+    ]
+    broad_opt_in_roles = [
+        row["role"]
+        for row in roles
+        if "spawn_ceiling_allow_stronger" in row["stronger_model_allowed"]
+    ]
+    return {
+        "metric": "stronger_model_role_requirement",
+        "comparison": "role_policy_plus_harness_outcomes",
+        "evidence_source": "Mythify model_policy role contracts plus local eval verifier outcomes",
+        "default_spawn_ceiling": "same_or_lower",
+        "required_stronger_roles": required_roles,
+        "scoped_stronger_opt_in_roles": scoped_opt_in_roles,
+        "broad_stronger_opt_in_roles": broad_opt_in_roles,
+        "roles": roles,
+        "observed_harness": {
+            "mythify_attempted": summary["mythify"]["attempted"],
+            "mythify_verified_success_rate": summary["mythify"]["verified_success_rate"],
+            "mythify_evidence_success_rate": summary["mythify"]["evidence_success_rate"],
+            "observed_profiles": observed_profiles,
+            "observed_scenarios": observed_scenarios,
+        },
+        "conclusion": "no_role_requires_stronger_by_default",
+        "statistical_strength": "local_smoke",
+        "caveat": "This reports role policy and local harness outcomes; proving that a stronger model improves a role requires a paired run with that role isolated.",
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Run a local bare-vs-Mythify model comparison using installed CLI subscriptions."
@@ -860,6 +974,7 @@ def main(argv=None):
                 "mythify_speed": mythify_speed,
             },
             "local_model_benefit": local_model_benefit_effect(runs, scenario_names),
+            "role_strength": role_strength_effect(summary, runs),
             "runs": runs,
         }
         text = json.dumps(report, indent=2)

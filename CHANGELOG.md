@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `scripts/local_model_eval.py` now emits a `role_strength` report block. It
+  records required stronger roles, scoped reviewer opt-in roles, broader
+  stronger-worker opt-in roles, per-role policy rows, observed harness rates,
+  and a caveat that stronger-model benefit requires a paired role-isolated run.
 - `scripts/local_model_eval.py` now emits a `local_model_benefit` report
   block. It adds scenario task categories, local reader and triage candidate
   roles, fit reasons, observed verifier-backed outcomes, category summaries,
