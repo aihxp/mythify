@@ -21,23 +21,20 @@ Status markers:
 
 ## Active Now
 
-- [>] Colab remote execution adapter after explicit billing, data movement,
-  and cleanup posture are designed.
-  - Current goal: decide whether Colab CLI can graduate from probe-only
-    execution substrate metadata to a bounded remote execution adapter.
-  - Next step: map billing, data movement, runtime provisioning, accelerator
-    request, artifact retrieval, cleanup, and official CLI support without
-    executing billable remote work.
-  - Guardrail: do not run remote jobs, provision accelerators, or move user
-    data until the adapter contract exposes explicit controls.
+- [>] Cost and timeout controls per role.
+  - Current goal: record provider and worker cost or timeout posture in the
+    places where role policy and worker execution already resolve.
+  - Next step: map which records need timeout, duration, provider, model, and
+    pricing metadata without estimating costs too early.
+  - Guardrail: do not invent pricing math where provider token or billing data
+    is not available.
 
 ## Next Queue
 
-1. [ ] Cost and timeout controls per role.
-2. [ ] Custom command or HTTP adapter path.
-3. [ ] Workflow dashboard or phase view that reveals evidence without
+1. [ ] Custom command or HTTP adapter path.
+2. [ ] Workflow dashboard or phase view that reveals evidence without
    decorating self-report.
-4. [ ] One-core architecture decision after the registry prototype proves
+3. [ ] One-core architecture decision after the registry prototype proves
    enough value.
 
 ## Open Work By Track
@@ -160,11 +157,13 @@ Already shipped in this track:
 
 What remains:
 
-- [ ] Colab remote execution adapter, only after explicit billing and data
-  movement controls exist.
+Nothing open right now.
 
 Already shipped in this track:
 
+- [x] `execution_run` runs guarded Google Colab CLI ephemeral jobs through
+  `colab run` only after explicit billing, data movement, and cleanup
+  acknowledgements.
 - [x] Google Colab CLI is classified as an `execution_substrate`.
 - [x] `execution_probe` checks Google Colab CLI availability with version and
   help commands only.
@@ -246,6 +245,11 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add guarded Google Colab CLI remote execution through
+  `execution_run`. The adapter wraps the official `colab run` ephemeral path,
+  requires billing, data movement, and cleanup acknowledgements, writes no
+  Mythify state, and keeps remote output as material rather than verification
+  evidence.
 - [x] 2026-06-13: map OpenCode Desktop as a metadata-only `desktop_agent`
   candidate in the capability registry. Automation stays on the existing
   OpenCode CLI worker and future server or SDK slices until a desktop
@@ -405,7 +409,7 @@ Preserve:
 - [ ] Stable adapter interface.
 - [x] Desktop local-agent lane for Kimi Work and OpenCode Desktop style
   workflows.
-- [ ] Execution adapter lane for Colab CLI style remote jobs.
+- [x] Execution adapter lane for Colab CLI style remote jobs.
 - [ ] Agent lifecycle lane for Agents CLI and ADK style workflows.
 - [ ] One-core architecture decision based on the registry prototype.
 - [ ] Stronger workflow surfaces.

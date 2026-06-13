@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Mythify MCP server v2.5.0
 // Exposes the Mythify state model (memory, plans, lessons, verifications,
-// reflections) as 25 core MCP tools over stdio, plus the 3 fanout tools for
-// parallel delegation (src/fanout.js), 28 tools in total. On-disk formats are
+// reflections) as 26 core MCP tools over stdio, plus the 3 fanout tools for
+// parallel delegation (src/fanout.js), 29 tools in total. On-disk formats are
 // shared with the Python CLI (scripts/mythify.py); both implementations must
 // interoperate on the same .mythify state directory. Fanout is MCP-only; the
 // CLI deliberately does not implement it.
@@ -3425,6 +3425,240 @@ function formatExecutionProbe(result) {
   return lines.join("\n");
 }
 
+const COLAB_GPU_ACCELERATORS = ["T4", "L4", "G4", "H100", "A100"];
+const COLAB_TPU_ACCELERATORS = ["v5e1", "v6e1"];
+
+function resolveExecutionRunCwd(rawCwd) {
+  const selected = String(rawCwd || "").trim();
+  const resolved = selected === "" ? path.dirname(resolveStateDir()) : path.resolve(selected);
+  try {
+    const stat = fs.statSync(resolved);
+    if (!stat.isDirectory()) {
+      return { ok: false, cwd: resolved, error: `execution_run cwd is not a directory: ${resolved}` };
+    }
+  } catch {
+    return { ok: false, cwd: resolved, error: `execution_run cwd is not accessible: ${resolved}` };
+  }
+  return { ok: true, cwd: resolved, error: "" };
+}
+
+function resolveExecutionScriptPath(rawScriptPath, cwd) {
+  const selected = String(rawScriptPath || "").trim();
+  if (selected === "") {
+    return { ok: false, path: "", error: "execution_run requires script_path." };
+  }
+  const resolved = path.isAbsolute(selected) ? selected : path.resolve(cwd, selected);
+  try {
+    const stat = fs.statSync(resolved);
+    if (!stat.isFile()) {
+      return { ok: false, path: resolved, error: `execution_run script_path is not a file: ${resolved}` };
+    }
+  } catch {
+    return { ok: false, path: resolved, error: `execution_run script_path is not accessible: ${resolved}` };
+  }
+  return { ok: true, path: resolved, error: "" };
+}
+
+function normalizeColabExecutionAccelerator(acceleratorType, accelerator) {
+  const type = String(acceleratorType || "cpu").trim();
+  const selected = String(accelerator || "").trim();
+  if (type === "cpu") {
+    if (selected !== "") {
+      return { ok: false, type, accelerator: selected, args: [], error: "execution_run cpu mode must not set accelerator." };
+    }
+    return { ok: true, type, accelerator: "", args: [], error: "" };
+  }
+  if (type === "gpu") {
+    if (!COLAB_GPU_ACCELERATORS.includes(selected)) {
+      return {
+        ok: false,
+        type,
+        accelerator: selected,
+        args: [],
+        error: `execution_run gpu mode requires accelerator: ${COLAB_GPU_ACCELERATORS.join(", ")}.`,
+      };
+    }
+    return { ok: true, type, accelerator: selected, args: ["--gpu", selected], error: "" };
+  }
+  if (type === "tpu") {
+    if (!COLAB_TPU_ACCELERATORS.includes(selected)) {
+      return {
+        ok: false,
+        type,
+        accelerator: selected,
+        args: [],
+        error: `execution_run tpu mode requires accelerator: ${COLAB_TPU_ACCELERATORS.join(", ")}.`,
+      };
+    }
+    return { ok: true, type, accelerator: selected, args: ["--tpu", selected], error: "" };
+  }
+  return { ok: false, type, accelerator: selected, args: [], error: `execution_run does not support accelerator_type ${type}.` };
+}
+
+function runExecutionAdapter({
+  adapter,
+  bin,
+  script_path,
+  cwd,
+  timeout_seconds,
+  accelerator_type,
+  accelerator,
+  script_args,
+  billing_ack,
+  data_movement_ack,
+  cleanup_ack,
+}) {
+  const selectedAdapter = adapter || "google-colab-cli";
+  const timeoutSeconds =
+    typeof timeout_seconds === "number" && timeout_seconds > 0 ? timeout_seconds : 600;
+  const adapterInfo = ADAPTER_CANDIDATES[selectedAdapter] || {};
+  const resolved = resolveExecutionProbeBinary(selectedAdapter, bin);
+  const cwdResult = resolveExecutionRunCwd(cwd);
+  const result = {
+    adapter: selectedAdapter,
+    adapter_kind: adapterInfo.kind || "execution_substrate",
+    status: "blocked",
+    binary: resolved.bin,
+    binary_source: resolved.source,
+    cwd: cwdResult.cwd,
+    script_path: "",
+    command: "",
+    args: [],
+    exit_code: -1,
+    started_at: "",
+    ended_at: "",
+    duration_seconds: 0,
+    stdout_tail: "",
+    stderr_tail: "",
+    output_tail: "",
+    timed_out: false,
+    material_not_evidence: true,
+    evidence_status: "remote_output_not_verification",
+    writes_state: false,
+    verification_recorded: false,
+    job_execution_enabled: true,
+    billing_acknowledged: Boolean(billing_ack),
+    data_movement_acknowledged: Boolean(data_movement_ack),
+    cleanup_acknowledged: Boolean(cleanup_ack),
+    remote_runtime_requested: false,
+    accelerator_requested: false,
+    accelerator_type: accelerator_type || "cpu",
+    accelerator: accelerator || "",
+    artifact_retrieval_enabled: false,
+    cleanup_guard: "colab_run_without_keep",
+    billing_guard: "requires_billing_ack",
+    data_movement_guard: "requires_data_movement_ack",
+    error: resolved.error,
+  };
+  if (selectedAdapter !== "google-colab-cli") {
+    result.error = `execution_run does not support ${selectedAdapter}.`;
+    return result;
+  }
+  if (envValue("MYTHIFY_DISABLE_RUN") === "1") {
+    result.error = "MYTHIFY_DISABLE_RUN=1 disables execution_run.";
+    return result;
+  }
+  if (!billing_ack) {
+    result.error = "execution_run requires billing_ack=true before running billable Colab work.";
+    return result;
+  }
+  if (!data_movement_ack) {
+    result.error = "execution_run requires data_movement_ack=true because Colab run transmits a local script to a remote runtime.";
+    return result;
+  }
+  if (!cleanup_ack) {
+    result.error = "execution_run requires cleanup_ack=true because remote runtime teardown must be explicit.";
+    return result;
+  }
+  if (!cwdResult.ok) {
+    result.error = cwdResult.error;
+    return result;
+  }
+  const scriptResult = resolveExecutionScriptPath(script_path, cwdResult.cwd);
+  result.script_path = scriptResult.path;
+  if (!scriptResult.ok) {
+    result.error = scriptResult.error;
+    return result;
+  }
+  const acceleratorResult = normalizeColabExecutionAccelerator(accelerator_type, accelerator);
+  result.accelerator_type = acceleratorResult.type;
+  result.accelerator = acceleratorResult.accelerator;
+  if (!acceleratorResult.ok) {
+    result.error = acceleratorResult.error;
+    return result;
+  }
+  if (resolved.bin === "") {
+    return result;
+  }
+
+  const extraArgs = Array.isArray(script_args) ? script_args.map((item) => String(item)) : [];
+  result.args = ["run", ...acceleratorResult.args, scriptResult.path, ...extraArgs];
+  result.command = [path.basename(resolved.bin), ...result.args].join(" ");
+  result.remote_runtime_requested = true;
+  result.accelerator_requested = acceleratorResult.type !== "cpu";
+
+  result.started_at = isoNow();
+  const startedAt = process.hrtime.bigint();
+  const run = spawnSync(resolved.bin, result.args, {
+    shell: false,
+    encoding: "utf8",
+    cwd: cwdResult.cwd,
+    timeout: Math.round(timeoutSeconds * 1000),
+    maxBuffer: 1024 * 1024,
+  });
+  const durationSeconds = Number(process.hrtime.bigint() - startedAt) / 1e9;
+  result.ended_at = isoNow();
+  const timedOut = Boolean(run.error && run.error.code === "ETIMEDOUT");
+  const exitCode = typeof run.status === "number" ? run.status : -1;
+  result.exit_code = exitCode;
+  result.duration_seconds = Number(durationSeconds.toFixed(3));
+  result.stdout_tail = tailText(run.stdout, 4000);
+  result.stderr_tail = tailText(run.stderr, 4000);
+  result.output_tail = result.stdout_tail || result.stderr_tail;
+  result.timed_out = timedOut;
+  result.status = exitCode === 0 ? "succeeded" : "failed";
+  if (timedOut) {
+    result.error = `timed out after ${timeoutSeconds} seconds`;
+  } else if (exitCode !== 0) {
+    result.error = result.stderr_tail || `command exited ${exitCode}`;
+  } else if (run.error) {
+    result.error = run.error.message;
+  } else {
+    result.error = "";
+  }
+  return result;
+}
+
+function formatExecutionRun(result) {
+  const prefix = result.status === "succeeded" ? "[OK]" : "[FAIL]";
+  const lines = [
+    `${prefix} Execution run ${result.status}.`,
+    `adapter: ${result.adapter}`,
+    `binary: ${result.binary || "not found"}`,
+    `binary source: ${result.binary_source}`,
+    `cwd: ${result.cwd || "unset"}`,
+    `script: ${result.script_path || "unset"}`,
+    `accelerator: ${result.accelerator_type}${result.accelerator ? ` ${result.accelerator}` : ""}`,
+    `billing acknowledged: ${result.billing_acknowledged ? "yes" : "no"}`,
+    `data movement acknowledged: ${result.data_movement_acknowledged ? "yes" : "no"}`,
+    `cleanup acknowledged: ${result.cleanup_acknowledged ? "yes" : "no"}`,
+    `remote runtime requested: ${result.remote_runtime_requested ? "yes" : "no"}`,
+    `exit: ${result.exit_code}`,
+    `started at: ${result.started_at || "unset"}`,
+    `ended at: ${result.ended_at || "unset"}`,
+    `writes state: ${result.writes_state ? "yes" : "no"}`,
+    `verification recorded: ${result.verification_recorded ? "yes" : "no"}`,
+    "evidence: remote output is material, not verification evidence.",
+  ];
+  if (result.output_tail) {
+    lines.push(`output: ${result.output_tail}`);
+  }
+  if (result.error) {
+    lines.push(`error: ${result.error}`);
+  }
+  return lines.join("\n");
+}
+
 const LIFECYCLE_PROBES = {
   "google-agents-cli": {
     envName: "MYTHIFY_AGENTS_CLI_BIN",
@@ -4077,6 +4311,96 @@ server.registerTool(
     });
     const prefix = result.status === "available" ? "[OK] " : "[FAIL] ";
     return format === "json" ? prefix + JSON.stringify(result, null, 2) : formatExecutionProbe(result);
+  })
+);
+
+server.registerTool(
+  "execution_run",
+  {
+    title: "Run a guarded execution adapter job",
+    description:
+      "Run a guarded Google Colab CLI ephemeral job through colab run. " +
+      "Use this only after the user explicitly accepts billing, data movement, and cleanup. The result is material, not verification evidence, writes no Mythify state, and does not use persistent sessions, Drive mounting, artifact download, or notebook log export.",
+    inputSchema: {
+      adapter: z
+        .enum(["google-colab-cli"])
+        .optional()
+        .describe("Execution adapter to run. Defaults to google-colab-cli."),
+      bin: z
+        .string()
+        .optional()
+        .describe("Explicit CLI binary path. Defaults to MYTHIFY_COLAB_BIN, then PATH and common install paths."),
+      cwd: z
+        .string()
+        .optional()
+        .describe("Working directory for resolving relative script_path. Defaults to the project root inferred from MYTHIFY_DIR."),
+      script_path: z
+        .string()
+        .describe("Local script path to pass to colab run. Relative paths resolve from cwd."),
+      script_args: z
+        .array(z.string())
+        .optional()
+        .describe("Optional arguments forwarded after the script path."),
+      accelerator_type: z
+        .enum(["cpu", "gpu", "tpu"])
+        .optional()
+        .describe("Remote runtime accelerator class. Defaults to cpu."),
+      accelerator: z
+        .enum(["T4", "L4", "G4", "H100", "A100", "v5e1", "v6e1"])
+        .optional()
+        .describe("Required for gpu or tpu runs. GPUs: T4, L4, G4, H100, A100. TPUs: v5e1, v6e1."),
+      billing_ack: z
+        .boolean()
+        .optional()
+        .describe("Must be true to acknowledge Colab remote execution can consume compute units or quota."),
+      data_movement_ack: z
+        .boolean()
+        .optional()
+        .describe("Must be true to acknowledge the local script is transmitted to a remote Colab runtime."),
+      cleanup_ack: z
+        .boolean()
+        .optional()
+        .describe("Must be true to acknowledge this adapter relies on colab run ephemeral teardown and never passes --keep."),
+      timeout_seconds: z
+        .number()
+        .positive()
+        .optional()
+        .describe("Remote job timeout in seconds. Defaults to 600."),
+      format: z
+        .enum(["text", "json"])
+        .optional()
+        .describe("Return text by default, or JSON for machine-readable execution records."),
+    },
+  },
+  guarded(({
+    adapter,
+    bin,
+    script_path,
+    cwd,
+    timeout_seconds,
+    accelerator_type,
+    accelerator,
+    script_args,
+    billing_ack,
+    data_movement_ack,
+    cleanup_ack,
+    format,
+  }) => {
+    const result = runExecutionAdapter({
+      adapter: adapter || "google-colab-cli",
+      bin: bin || "",
+      script_path,
+      cwd,
+      timeout_seconds,
+      accelerator_type,
+      accelerator,
+      script_args,
+      billing_ack,
+      data_movement_ack,
+      cleanup_ack,
+    });
+    const prefix = result.status === "succeeded" ? "[OK] " : "[FAIL] ";
+    return format === "json" ? prefix + JSON.stringify(result, null, 2) : formatExecutionRun(result);
   })
 );
 

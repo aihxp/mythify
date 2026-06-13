@@ -1,5 +1,5 @@
 <!-- Generated from protocol/PROTOCOL.md by scripts/build_variants.py. Edit the source, then rebuild. -->
-<!-- Mythify protocol-sha256: e1a2e70b8463cb30f43484c437faf6d581abd75621936a37db8c86a64f4b9c35 -->
+<!-- Mythify protocol-sha256: 0a253810b09aa61d840f9f5b6119e5bb168d40ef1d3d576e11b0fdd003addc9a -->
 
 # The Mythify Protocol
 
@@ -132,9 +132,9 @@ Reorient any time with `status`. Report the whole session with `summary`.
 ## MCP note
 
 Clients using the Mythify MCP server instead of the CLI get the same contract
-through exactly 28 tools: `classify_task`, `host_model_switch`,
+through exactly 29 tools: `classify_task`, `host_model_switch`,
 `provider_probe`, `local_model_run`, `host_cli_probe`, `host_cli_run`,
-`execution_probe`, `lifecycle_probe`, `outcome_start`, `outcome_check`,
+`execution_probe`, `execution_run`, `lifecycle_probe`, `outcome_start`, `outcome_check`,
 `outcome_status`,
 `outcome_results`, `outcome_stop`, `memory_store`, `memory_recall`,
 `memory_clear`, `lesson_record`, `lesson_recall`, `plan_create`,
@@ -156,7 +156,11 @@ commands. `host_cli_run` can run bounded Kimi Code, OpenCode, or Antigravity
 non-interactive prompts, writing no state and returning worker output as
 material, not verification evidence. Antigravity requires explicit `cwd` and
 does not pass permission-bypass flags. `execution_probe` can probe Google Colab CLI
-availability without provisioning remote runtimes or accelerators. `lifecycle_probe` can probe
+availability without provisioning remote runtimes or accelerators. `execution_run`
+can run a guarded Google Colab CLI ephemeral job through `colab run` only when
+billing, data movement, and cleanup acknowledgements are explicit; it writes no
+state and returns remote output as material, not verification evidence.
+`lifecycle_probe` can probe
 Google Agents CLI and ADK CLI availability with version, help, and eval-help
 commands without scaffolding projects, running evals, deploying, publishing,
 mutating cloud resources, or writing project state. Probe output is material,

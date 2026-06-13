@@ -11,7 +11,7 @@ This file is generated from `mcp-server/src/capability-registry.js`. Do not edit
 | generic-openai-compatible | model_provider | local_backend_supported | yes | yes | yes | local roles: reader, triage | material, not evidence |
 | google-adk-cli | agent_lifecycle | probe_supported | no | no | yes | eval probe; no eval run; no deploy | probe material, not evidence |
 | google-agents-cli | agent_lifecycle | probe_supported | no | no | yes | eval probe; no eval run; no deploy | probe material, not evidence |
-| google-colab-cli | execution_substrate | probe_supported | no | no | yes | no remote job | probe material, not evidence |
+| google-colab-cli | execution_substrate | guarded_remote_execution_supported | no | no | yes | remote job | material, not evidence |
 | kimi-code | host | worker_supported | no | no | yes | bounded worker | material, not evidence |
 | kimi-work | desktop_agent | metadata_only | yes | no | no | metadata only | metadata only, not evidence |
 | llama-cpp | model_provider | local_profile_supported | yes | yes | yes | local roles: reader, triage | material, not evidence |

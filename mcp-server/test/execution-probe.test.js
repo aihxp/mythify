@@ -154,3 +154,132 @@ test("execution_probe reports missing binaries without writing verification evid
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("execution_run refuses before remote work without acknowledgements", async () => {
+  const { root, stateDir, homeDir, binDir } = makeProject("mythify-exec-run-refuse-");
+  const logPath = path.join(root, "colab-run-args.jsonl");
+  const colabBin = path.join(binDir, "colab");
+  const scriptPath = path.join(root, "train.py");
+  fs.writeFileSync(scriptPath, "print('train')\n", "utf8");
+  writeStub(
+    colabBin,
+    [
+      "#!/usr/bin/env node",
+      'const fs = require("node:fs");',
+      `fs.appendFileSync(${JSON.stringify(logPath)}, JSON.stringify(process.argv.slice(2)) + "\\n");`,
+      'console.log("should not run");',
+      "",
+    ].join("\n")
+  );
+  try {
+    await withClient(
+      cleanEnv({
+        MYTHIFY_DIR: stateDir,
+        HOME: homeDir,
+      }),
+      async (client) => {
+        const refused = textOf(
+          await client.callTool({
+            name: "execution_run",
+            arguments: {
+              adapter: "google-colab-cli",
+              bin: colabBin,
+              script_path: scriptPath,
+              format: "json",
+            },
+          })
+        );
+        assert.ok(refused.startsWith("[FAIL]"), `execution_run refuses: ${refused}`);
+        const parsed = JSON.parse(refused.replace(/^\[FAIL\] /, ""));
+        assert.equal(parsed.adapter, "google-colab-cli");
+        assert.equal(parsed.status, "blocked");
+        assert.equal(parsed.job_execution_enabled, true);
+        assert.equal(parsed.billing_acknowledged, false);
+        assert.equal(parsed.data_movement_acknowledged, false);
+        assert.equal(parsed.cleanup_acknowledged, false);
+        assert.equal(parsed.remote_runtime_requested, false);
+        assert.match(parsed.error, /billing_ack=true/);
+        assert.equal(fs.existsSync(logPath), false);
+        assert.equal(fs.existsSync(path.join(stateDir, "verifications.jsonl")), false);
+      }
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("execution_run can run a fully acknowledged fake Colab ephemeral job", async () => {
+  const { root, stateDir, homeDir, binDir } = makeProject("mythify-exec-run-ok-");
+  const logPath = path.join(root, "colab-run-args.jsonl");
+  const colabBin = path.join(binDir, "colab");
+  const scriptPath = path.join(root, "train.py");
+  fs.writeFileSync(scriptPath, "print('train')\n", "utf8");
+  writeStub(
+    colabBin,
+    [
+      "#!/usr/bin/env node",
+      'const fs = require("node:fs");',
+      `fs.appendFileSync(${JSON.stringify(logPath)}, JSON.stringify(process.argv.slice(2)) + "\\n");`,
+      'const args = process.argv.slice(2);',
+      'if (args[0] === "run" && args.includes("--gpu") && args.includes("T4") && !args.includes("--keep")) {',
+      '  console.log("remote job complete");',
+      "  process.exit(0);",
+      "}",
+      'console.error("unexpected args: " + args.join(" "));',
+      "process.exit(3);",
+      "",
+    ].join("\n")
+  );
+  try {
+    await withClient(
+      cleanEnv({
+        MYTHIFY_DIR: stateDir,
+        HOME: homeDir,
+      }),
+      async (client) => {
+        const ranText = textOf(
+          await client.callTool({
+            name: "execution_run",
+            arguments: {
+              adapter: "google-colab-cli",
+              bin: colabBin,
+              script_path: scriptPath,
+              accelerator_type: "gpu",
+              accelerator: "T4",
+              script_args: ["--epochs", "1"],
+              billing_ack: true,
+              data_movement_ack: true,
+              cleanup_ack: true,
+              format: "json",
+            },
+          })
+        );
+        assert.ok(ranText.startsWith("[OK]"), `execution_run reports [OK]: ${ranText}`);
+        const ran = JSON.parse(ranText.replace(/^\[OK\] /, ""));
+        assert.equal(ran.adapter, "google-colab-cli");
+        assert.equal(ran.status, "succeeded");
+        assert.equal(ran.material_not_evidence, true);
+        assert.equal(ran.evidence_status, "remote_output_not_verification");
+        assert.equal(ran.writes_state, false);
+        assert.equal(ran.verification_recorded, false);
+        assert.equal(ran.billing_acknowledged, true);
+        assert.equal(ran.data_movement_acknowledged, true);
+        assert.equal(ran.cleanup_acknowledged, true);
+        assert.equal(ran.remote_runtime_requested, true);
+        assert.equal(ran.accelerator_requested, true);
+        assert.equal(ran.accelerator_type, "gpu");
+        assert.equal(ran.accelerator, "T4");
+        assert.equal(ran.cleanup_guard, "colab_run_without_keep");
+        assert.match(ran.started_at, /T/);
+        assert.match(ran.ended_at, /T/);
+        assert.match(ran.output_tail, /remote job complete/);
+
+        const logged = fs.readFileSync(logPath, "utf8").trim().split(/\n/).map((line) => JSON.parse(line));
+        assert.deepEqual(logged, [["run", "--gpu", "T4", scriptPath, "--epochs", "1"]]);
+        assert.equal(fs.existsSync(path.join(stateDir, "verifications.jsonl")), false);
+      }
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

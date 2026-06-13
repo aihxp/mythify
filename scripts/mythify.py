@@ -28,7 +28,7 @@ from pathlib import Path
 WORKSPACE_DIR_NAME = ".mythify"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
-PROTOCOL_SOURCE_SHA256 = "e1a2e70b8463cb30f43484c437faf6d581abd75621936a37db8c86a64f4b9c35"
+PROTOCOL_SOURCE_SHA256 = "0a253810b09aa61d840f9f5b6119e5bb168d40ef1d3d576e11b0fdd003addc9a"
 PROTOCOL_HASH_PREFIX = "<!-- Mythify protocol-sha256: "
 PROTOCOL_COPY_CANDIDATES = ("CLAUDE.md", "AGENTS.md", ".cursorrules")
 NO_WORKSPACE_MESSAGE = (

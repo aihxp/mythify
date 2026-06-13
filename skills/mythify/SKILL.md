@@ -113,13 +113,13 @@ much to build.
 
 ## MCP clients
 
-Clients wired to the Mythify MCP server instead of the CLI use 28 tools:
+Clients wired to the Mythify MCP server instead of the CLI use 29 tools:
 classify_task, host_model_switch, provider_probe, local_model_run,
-host_cli_probe, host_cli_run, execution_probe, lifecycle_probe, outcome_start,
-outcome_check, outcome_status, outcome_results, outcome_stop, memory_store,
-memory_recall, memory_clear, lesson_record, lesson_recall, plan_create,
-plan_add_step, plan_update_step, plan_status, verify_run, verify_claim,
-reflect, plus fanout_start, fanout_status, and fanout_results. Same state
+host_cli_probe, host_cli_run, execution_probe, execution_run, lifecycle_probe,
+outcome_start, outcome_check, outcome_status, outcome_results, outcome_stop,
+memory_store, memory_recall, memory_clear, lesson_record, lesson_recall,
+plan_create, plan_add_step, plan_update_step, plan_status, verify_run,
+verify_claim, reflect, plus fanout_start, fanout_status, and fanout_results. Same state
 directory, same file formats, full interop with the CLI.
 
 `classify_task` returns `model_policy.session.recommendation` so hosts can map

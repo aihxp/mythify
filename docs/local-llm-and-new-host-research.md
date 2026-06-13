@@ -30,6 +30,10 @@ Implementation status:
   `docs/colab-cli-spike-plan.md`: Google Colab CLI can be checked through
   version and help commands without provisioning runtimes, requesting
   accelerators, uploading data, or executing jobs.
+- Colab remote execution slice landed in `execution_run`: Mythify can run the
+  official `colab run` ephemeral path only after explicit billing, data
+  movement, and cleanup acknowledgements. The output is material, not
+  verification evidence, and the tool writes no Mythify state.
 - Agents CLI and ADK spike-plan slice landed in `lifecycle_probe` and
   `docs/agents-cli-adk-spike-plan.md`: Google Agents CLI and ADK CLI can be
   checked through version, help, and eval-help commands without scaffolding
@@ -391,10 +395,14 @@ Mythify role fit:
 Mythify implication:
 
 - Keep this outside model assignment.
-- Add a separate `execution_adapter` lane after model and host adapters exist.
-- Verification should capture remote command exit, log path, output artifacts,
-  session id, accelerator type, and teardown status.
-- Billing and data movement must be explicit.
+- Expose Colab through execution tools, not host or model provider tools.
+- `execution_probe` remains non-billable and probe-only.
+- `execution_run` may invoke `colab run` only after explicit billing, data
+  movement, and cleanup acknowledgements.
+- Remote output is material, not verification evidence. Verification requires a
+  separate executed verifier that consumes local artifacts, logs, or outputs.
+- Manual sessions, Drive mounting, upload, download, and log export remain out
+  of scope until separate contracts exist.
 
 Sources:
 

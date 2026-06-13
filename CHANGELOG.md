@@ -12,8 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MCP `execution_probe` for Google Colab CLI availability checks. The probe
   runs only version and help commands, returns explicit non-billable and
   no-remote-execution guard fields, and records no verification evidence.
+- MCP `execution_run` for guarded Google Colab CLI ephemeral jobs. The tool
+  runs `colab run` only after explicit billing, data movement, and cleanup
+  acknowledgements, never passes `--keep`, writes no Mythify state, and treats
+  remote output as material rather than verification evidence.
 - `docs/colab-cli-spike-plan.md` to document the safe Colab CLI spike scope
-  and the future evidence fields required before any billable remote execution.
+  and the remote execution guard fields required before billable Colab work.
 - MCP `lifecycle_probe` for Google Agents CLI and ADK CLI availability checks.
   The probe runs only version, help, and eval-help commands, returns explicit
   no-eval and no-deploy guard fields, and records no verification evidence.

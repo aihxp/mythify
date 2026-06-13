@@ -216,10 +216,16 @@ test("researched future adapters are candidates, not public host platforms", () 
     listAdapterCandidates("execution_substrate").map((candidate) => candidate.name).sort(),
     ["google-colab-cli"]
   );
-  assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].status, "probe_supported");
+  assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].status, "guarded_remote_execution_supported");
   assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].can_probe, true);
-  assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].can_run_remote_job, false);
+  assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].can_run_remote_job, true);
   assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].non_billable_probe, true);
+  assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].remote_run_command, "colab run");
+  assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].execution_mode, "ephemeral_run_no_keep");
+  assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].requires_billing_ack, true);
+  assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].requires_data_movement_ack, true);
+  assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].requires_cleanup_ack, true);
+  assert.equal(ADAPTER_CANDIDATES["google-colab-cli"].output_is_evidence, false);
   assert.deepEqual(
     listAdapterCandidates("agent_lifecycle").map((candidate) => candidate.name).sort(),
     ["google-adk-cli", "google-agents-cli"]
