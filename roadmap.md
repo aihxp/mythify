@@ -21,12 +21,12 @@ Status markers:
 
 ## Active Now
 
-- [>] Local model benefit evaluation.
-  - Current goal: identify which task types benefit from local model support.
-  - Next step: map local provider roles, scenario metadata, and current eval
-    result fields before adding any task-benefit report.
-  - Guardrail: local model benefit evidence must come from rerunnable harness
-    or provider checks, not generic model marketing claims.
+- [>] Stronger-model role evaluation.
+  - Current goal: identify which roles actually require stronger models.
+  - Next step: map role policy, reviewer opt-in, model tiers, and current eval
+    result fields before adding any role-strength report.
+  - Guardrail: stronger-model evidence must come from role outcomes or
+    explicit reviewer policy, not blanket "bigger is better" assumptions.
 
 ## Next Queue
 
@@ -237,12 +237,17 @@ Already shipped in this track:
 
 What remains:
 
-- [>] Which tasks benefit from local models?
-- [ ] Which roles require stronger models?
+- [>] Which roles require stronger models?
 - [ ] Where does fanout help, and where does it waste tokens?
 
 Already shipped in this track:
 
+- [x] Local model task benefit is reported through the local eval harness
+  `local_model_benefit` JSON block, identifying scenario task categories that
+  fit local reader and triage roles, observed verifier-backed outcomes,
+  Mythify evidence rates, category summaries, and a caveat that
+  provider-specific benefit requires a local-model-backed run or provider
+  check.
 - [x] Profile overhead is reported through the local eval harness
   `profile_overhead` JSON block, comparing measured Mythify profile
   `model_duration_seconds` against bare runs with average duration delta,
@@ -266,6 +271,12 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add local model benefit evaluation reporting.
+  `scripts/local_model_eval.py` now emits `local_model_benefit`, mapping
+  built-in scenario categories to local reader and triage candidate roles and
+  pairing that metadata with observed verifier-backed outcomes. The report
+  keeps provider-specific benefit as a caveated claim until a local-model-backed
+  command or provider check supplies evidence.
 - [x] 2026-06-13: add profile overhead evaluation reporting.
   `scripts/local_model_eval.py` now emits `profile_overhead`, a
   bare-vs-Mythify smoke comparison based on measured model subprocess

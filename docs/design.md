@@ -1056,6 +1056,13 @@ The JSON report must include:
   conclusion, per-profile attempts, per-profile duration deltas, speed fields,
   and the local smoke-test caveat. The harness must not estimate timing or use
   model-reported timing as evidence.
+- `local_model_benefit`: the direct answer to the local-model task-fit
+  question. It records `metric: "local_model_candidate_task_categories"`,
+  supported local roles, per-scenario task categories, local reader or triage
+  candidate roles, fit reasons, observed verifier-backed success rates,
+  Mythify evidence rates, category summaries, and the local smoke-test caveat.
+  The harness must not claim provider-specific local model benefit unless the
+  report came from a local-model-backed command or provider check.
 - `runs`: per-workspace model exit details, verifier exit details, output
   tails, and Mythify evidence counts.
 

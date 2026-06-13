@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `scripts/local_model_eval.py` now emits a `local_model_benefit` report
+  block. It adds scenario task categories, local reader and triage candidate
+  roles, fit reasons, observed verifier-backed outcomes, category summaries,
+  and a caveat that provider-specific benefit requires a local-model-backed
+  run or provider check.
 - `scripts/local_model_eval.py` now emits a `profile_overhead` report block.
   It compares measured Mythify profile `model_duration_seconds` against bare
   runs, reporting average duration delta, ratio, lower-duration winner,

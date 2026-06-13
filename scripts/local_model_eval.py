@@ -33,6 +33,9 @@ TAIL_CHARS = 4000
 SCENARIOS = {
     "word_count_bugfix": {
         "title": "Whitespace word counter bug fix",
+        "task_category": "string_processing_bugfix",
+        "local_model_roles": ["reader", "triage"],
+        "local_model_fit_reason": "small deterministic Python function with local tests and limited context",
         "task": "Fix `word_count.py` so `python3 -m unittest` passes. Keep the implementation small. Do not edit the test file.",
         "files": {
             "word_count.py": "\n".join(
@@ -72,6 +75,9 @@ SCENARIOS = {
     },
     "query_parser_bugfix": {
         "title": "URL query parser bug fix",
+        "task_category": "standard_library_bugfix",
+        "local_model_roles": ["reader", "triage"],
+        "local_model_fit_reason": "small parser task with explicit expected behavior and local tests",
         "task": "Fix `query_parser.py` so `python3 -m unittest` passes. Preserve repeated keys as lists. Do not edit the test file.",
         "files": {
             "query_parser.py": "\n".join(
@@ -114,6 +120,9 @@ SCENARIOS = {
     },
     "inventory_total_bugfix": {
         "title": "Inventory total calculation bug fix",
+        "task_category": "numeric_data_bugfix",
+        "local_model_roles": ["reader", "triage"],
+        "local_model_fit_reason": "small data-shape bug with explicit fixtures and local tests",
         "task": "Fix `inventory.py` so `python3 -m unittest` passes. Handle quantities, missing quantities, and numeric strings. Do not edit the test file.",
         "files": {
             "inventory.py": "\n".join(
@@ -459,6 +468,7 @@ def verify_workspace(workspace, timeout):
 
 def run_one(mode, engine, model, speed, parent, timeout, scenario_name, iteration, mythify_profile="auto"):
     workspace = create_task_workspace(parent, scenario_name, mode, iteration)
+    scenario = SCENARIOS[scenario_name]
     resolved_profile = ""
     if mode == "mythify":
         resolved_profile = resolve_mythify_profile(mythify_profile, scenario_name)
@@ -469,6 +479,8 @@ def run_one(mode, engine, model, speed, parent, timeout, scenario_name, iteratio
     records = count_mythify_records(workspace)
     return {
         "scenario": scenario_name,
+        "task_category": scenario.get("task_category", "unknown"),
+        "local_model_candidate_roles": list(scenario.get("local_model_roles", [])),
         "iteration": iteration,
         "mode": mode,
         "mythify_profile": resolved_profile,
@@ -678,6 +690,94 @@ def profile_overhead_effect(summary, runs):
     }
 
 
+def rate(count, attempted):
+    return round(count / attempted, 3) if attempted else 0
+
+
+def local_model_benefit_effect(runs, scenario_names):
+    scenarios = []
+    categories = {}
+    for scenario_name in scenario_names:
+        scenario = SCENARIOS[scenario_name]
+        selected = [run for run in runs if run["scenario"] == scenario_name]
+        bare_runs = [run for run in selected if run["mode"] == "bare"]
+        mythify_runs = [run for run in selected if run["mode"] == "mythify"]
+        bare_success = sum(1 for run in bare_runs if run["verify_exit_code"] == 0)
+        mythify_success = sum(1 for run in mythify_runs if run["verify_exit_code"] == 0)
+        mythify_evidence = sum(1 for run in mythify_runs if mythify_evidence_ok(run))
+        bare_rate = rate(bare_success, len(bare_runs))
+        mythify_rate = rate(mythify_success, len(mythify_runs))
+        delta = round(mythify_rate - bare_rate, 3)
+        if delta > 0:
+            observed_benefit = "positive"
+        elif delta < 0:
+            observed_benefit = "negative"
+        else:
+            observed_benefit = "neutral"
+        roles = list(scenario.get("local_model_roles", []))
+        row = {
+            "scenario": scenario_name,
+            "title": scenario["title"],
+            "task_category": scenario.get("task_category", "unknown"),
+            "local_model_candidate_roles": roles,
+            "local_model_fit_reason": scenario.get("local_model_fit_reason", ""),
+            "candidate_fit": "candidate" if roles else "not_marked",
+            "bare_attempted": len(bare_runs),
+            "mythify_attempted": len(mythify_runs),
+            "bare_verified_success_rate": bare_rate,
+            "mythify_verified_success_rate": mythify_rate,
+            "verified_success_rate_delta": delta,
+            "mythify_evidence_success_rate": rate(mythify_evidence, len(mythify_runs)),
+            "observed_benefit": observed_benefit,
+        }
+        scenarios.append(row)
+        category = categories.setdefault(
+            row["task_category"],
+            {
+                "task_category": row["task_category"],
+                "scenario_count": 0,
+                "candidate_roles": [],
+                "mythify_attempted": 0,
+                "mythify_verified_success": 0,
+                "mythify_evidence_success": 0,
+            },
+        )
+        category["scenario_count"] += 1
+        category["mythify_attempted"] += len(mythify_runs)
+        category["mythify_verified_success"] += mythify_success
+        category["mythify_evidence_success"] += mythify_evidence
+        for role in roles:
+            if role not in category["candidate_roles"]:
+                category["candidate_roles"].append(role)
+
+    category_rows = []
+    for category in sorted(categories.values(), key=lambda item: item["task_category"]):
+        attempted = category["mythify_attempted"]
+        category_rows.append({
+            **category,
+            "candidate_roles": sorted(category["candidate_roles"]),
+            "mythify_verified_success_rate": rate(category["mythify_verified_success"], attempted),
+            "mythify_evidence_success_rate": rate(category["mythify_evidence_success"], attempted),
+        })
+    candidate_categories = [
+        row["task_category"]
+        for row in category_rows
+        if row["candidate_roles"] and row["mythify_verified_success_rate"] > 0
+    ]
+    return {
+        "metric": "local_model_candidate_task_categories",
+        "comparison": "scenario_metadata_plus_harness_outcomes",
+        "evidence_source": "scenario local-model role metadata plus per-workspace python3 -m unittest exit code",
+        "supported_roles": ["reader", "triage"],
+        "candidate_categories": candidate_categories,
+        "scenario_count": len(scenarios),
+        "scenarios": scenarios,
+        "categories": category_rows,
+        "statistical_strength": "local_smoke",
+        "caveat": "This identifies local-model candidate task categories and observed harness outcomes; provider-specific benefit requires rerunning with a local-model-backed command or provider check.",
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Run a local bare-vs-Mythify model comparison using installed CLI subscriptions."
@@ -759,6 +859,7 @@ def main(argv=None):
                 "bare_speed": bare_speed,
                 "mythify_speed": mythify_speed,
             },
+            "local_model_benefit": local_model_benefit_effect(runs, scenario_names),
             "runs": runs,
         }
         text = json.dumps(report, indent=2)

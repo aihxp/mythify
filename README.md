@@ -768,9 +768,11 @@ It also emits evidence blocks that answer the core comparisons directly from
 exit codes: `verified_task_success` for verifier pass-rate delta, and
 `false_completion_claims` for completion signals contradicted by failing
 verifiers. `profile_overhead` reports measured Mythify profile duration
-overhead from local subprocess wall-clock timings. The false-completion signal
-is bounded to model process exit code 0; output text is retained for audit but
-not tone-scored.
+overhead from local subprocess wall-clock timings. `local_model_benefit`
+reports scenario categories that fit local reader and triage roles, plus the
+observed harness outcomes for those categories. The false-completion signal is
+bounded to model process exit code 0; output text is retained for audit but not
+tone-scored.
 The default `--mythify-profile auto` uses the fast profile for the built-in
 focused bugfix scenarios. Use `--mythify-profile standard` when you want the
 older plan-plus-verify benchmark behavior.
@@ -864,9 +866,9 @@ documented or locally probeable automation contract exists.
   downloading a GitHub release, but the MCP server is still configured by local
   absolute path; there are no `npx` instructions because nothing is published to npm.
 - No large benchmark eval has been run yet. The `verified_task_success`,
-  `false_completion_claims`, and `profile_overhead` report blocks are
-  rerunnable smoke signals for the Mythify effect, not statistically
-  meaningful evidence by themselves.
+  `false_completion_claims`, `profile_overhead`, and `local_model_benefit`
+  report blocks are rerunnable smoke signals for the Mythify effect, not
+  statistically meaningful evidence by themselves.
 - Protocol adherence varies by model strength. Weaker models follow the discipline
   less reliably, and the gains shrink accordingly.
 

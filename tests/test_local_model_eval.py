@@ -163,6 +163,12 @@ class LocalModelEvalTests(unittest.TestCase):
         self.assertEqual(overhead["bare_speed"], "auto")
         self.assertEqual(overhead["mythify_speed"], "auto")
         self.assertIn("fast", overhead["profiles"])
+        benefit = report["local_model_benefit"]
+        self.assertEqual(benefit["metric"], "local_model_candidate_task_categories")
+        self.assertEqual(benefit["supported_roles"], ["reader", "triage"])
+        self.assertIn("string_processing_bugfix", benefit["candidate_categories"])
+        self.assertEqual(benefit["scenarios"][0]["local_model_candidate_roles"], ["reader", "triage"])
+        self.assertEqual(benefit["scenarios"][0]["observed_benefit"], "neutral")
 
     def test_command_engine_runs_all_scenarios_with_summary(self):
         worker = self.write_worker()
@@ -201,6 +207,11 @@ class LocalModelEvalTests(unittest.TestCase):
         self.assertEqual(report["verified_task_success"]["winner"], "tie")
         self.assertEqual(report["false_completion_claims"]["winner_by_lower_false_completion_rate"], "tie")
         self.assertEqual(report["profile_overhead"]["profiles"]["fast"]["attempted"], 3)
+        self.assertEqual(report["local_model_benefit"]["scenario_count"], 3)
+        self.assertEqual(
+            sorted(report["local_model_benefit"]["candidate_categories"]),
+            ["numeric_data_bugfix", "standard_library_bugfix", "string_processing_bugfix"],
+        )
 
     def test_verified_task_success_effect_uses_verifier_exit_codes(self):
         runs = [
@@ -284,6 +295,35 @@ class LocalModelEvalTests(unittest.TestCase):
         self.assertEqual(effect["avg_model_duration_ratio"], 2.5)
         self.assertEqual(effect["profiles"]["fast"]["delta_vs_bare_avg_seconds"], 1.5)
         self.assertEqual(effect["profiles"]["fast"]["ratio_vs_bare_avg"], 2.5)
+
+    def test_local_model_benefit_effect_uses_scenarios_and_verifiers(self):
+        runs = [
+            {
+                "scenario": "word_count_bugfix",
+                "mode": "bare",
+                "model_exit_code": 0,
+                "verify_exit_code": 1,
+                "model_duration_seconds": 1.0,
+                "mythify_records": {"verifications": 0, "plans": 0},
+            },
+            {
+                "scenario": "word_count_bugfix",
+                "mode": "mythify",
+                "mythify_profile": "fast",
+                "model_exit_code": 0,
+                "verify_exit_code": 0,
+                "model_duration_seconds": 2.0,
+                "mythify_records": {"verifications": 1, "plans": 0},
+            },
+        ]
+        effect = local_model_eval.local_model_benefit_effect(runs, ["word_count_bugfix"])
+
+        self.assertEqual(effect["candidate_categories"], ["string_processing_bugfix"])
+        self.assertEqual(effect["scenarios"][0]["local_model_candidate_roles"], ["reader", "triage"])
+        self.assertEqual(effect["scenarios"][0]["observed_benefit"], "positive")
+        self.assertEqual(effect["scenarios"][0]["verified_success_rate_delta"], 1.0)
+        self.assertEqual(effect["categories"][0]["mythify_verified_success_rate"], 1.0)
+        self.assertIn("provider-specific benefit requires rerunning", effect["caveat"])
 
     def test_standard_profile_requires_plan_evidence(self):
         worker = self.write_worker()
