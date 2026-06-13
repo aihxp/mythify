@@ -28,7 +28,7 @@ from pathlib import Path
 WORKSPACE_DIR_NAME = ".mythify"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
-PROTOCOL_SOURCE_SHA256 = "8cb2b57cb4b889fc01771ae5e4844de53d3a80592741ed3005ea7d3bb1976129"
+PROTOCOL_SOURCE_SHA256 = "2a721de8f6dc2c8c07eaf1a7f58b301f1c4bdf1f5399c54b398ebc35eaaf6001"
 PROTOCOL_HASH_PREFIX = "<!-- Mythify protocol-sha256: "
 PROTOCOL_COPY_CANDIDATES = ("CLAUDE.md", "AGENTS.md", ".cursorrules")
 NO_WORKSPACE_MESSAGE = (
@@ -3126,6 +3126,157 @@ def cmd_dashboard(args, state):
     return 0
 
 
+VERIFICATION_HISTORY_ICONS = {
+    "passed": "[x]",
+    "failed": "[!]",
+    "attested": "[~]",
+    "unknown": "[ ]",
+}
+
+
+def verification_verdict(record):
+    if record.get("kind") == "attested":
+        return "attested"
+    if record.get("kind") == "executed" and record.get("verified") is True:
+        return "passed"
+    if record.get("kind") == "executed" and record.get("verified") is False:
+        return "failed"
+    return "unknown"
+
+
+def summarize_verification_record(record, index):
+    kind = record.get("kind", "unknown")
+    verdict = verification_verdict(record)
+    summary = {
+        "index": index,
+        "kind": kind,
+        "verdict": verdict,
+        "timestamp": record.get("timestamp", ""),
+        "claim": record.get("claim"),
+        "verified": record.get("verified"),
+        "plan": record.get("plan"),
+        "step_id": record.get("step_id"),
+        "step_title": record.get("step_title"),
+        "step_status": record.get("step_status"),
+    }
+    if kind == "executed":
+        summary.update(
+            {
+                "command": record.get("command", ""),
+                "exit_code": record.get("exit_code"),
+                "duration_seconds": record.get("duration_seconds", 0),
+                "stdout_tail_bytes": len(record.get("stdout_tail", "") or ""),
+                "stderr_tail_bytes": len(record.get("stderr_tail", "") or ""),
+            }
+        )
+    elif kind == "attested":
+        summary.update(
+            {
+                "evidence": record.get("evidence", ""),
+            }
+        )
+    return summary
+
+
+def build_verification_history_view(state, recent=10):
+    records = read_jsonl(state / "verifications.jsonl")
+    rows = [
+        summarize_verification_record(record, index + 1)
+        for index, record in enumerate(records)
+    ]
+    executed = [row for row in rows if row["kind"] == "executed"]
+    counts = {
+        "total": len(rows),
+        "executed": len(executed),
+        "executed_passed": sum(1 for row in executed if row["verdict"] == "passed"),
+        "executed_failed": sum(1 for row in executed if row["verdict"] == "failed"),
+        "attested": sum(1 for row in rows if row["kind"] == "attested"),
+        "unknown": sum(1 for row in rows if row["verdict"] == "unknown"),
+    }
+    if recent <= 0:
+        recent_rows = []
+    else:
+        recent_rows = list(reversed(rows[-recent:]))
+    return {
+        "state_dir": str(state),
+        "records": recent_rows,
+        "counts": counts,
+        "guardrail": (
+            "history displays recorded evidence only; it does not rerun checks "
+            "or upgrade attested claims"
+        ),
+    }
+
+
+def verification_label(row):
+    return compact_label(
+        row.get("claim") or row.get("command") or row.get("evidence"),
+        "verification",
+    )
+
+
+def format_verification_history_row(row):
+    icon = VERIFICATION_HISTORY_ICONS.get(row.get("verdict"), "[ ]")
+    label = verification_label(row)
+    prefix = "  {0} {1} #{2} {3}: {4}".format(
+        icon,
+        row.get("timestamp") or "unknown-time",
+        row.get("index"),
+        row.get("verdict"),
+        label,
+    )
+    details = []
+    if row.get("kind") == "executed":
+        details.append("exit {0}".format(row.get("exit_code")))
+        details.append("{0}s".format(row.get("duration_seconds", 0)))
+        if row.get("stdout_tail_bytes"):
+            details.append("stdout {0} bytes".format(row.get("stdout_tail_bytes")))
+        if row.get("stderr_tail_bytes"):
+            details.append("stderr {0} bytes".format(row.get("stderr_tail_bytes")))
+    elif row.get("kind") == "attested":
+        details.append("self-reported")
+    if row.get("plan"):
+        step = row.get("step_id")
+        if step is not None:
+            details.append("plan {0} step {1}".format(row.get("plan"), step))
+        else:
+            details.append("plan {0}".format(row.get("plan")))
+    if details:
+        prefix += " ({0})".format("; ".join(details))
+    return prefix
+
+
+def format_verification_history_view(view):
+    lines = ["[OK] Verification history: {0}".format(view["state_dir"])]
+    counts = view["counts"]
+    lines.append(
+        "Evidence: {0} executed ({1} passed, {2} failed), {3} attested, {4} total".format(
+            counts["executed"],
+            counts["executed_passed"],
+            counts["executed_failed"],
+            counts["attested"],
+            counts["total"],
+        )
+    )
+    if view["records"]:
+        lines.append("Recent verification:")
+        for row in view["records"]:
+            lines.append(format_verification_history_row(row))
+    else:
+        lines.append("No verification records found.")
+    lines.append("Guardrail: {0}.".format(view["guardrail"]))
+    return "\n".join(lines)
+
+
+def cmd_history(args, state):
+    view = build_verification_history_view(state, args.recent)
+    if args.json_output:
+        print(json.dumps(view, indent=2))
+    else:
+        print(format_verification_history_view(view))
+    return 0
+
+
 BACKGROUND_STATUS_ICONS = {
     "active": "[>]",
     "running": "[>]",
@@ -4897,6 +5048,24 @@ def build_parser():
     )
     p.add_argument("--json", dest="json_output", action="store_true", help="Print JSON.")
     p.set_defaults(handler=cmd_dashboard)
+
+    p = sub.add_parser(
+        "history",
+        help="Show a read-only verification history.",
+        description=(
+            "Read-only verification history: executed and attested verification "
+            "records, verdicts, commands, exit codes, duration, and plan or step "
+            "context from durable state."
+        ),
+    )
+    p.add_argument(
+        "--recent",
+        type=int,
+        default=10,
+        help="Number of recent verification records to show. Defaults to 10.",
+    )
+    p.add_argument("--json", dest="json_output", action="store_true", help="Print JSON.")
+    p.set_defaults(handler=cmd_history)
 
     p = sub.add_parser(
         "background",

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CLI `history` and MCP `verification_history` read-only verification history
+  views. The view shows executed and attested records, verdicts, exit codes,
+  duration, and plan or step context without rerunning checks or upgrading
+  attested claims.
 - CLI `timeline` and MCP `fanout_timeline` read-only fanout worker timeline
   views. The view shows durable job creation, task starts, task finishes,
   duration, status, errors, and output metadata without mutating state or

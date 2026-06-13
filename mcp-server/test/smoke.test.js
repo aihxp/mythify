@@ -484,6 +484,35 @@ test("mythify MCP server smoke test", async (t) => {
       assert.equal(parsed.counts.memory, 1);
     });
 
+    await t.test("verification_history shows read-only evidence history", async () => {
+      const before = snapshotStateDir(stateDir);
+      const text = textOf(
+        await client.callTool({
+          name: "verification_history",
+          arguments: { recent: 2 },
+        })
+      );
+      assert.ok(text.startsWith("[OK] Verification history"), `verification_history reports [OK]: ${text}`);
+      assert.match(text, /Evidence: 2 executed \(1 passed, 1 failed\), 0 attested, 2 total/);
+      assert.match(text, /passed: node can exit zero/);
+      assert.match(text, /failed: node -e "process.exit\(3\)"/);
+      assert.deepEqual(snapshotStateDir(stateDir), before, "verification_history leaves state unchanged");
+
+      const jsonText = textOf(
+        await client.callTool({
+          name: "verification_history",
+          arguments: { recent: 2, format: "json" },
+        })
+      );
+      const parsed = JSON.parse(jsonText.replace(/^\[OK\] /, ""));
+      assert.equal(parsed.counts.executed_passed, 1);
+      assert.equal(parsed.counts.executed_failed, 1);
+      assert.deepEqual(
+        parsed.records.map((record) => record.verdict),
+        ["failed", "passed"]
+      );
+    });
+
     await t.test("phase_status groups plan steps without mutation", async () => {
       const before = snapshotStateDir(stateDir);
       const text = textOf(

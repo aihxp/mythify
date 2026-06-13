@@ -99,6 +99,7 @@ Reorient any time with `status`. Report the whole session with `summary`.
 | `protocol check [PATH ...] [--json]` | Verify copied protocol files match the CLI's embedded source protocol hash. |
 | `status` | Orient: active plan, next pending step, state counts. |
 | `dashboard [--recent N] [--json]` | Read-only workflow dashboard: active plan, current and next step, active outcome, evidence counts, recent verification records, and recent reflections. |
+| `history [--recent N] [--json]` | Read-only verification history: executed and attested records, verdicts, exit codes, duration, and plan or step context. |
 | `background [--recent N] [--json]` | Read-only background task view: outcome loops, fanout jobs, task counts, current statuses, and next actions from durable state. |
 | `timeline [--recent N] [--json]` | Read-only fanout worker timeline: task start and finish events, duration, status, errors, and output metadata from durable state. |
 | `phase [--recent N] [--json]` | Read-only phase view: active plan steps grouped into Understand, Design, Build, Judge, and Verify, with durable evidence counts. |
@@ -133,14 +134,15 @@ Reorient any time with `status`. Report the whole session with `summary`.
 ## MCP note
 
 Clients using the Mythify MCP server instead of the CLI get the same contract
-through exactly 33 tools: `classify_task`, `host_model_switch`,
+through exactly 34 tools: `classify_task`, `host_model_switch`,
 `provider_probe`, `local_model_run`, `host_cli_probe`, `host_cli_run`,
 `execution_probe`, `execution_run`, `lifecycle_probe`, `outcome_start`, `outcome_check`,
 `outcome_status`,
 `outcome_results`, `outcome_stop`, `memory_store`, `memory_recall`,
 `memory_clear`, `lesson_record`, `lesson_recall`, `plan_create`,
 `plan_add_step`, `plan_update_step`, `plan_status`, `workflow_status`,
-`background_status`, `fanout_timeline`, `phase_status`, `verify_run`,
+`verification_history`, `background_status`, `fanout_timeline`,
+`phase_status`, `verify_run`,
 `verify_claim`, `reflect`, plus the parallel delegation tools `fanout_start`,
 `fanout_status`, and `fanout_results`. Same
 state directory, same file formats, same evidence rules:
@@ -166,9 +168,11 @@ state and returns remote output as material, not verification evidence.
 Google Agents CLI and ADK CLI availability with version, help, and eval-help
 commands without scaffolding projects, running evals, deploying, publishing,
 mutating cloud resources, or writing project state. Probe output is material,
-not verification evidence. `fanout_timeline` shows durable worker task timing,
-status, errors, and output metadata without mutating state or treating worker
-output as verification evidence. `phase_status` groups active plan steps into
+not verification evidence. `verification_history` shows recorded executed and
+attested evidence without rerunning checks or upgrading attested claims.
+`fanout_timeline` shows durable worker task timing, status, errors, and output
+metadata without mutating state or treating worker output as verification
+evidence. `phase_status` groups active plan steps into
 Understand, Design, Build, Judge, and Verify using durable state only; it does
 not mutate state or treat model confidence as progress. `classify_task` mirrors CLI triage and model
 policy. Fanout workers accept `engine`, `model`, `effort`, `speed`, and

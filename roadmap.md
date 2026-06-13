@@ -21,12 +21,13 @@ Status markers:
 
 ## Active Now
 
-- [>] Verification history.
-  - Current goal: expose recent verification evidence in a scan-friendly view.
-  - Next step: map executed and attested verification records into filterable
-    history without changing verification semantics.
-  - Guardrail: history displays recorded evidence; it does not rerun checks or
-    upgrade attested claims into verified evidence.
+- [>] Outcome loop progress.
+  - Current goal: show active and recent outcome loops with iteration progress,
+    last verifier result, and next action.
+  - Next step: map outcome goal files and iteration logs into progress rows
+    without changing outcome control semantics.
+  - Guardrail: progress displays recorded verifier results; it does not make
+    attempts, stop loops, or treat notes as verification.
 
 ## Next Queue
 
@@ -213,14 +214,15 @@ Already shipped in this track:
 
 What remains:
 
-- [>] Verification history.
-- [ ] Outcome loop progress.
+- [>] Outcome loop progress.
 - [ ] Release readiness view.
 
 Principle: reveal evidence, do not decorate self-report.
 
 Already shipped in this track:
 
+- [x] Verification history through CLI `history` and MCP
+  `verification_history`.
 - [x] Fanout worker timeline through CLI `timeline` and MCP
   `fanout_timeline`.
 - [x] Phase view for Understand, Design, Build, Judge, Verify through CLI
@@ -251,6 +253,10 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add read-only verification history. CLI `history` and MCP
+  `verification_history` show executed and attested records, verdicts, exit
+  codes, duration, and plan or step context without rerunning checks or
+  upgrading attested claims.
 - [x] 2026-06-13: add read-only fanout worker timeline. CLI `timeline` and MCP
   `fanout_timeline` show durable job creation, task starts, task finishes,
   duration, status, errors, and output metadata without mutating state or

@@ -1659,6 +1659,29 @@ class TestStatusAndSummary(CliTestCase):
         self.assertEqual(len(payload["verification_summary"]["recent"]), 1)
         self.assertEqual(payload["reflection_summary"]["recent"][0]["next"], "frame walls")
 
+    def test_history_shows_verification_records_without_mutation(self):
+        self.populate()
+        state = self.project / ".mythify"
+        before = self.state_snapshot(state)
+
+        result = self.run_cli("history", "--recent", "3")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("[OK] Verification history", result.stdout)
+        self.assertIn("Evidence: 2 executed (1 passed, 1 failed), 1 attested, 3 total", result.stdout)
+        self.assertIn("attested: permits filed", result.stdout)
+        self.assertIn("failed:", result.stdout)
+        self.assertIn("passed:", result.stdout)
+        self.assertIn("Guardrail: history displays recorded evidence only", result.stdout)
+        self.assertEqual(self.state_snapshot(state), before)
+
+        json_result = self.run_cli("history", "--json", "--recent", "3")
+        self.assertEqual(json_result.returncode, 0, json_result.stderr)
+        payload = json.loads(json_result.stdout)
+        self.assertEqual(payload["counts"]["executed_passed"], 1)
+        self.assertEqual(payload["counts"]["executed_failed"], 1)
+        self.assertEqual(payload["counts"]["attested"], 1)
+        self.assertEqual([row["verdict"] for row in payload["records"]], ["attested", "failed", "passed"])
+
     def test_background_includes_outcomes_and_fanout_jobs_without_mutation(self):
         state = self.init_workspace()
         start = self.run_cli(

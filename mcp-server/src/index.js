@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Mythify MCP server v2.5.0
 // Exposes the Mythify state model (memory, plans, lessons, verifications,
-// reflections) as 30 core MCP tools over stdio, plus the 3 fanout tools for
-// parallel delegation (src/fanout.js), 33 tools in total. On-disk formats are
+// reflections) as 31 core MCP tools over stdio, plus the 3 fanout tools for
+// parallel delegation (src/fanout.js), 34 tools in total. On-disk formats are
 // shared with the Python CLI (scripts/mythify.py); both implementations must
 // interoperate on the same .mythify state directory. Fanout is MCP-only; the
 // CLI deliberately does not implement it.
@@ -1035,6 +1035,133 @@ function formatWorkflowDashboard(dashboard) {
       lines.push(`  - ${record.outcome || "unknown"}: ${record.action || ""}; next ${record.next || ""}`);
     }
   }
+  return lines.join("\n");
+}
+
+const VERIFICATION_HISTORY_ICONS = {
+  passed: "[x]",
+  failed: "[!]",
+  attested: "[~]",
+  unknown: "[ ]",
+};
+
+function verificationVerdict(record) {
+  if (record.kind === "attested") {
+    return "attested";
+  }
+  if (record.kind === "executed" && record.verified === true) {
+    return "passed";
+  }
+  if (record.kind === "executed" && record.verified === false) {
+    return "failed";
+  }
+  return "unknown";
+}
+
+function summarizeVerificationRecord(record, index) {
+  const kind = record.kind || "unknown";
+  const verdict = verificationVerdict(record);
+  const summary = {
+    index,
+    kind,
+    verdict,
+    timestamp: record.timestamp || "",
+    claim: record.claim,
+    verified: record.verified,
+    plan: record.plan,
+    step_id: record.step_id,
+    step_title: record.step_title,
+    step_status: record.step_status,
+  };
+  if (kind === "executed") {
+    return {
+      ...summary,
+      command: record.command || "",
+      exit_code: record.exit_code,
+      duration_seconds: record.duration_seconds || 0,
+      stdout_tail_bytes: String(record.stdout_tail || "").length,
+      stderr_tail_bytes: String(record.stderr_tail || "").length,
+    };
+  }
+  if (kind === "attested") {
+    return {
+      ...summary,
+      evidence: record.evidence || "",
+    };
+  }
+  return summary;
+}
+
+function buildVerificationHistoryView(recent = 10) {
+  const rows = readJsonl(verificationsPath()).map((record, index) =>
+    summarizeVerificationRecord(record, index + 1)
+  );
+  const executed = rows.filter((row) => row.kind === "executed");
+  const recentRows = recent <= 0 ? [] : rows.slice(Math.max(0, rows.length - recent)).reverse();
+  return {
+    state_dir: resolveStateDir(),
+    records: recentRows,
+    counts: {
+      total: rows.length,
+      executed: executed.length,
+      executed_passed: executed.filter((row) => row.verdict === "passed").length,
+      executed_failed: executed.filter((row) => row.verdict === "failed").length,
+      attested: rows.filter((row) => row.kind === "attested").length,
+      unknown: rows.filter((row) => row.verdict === "unknown").length,
+    },
+    guardrail: "history displays recorded evidence only; it does not rerun checks or upgrade attested claims",
+  };
+}
+
+function verificationLabel(row) {
+  return compactLabel(row.claim || row.command || row.evidence, "verification");
+}
+
+function formatVerificationHistoryRow(row) {
+  const icon = VERIFICATION_HISTORY_ICONS[row.verdict] || "[ ]";
+  let line = `  ${icon} ${row.timestamp || "unknown-time"} #${row.index} ${row.verdict}: ${verificationLabel(row)}`;
+  const details = [];
+  if (row.kind === "executed") {
+    details.push(`exit ${row.exit_code}`);
+    details.push(`${row.duration_seconds || 0}s`);
+    if (row.stdout_tail_bytes) {
+      details.push(`stdout ${row.stdout_tail_bytes} bytes`);
+    }
+    if (row.stderr_tail_bytes) {
+      details.push(`stderr ${row.stderr_tail_bytes} bytes`);
+    }
+  } else if (row.kind === "attested") {
+    details.push("self-reported");
+  }
+  if (row.plan) {
+    if (row.step_id !== null && row.step_id !== undefined) {
+      details.push(`plan ${row.plan} step ${row.step_id}`);
+    } else {
+      details.push(`plan ${row.plan}`);
+    }
+  }
+  if (details.length > 0) {
+    line += ` (${details.join("; ")})`;
+  }
+  return line;
+}
+
+function formatVerificationHistoryView(view) {
+  const lines = [`[OK] Verification history: ${view.state_dir}`];
+  const counts = view.counts;
+  lines.push(
+    `Evidence: ${counts.executed} executed (${counts.executed_passed} passed, ` +
+      `${counts.executed_failed} failed), ${counts.attested} attested, ${counts.total} total`
+  );
+  if (view.records.length > 0) {
+    lines.push("Recent verification:");
+    for (const row of view.records) {
+      lines.push(formatVerificationHistoryRow(row));
+    }
+  } else {
+    lines.push("No verification records found.");
+  }
+  lines.push(`Guardrail: ${view.guardrail}.`);
   return lines.join("\n");
 }
 
@@ -5378,6 +5505,32 @@ server.registerTool(
       return `[OK] ${JSON.stringify(dashboard, null, 2)}`;
     }
     return formatWorkflowDashboard(dashboard);
+  })
+);
+
+server.registerTool(
+  "verification_history",
+  {
+    title: "Show verification history",
+    description:
+      "Show a read-only history of executed and attested verification records, including verdict, command or evidence, exit code, duration, and plan or step context. " +
+      "Use this to inspect recorded evidence without rerunning checks or upgrading self-reported attestations.",
+    inputSchema: {
+      recent: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe("Number of recent verification records to include. Defaults to 10."),
+      format: z.enum(["text", "json"]).optional().describe("Return text or JSON. Defaults to text."),
+    },
+  },
+  guarded(({ recent, format }) => {
+    const view = buildVerificationHistoryView(typeof recent === "number" ? recent : 10);
+    if (format === "json") {
+      return `[OK] ${JSON.stringify(view, null, 2)}`;
+    }
+    return formatVerificationHistoryView(view);
   })
 );
 
