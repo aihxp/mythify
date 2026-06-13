@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Host-confirmed model fields. CLI and MCP host-model records now include
+  `host_confirmation`, separating requested model, user-reported current model,
+  confirmation status, confirmation source, timestamps, and unsupported
+  reasons without claiming the host current chat changed.
 - Hosted provider fanout guardrails. The `anthropic` and `openai` fanout
   engines now require explicit billing, data-transmission, and material-only
   acknowledgements before a job starts; refusal happens before job or audit

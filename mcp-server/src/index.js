@@ -372,6 +372,25 @@ function buildHostSwitchResult(platform, targetModel, currentModel, thinking, sp
   };
 }
 
+function buildHostConfirmation(targetModel, currentModel, thinking, capability, checkedAt) {
+  const canConfirm = Boolean(capability.can_confirm_current_model);
+  return {
+    requested_model: targetModel,
+    user_reported_current_model: currentModel,
+    user_reported_current_thinking: thinking !== "auto" ? thinking : "",
+    current_model_confirmed: false,
+    confirmed_current_model: "",
+    confirmed_current_thinking: "",
+    confirmation_status: canConfirm ? "unconfirmed" : "unsupported",
+    confirmation_source: "none",
+    confirmation_checked_at: checkedAt || "",
+    confirmed_at: "",
+    unsupported_reason: canConfirm
+      ? "host_adapter_has_not_confirmed_current_model"
+      : "host_capability_cannot_confirm_current_model",
+  };
+}
+
 function withHostCapability(record) {
   if (!record || typeof record !== "object" || Array.isArray(record)) {
     return record;
@@ -382,6 +401,8 @@ function withHostCapability(record) {
     : hostCapabilityForRecord(platform);
   const thinking = normalizeHostThinking(record.thinking || "auto");
   const speed = normalizeHostSpeed(record.speed || "auto");
+  const targetModel = String(record.target_model || "").trim();
+  const currentModel = String(record.current_model || "").trim();
   return {
     ...record,
     host_capability: capability,
@@ -391,11 +412,21 @@ function withHostCapability(record) {
         ? record.switch_result
         : buildHostSwitchResult(
             platform,
-            String(record.target_model || "").trim(),
-            String(record.current_model || "").trim(),
+            targetModel,
+            currentModel,
             thinking,
             speed,
             capability
+          ),
+    host_confirmation:
+      record.host_confirmation && typeof record.host_confirmation === "object"
+        ? record.host_confirmation
+        : buildHostConfirmation(
+            targetModel,
+            currentModel,
+            thinking,
+            capability,
+            String(record.updated || "")
           ),
   };
 }
@@ -408,6 +439,7 @@ function buildHostModelRecord({ platform, target_model, current_model, thinking,
   const currentModel = String(current_model || "").trim();
   const actions = hostSwitchActions(resolvedPlatform, targetModel, resolvedThinking, resolvedSpeed);
   const capability = hostCapabilityForRecord(resolvedPlatform);
+  const updated = isoNow();
   return {
     platform: resolvedPlatform,
     requested_platform: normalizeHostPlatform(platform || "auto"),
@@ -429,7 +461,14 @@ function buildHostModelRecord({ platform, target_model, current_model, thinking,
       resolvedSpeed,
       capability
     ),
-    updated: isoNow(),
+    host_confirmation: buildHostConfirmation(
+      targetModel,
+      currentModel,
+      resolvedThinking,
+      capability,
+      updated
+    ),
+    updated,
     host_actions: actions,
   };
 }
@@ -442,11 +481,14 @@ function formatHostModelRecord(record) {
   const withCapability = withHostCapability(record);
   const capability = withCapability.host_capability || hostCapabilityForRecord(withCapability.platform);
   const switchResult = withCapability.switch_result || {};
+  const confirmation = withCapability.host_confirmation || {};
   const lines = [
     `[OK] Host model switch ${withCapability.status}.`,
     `platform: ${withCapability.platform}`,
     `target model: ${withCapability.target_model} (tier ${withCapability.target_model_tier})`,
     `current model: ${withCapability.current_model || "unknown"}`,
+    `host-confirmed model: ${confirmation.confirmed_current_model || confirmation.confirmation_status || "unsupported"}`,
+    `confirmation source: ${confirmation.confirmation_source || "none"}`,
     `thinking: ${withCapability.thinking}`,
     `speed: ${withCapability.speed}`,
     `switch status: ${switchResult.status || "manual"}`,

@@ -567,16 +567,32 @@ class TestClassification(CliTestCase):
         self.assertFalse(record["switch_result"]["current_chat_confirmed"])
         self.assertTrue(record["switch_result"]["manual_action_required"])
         self.assertEqual(record["switch_result"]["applied_by"], "none")
+        self.assertEqual(record["host_confirmation"]["requested_model"], "gpt-5.4")
+        self.assertEqual(
+            record["host_confirmation"]["user_reported_current_model"],
+            "gpt-5.3-codex",
+        )
+        self.assertFalse(record["host_confirmation"]["current_model_confirmed"])
+        self.assertEqual(record["host_confirmation"]["confirmed_current_model"], "")
+        self.assertEqual(record["host_confirmation"]["confirmation_status"], "unsupported")
+        self.assertEqual(record["host_confirmation"]["confirmation_source"], "none")
+        self.assertEqual(
+            record["host_confirmation"]["unsupported_reason"],
+            "host_capability_cannot_confirm_current_model",
+        )
         self.assertTrue((state / "host-model.json").exists())
 
         status_json = self.run_cli("host-model", "status", "--json")
         self.assertEqual(status_json.returncode, 0, status_json.stderr)
         status_record = json.loads(status_json.stdout)
         self.assertEqual(status_record["switch_result"]["status"], "manual")
+        self.assertEqual(status_record["host_confirmation"]["confirmation_status"], "unsupported")
         status_text = self.run_cli("host-model", "status")
         self.assertEqual(status_text.returncode, 0, status_text.stderr)
         self.assertIn("switch status: manual", status_text.stdout)
         self.assertIn("current-chat confirmed: no", status_text.stdout)
+        self.assertIn("host-confirmed model: unsupported", status_text.stdout)
+        self.assertIn("confirmation source: none", status_text.stdout)
         self.assertIn("current-chat switch: no", status_text.stdout)
         self.assertIn("new-thread model: yes", status_text.stdout)
 
@@ -624,6 +640,8 @@ class TestClassification(CliTestCase):
         self.assertEqual(record["host_capability"]["status"], "supported")
         self.assertEqual(record["switch_result"]["status"], "manual")
         self.assertFalse(record["switch_result"]["current_chat_confirmed"])
+        self.assertEqual(record["host_confirmation"]["confirmation_status"], "unsupported")
+        self.assertFalse(record["host_confirmation"]["current_model_confirmed"])
 
     def test_classify_vague_short_request_recommends_model_triage(self):
         result = self.run_cli("classify", "make this better", "--json")

@@ -21,14 +21,15 @@ Status markers:
 
 ## Active Now
 
-- [>] Host-confirmed model fields.
-  - Current goal: record host-confirmed current model information only where a
-    host can actually provide it.
-  - Next step: map current `host_model_switch` status records, capability
-    registry fields, and host adapter candidates before adding any
-    confirmation fields.
-  - Guardrail: Mythify may record requested model changes, but it must not
-    claim the current host chat changed unless the host confirms it.
+- [>] Host adapter proof scan.
+  - Current goal: determine whether any installed or documented host exposes a
+    local capability to apply or confirm model and thinking changes.
+  - Next step: map Codex, Claude, Cursor, Kimi, OpenCode, and Antigravity host
+    apply or confirm candidates using probes and official local interfaces
+    only.
+  - Guardrail: this run may probe and design, but it must not mutate host
+    state or claim the current host chat changed without executed host
+    confirmation evidence.
 
 ## Next Queue
 
@@ -91,8 +92,8 @@ Role model:
 
 What remains:
 
+- [>] Scan host adapter proof candidates for apply or confirm capability.
 - [ ] Apply model or thinking changes when a host exposes a real capability.
-- [>] Add host-confirmed current model fields where supported.
 - [ ] Add adapter execution tests once a host exposes apply or confirm APIs.
 
 Already shipped in this track:
@@ -106,6 +107,9 @@ Already shipped in this track:
   status, and per-host capability fields.
 - [x] Focused tests cover current public capability fields for requested host
   switch records.
+- [x] `host_confirmation` separates requested model, user-reported current
+  model, confirmation status, source, timestamps, and unsupported states
+  without treating user input as host proof.
 
 Core rule: Mythify can recommend or request a host model switch, but it should
 not pretend the switch happened unless the host adapter confirms it.
@@ -284,6 +288,11 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add host-confirmed model fields. CLI and MCP
+  `host_model_switch` records now include `host_confirmation`, separating
+  requested model, user-reported current model, confirmation status,
+  confirmation source, timestamps, and unsupported reasons without claiming
+  that the host current chat changed.
 - [x] 2026-06-13: add hosted provider fanout guardrails.
   The `anthropic` and `openai` fanout engines now require explicit billing,
   data-transmission, and material-only acknowledgements before a job starts,
@@ -524,8 +533,8 @@ Preserve:
 - [x] Generic OpenAI-compatible localhost adapter.
 - [x] Ollama setup profile.
 - [x] LM Studio setup profile.
-- [ ] Host adapter proof of concept for model and thinking overrides where the
-  host exposes them.
+- [>] Host adapter proof scan for model and thinking overrides where the host
+  exposes them.
 
 ### v2.8
 

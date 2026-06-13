@@ -444,6 +444,19 @@ host-model.json:
     "applied_by": "none",
     "reason": "host_current_chat_unconfirmed"
   },
+  "host_confirmation": {
+    "requested_model": "str",
+    "user_reported_current_model": "str",
+    "user_reported_current_thinking": "",
+    "current_model_confirmed": false,
+    "confirmed_current_model": "",
+    "confirmed_current_thinking": "",
+    "confirmation_status": "unsupported|unconfirmed|confirmed|blocked",
+    "confirmation_source": "none|host_adapter",
+    "confirmation_checked_at": "ISO-8601",
+    "confirmed_at": "",
+    "unsupported_reason": "host_capability_cannot_confirm_current_model"
+  },
   "updated": "ISO-8601",
   "host_actions": ["str"]
 }
@@ -465,9 +478,17 @@ Host model switch status rules:
   change cannot be requested or applied.
 - `current_chat_confirmed` must stay `false` unless `host_capability` has
   `can_confirm_current_model: true` and the host returns positive evidence.
+- `host_confirmation.current_model_confirmed` must stay `false` unless a host
+  adapter returns positive current-chat evidence. User-supplied
+  `current_model` is recorded as `user_reported_current_model`, not proof.
+- `host_confirmation.confirmation_status` is `unsupported` when the capability
+  registry cannot confirm the current model, `unconfirmed` when a future
+  adapter can check but has not produced evidence, `confirmed` only after
+  positive host evidence, and `blocked` only after adapter evidence proves
+  confirmation cannot be performed.
 - CLI and MCP status output must expose `host_capability`, `can_apply_current_chat`,
-  and `switch_result` so callers can distinguish desired state from host-confirmed
-  state.
+  `switch_result`, and `host_confirmation` so callers can distinguish desired
+  state, user-reported state, and host-confirmed state.
 
 outcomes/&lt;slug&gt;/goal.json:
 
@@ -672,7 +693,7 @@ does AND when to use it, since descriptions drive tool selection.
 | Tool | Input schema | Behavior |
 | :--- | :--- | :--- |
 | `classify_task` | `{task: string, format?: enum(text, json), triage?: enum(never, auto, always), triage_engine?: enum(claude-cli, codex-cli, cursor-agent, command), triage_model?: string, triage_timeout_seconds?: number, platform?: enum(auto, unknown, codex-desktop, codex-cli, claude-desktop, claude-code, cursor-desktop, cursor-agent), effort?: enum(auto, low, medium, high), speed?: enum(auto, standard, fast), session_model?: string, spawn_ceiling?: enum(auto, lower_only, same_or_lower, allow_stronger), reviewer_strength?: enum(auto, same_or_lower, allow_stronger)}` | Classify a task before planning. Returns task type, risk, ambiguity, ceremony level, execution profile, verification strategy, fanout recommendation, fast model triage fit, model policy, task-based host recommendation, signals, and next action. With `triage: auto`, run one fast local model only when the deterministic gate recommends it. |
-| `host_model_switch` | `{action?: enum(switch, status, clear), platform?: enum(auto, unknown, codex-desktop, codex-cli, claude-desktop, claude-code, cursor-desktop, cursor-agent), target_model?: string, current_model?: string, thinking?: enum(auto, low, medium, high, xhigh, max), speed?: enum(auto, standard, fast), reason?: string, format?: enum(text, json)}` | Record, show, or clear a requested host chat model switch. `switch` writes `.mythify/host-model.json`, returns platform-specific switch guidance, registry-backed `host_capability`, and `switch_result`, and makes later `classify_task` and `fanout_start` calls use the recorded target as the session model when no explicit or env session model is supplied. It does not claim to mutate the current host chat unless a future host integration exposes that capability and confirms the result. |
+| `host_model_switch` | `{action?: enum(switch, status, clear), platform?: enum(auto, unknown, codex-desktop, codex-cli, claude-desktop, claude-code, cursor-desktop, cursor-agent), target_model?: string, current_model?: string, thinking?: enum(auto, low, medium, high, xhigh, max), speed?: enum(auto, standard, fast), reason?: string, format?: enum(text, json)}` | Record, show, or clear a requested host chat model switch. `switch` writes `.mythify/host-model.json`, returns platform-specific switch guidance, registry-backed `host_capability`, `switch_result`, and `host_confirmation`, and makes later `classify_task` and `fanout_start` calls use the recorded target as the session model when no explicit or env session model is supplied. It does not claim to mutate or confirm the current host chat unless a future host integration exposes that capability and confirms the result. |
 | `provider_probe` | `{provider?: enum(generic-openai-compatible, ollama, lm-studio, llama-cpp, vllm), base_url?: string, model?: string, check?: enum(models, chat, both), api_key_env?: string, timeout_seconds?: number, prompt?: string, format?: enum(text, json)}` | Probe an OpenAI-compatible provider by calling `/v1/models` and, when requested, `/v1/chat/completions`. Generic defaults: `MYTHIFY_OPENAI_COMPAT_BASE_URL`, `MYTHIFY_OPENAI_COMPAT_MODEL`, and `MYTHIFY_OPENAI_COMPAT_API_KEY`. `provider: "ollama"` defaults to `MYTHIFY_OLLAMA_BASE_URL` or `http://localhost:11434/v1`; `provider: "lm-studio"` defaults to `MYTHIFY_LM_STUDIO_BASE_URL` or `http://localhost:1234/v1`; `provider: "llama-cpp"` defaults to `MYTHIFY_LLAMA_CPP_BASE_URL` or `http://localhost:8080/v1`; `provider: "vllm"` defaults to `MYTHIFY_VLLM_BASE_URL` or `http://localhost:8000/v1`. Local profiles use provider-specific model env vars and no auth header by default. Returns provider availability, model presence, chat response tail, and `material_not_evidence: true`. It does not write state, spawn workers, or count as verification evidence. |
 | `local_model_run` | `{provider?: enum(generic-openai-compatible, ollama, lm-studio, llama-cpp, vllm), role?: enum(reader, triage), base_url?: string, model?: string, prompt: string, api_key_env?: string, timeout_seconds?: number, max_tokens?: number, format?: enum(text, json)}` | Run a role-limited prompt against a localhost OpenAI-compatible provider. Generic defaults: `MYTHIFY_OPENAI_COMPAT_BASE_URL`, `MYTHIFY_OPENAI_COMPAT_MODEL`, and `MYTHIFY_OPENAI_COMPAT_API_KEY`. `provider: "ollama"`, `provider: "lm-studio"`, `provider: "llama-cpp"`, and `provider: "vllm"` default to local profiles. The base URL must be `localhost`, `127.0.0.1`, `::1`, or `0.0.0.0`. Returns model output with `material_not_evidence: true`, `evidence_status: "model_output_not_verification"`, `writes_state: false`, and `verification_recorded: false`. It does not edit files, run commands, write state, or count model output as verification evidence. |
 | `host_cli_probe` | `{host?: enum(kimi-code, opencode, antigravity), bin?: string, timeout_seconds?: number, format?: enum(text, json)}` | Probe Kimi Code, OpenCode, or Antigravity CLI availability by running only version and help commands. Defaults to `MYTHIFY_KIMI_BIN`, `MYTHIFY_OPENCODE_BIN`, or `MYTHIFY_ANTIGRAVITY_BIN`, then PATH and common install paths. Returns binary resolution, feature evidence, `can_run_noninteractive_prompt`, and `material_not_evidence: true`. It does not execute a prompt, write state, spawn workers, or count as verification evidence. Antigravity MCP setup guidance lives in `docs/antigravity-mcp-setup.md`; the probe does not install or mutate MCP config. |
@@ -776,7 +797,8 @@ Classification always returns `model_policy`. It separates:
   tier, effort policy, spawn ceiling, and `recommendation`.
   `host_model_switch` records intended host model changes in
   `.mythify/host-model.json`; the host still owns the actual current chat
-  model switch.
+  model switch. The optional `host_confirmation` record separates
+  user-reported current model input from host-confirmed current model evidence.
 - `session.recommendation`: task-based host settings with `action`,
   `target_profile`, `target_model`, `target_model_source`,
   `target_model_tier`, `thinking`, `speed`, and `reason`. The action is one

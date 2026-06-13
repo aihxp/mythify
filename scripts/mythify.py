@@ -28,7 +28,7 @@ from pathlib import Path
 WORKSPACE_DIR_NAME = ".mythify"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
-PROTOCOL_SOURCE_SHA256 = "7f6caa883896df1207f697cbb1fd7f03b30482a7ee2d9b7d8299415a04f94252"
+PROTOCOL_SOURCE_SHA256 = "1f9dcd2859ddaf015697b194a48bf29f1160e36db1330062fc098057803a8888"
 PROTOCOL_HASH_PREFIX = "<!-- Mythify protocol-sha256: "
 PROTOCOL_COPY_CANDIDATES = ("CLAUDE.md", "AGENTS.md", ".cursorrules")
 NO_WORKSPACE_MESSAGE = (
@@ -884,6 +884,29 @@ def build_host_switch_result(platform, target_model, current_model, thinking, sp
     }
 
 
+def build_host_confirmation(target_model, current_model, thinking, capability, checked_at):
+    can_confirm = bool(capability.get("can_confirm_current_model"))
+    status = "unconfirmed" if can_confirm else "unsupported"
+    reason = (
+        "host_adapter_has_not_confirmed_current_model"
+        if can_confirm
+        else "host_capability_cannot_confirm_current_model"
+    )
+    return {
+        "requested_model": target_model,
+        "user_reported_current_model": current_model,
+        "user_reported_current_thinking": thinking if thinking != "auto" else "",
+        "current_model_confirmed": False,
+        "confirmed_current_model": "",
+        "confirmed_current_thinking": "",
+        "confirmation_status": status,
+        "confirmation_source": "none",
+        "confirmation_checked_at": checked_at,
+        "confirmed_at": "",
+        "unsupported_reason": reason,
+    }
+
+
 def with_host_capability(record):
     if not isinstance(record, dict):
         return record
@@ -903,6 +926,14 @@ def with_host_capability(record):
             normalize_host_speed(enriched.get("speed", "auto")),
             capability,
         )
+    if not isinstance(enriched.get("host_confirmation"), dict):
+        enriched["host_confirmation"] = build_host_confirmation(
+            str(enriched.get("target_model", "") or "").strip(),
+            str(enriched.get("current_model", "") or "").strip(),
+            normalize_host_thinking(enriched.get("thinking", "auto")),
+            capability,
+            str(enriched.get("updated", "") or ""),
+        )
     return enriched
 
 
@@ -913,6 +944,7 @@ def build_host_model_record(args):
     speed = normalize_host_speed(getattr(args, "speed", "auto"))
     current_model = str(getattr(args, "current_model", "") or "").strip()
     capability = host_capability_for_record(platform)
+    updated = now_iso()
     record = {
         "platform": platform,
         "requested_platform": normalize_host_platform(getattr(args, "platform", "auto")),
@@ -929,7 +961,10 @@ def build_host_model_record(args):
         "switch_result": build_host_switch_result(
             platform, target_model, current_model, thinking, speed, capability
         ),
-        "updated": now_iso(),
+        "host_confirmation": build_host_confirmation(
+            target_model, current_model, thinking, capability, updated
+        ),
+        "updated": updated,
         "host_actions": host_switch_actions(platform, target_model, thinking, speed),
     }
     return record
@@ -939,6 +974,7 @@ def format_host_model_record(record):
     enriched = with_host_capability(record)
     capability = enriched.get("host_capability", host_capability_for_record("unknown"))
     switch_result = enriched.get("switch_result", {})
+    confirmation = enriched.get("host_confirmation", {})
     lines = [
         "[OK] Host model switch {0}.".format(enriched.get("status", "recorded")),
         "platform: {0}".format(enriched.get("platform", "unknown")),
@@ -946,6 +982,13 @@ def format_host_model_record(record):
             enriched.get("target_model", ""), enriched.get("target_model_tier", "unknown")
         ),
         "current model: {0}".format(enriched.get("current_model") or "unknown"),
+        "host-confirmed model: {0}".format(
+            confirmation.get("confirmed_current_model")
+            or confirmation.get("confirmation_status", "unsupported")
+        ),
+        "confirmation source: {0}".format(
+            confirmation.get("confirmation_source", "none")
+        ),
         "thinking: {0}".format(enriched.get("thinking", "auto")),
         "speed: {0}".format(enriched.get("speed", "auto")),
         "switch status: {0}".format(switch_result.get("status", "manual")),

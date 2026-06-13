@@ -336,6 +336,8 @@ test("mythify MCP server smoke test", async (t) => {
       assert.match(switched, /target model: gpt-5\.4/, "text includes the target model");
       assert.match(switched, /switch status: manual/, "text reports manual switch status");
       assert.match(switched, /current-chat confirmed: no/, "text does not claim confirmation");
+      assert.match(switched, /host-confirmed model: unsupported/, "text reports unsupported confirmation");
+      assert.match(switched, /confirmation source: none/, "text reports no confirmation source");
       assert.match(switched, /current-chat switch: no/, "text does not claim current-chat switching");
       assert.match(switched, /new-thread model: yes/, "text exposes new-thread model capability");
       assert.match(switched, /worker model: yes/, "text exposes worker model capability");
@@ -359,6 +361,16 @@ test("mythify MCP server smoke test", async (t) => {
       assert.equal(status.switch_result.current_chat_confirmed, false);
       assert.equal(status.switch_result.manual_action_required, true);
       assert.equal(status.switch_result.applied_by, "none");
+      assert.equal(status.host_confirmation.requested_model, "gpt-5.4");
+      assert.equal(status.host_confirmation.user_reported_current_model, "gpt-5.3-codex");
+      assert.equal(status.host_confirmation.current_model_confirmed, false);
+      assert.equal(status.host_confirmation.confirmed_current_model, "");
+      assert.equal(status.host_confirmation.confirmation_status, "unsupported");
+      assert.equal(status.host_confirmation.confirmation_source, "none");
+      assert.equal(
+        status.host_confirmation.unsupported_reason,
+        "host_capability_cannot_confirm_current_model"
+      );
       assert.equal(status.host_capability.kind, "host");
       assert.equal(status.host_capability.status, "supported");
       assert.equal(status.host_capability.can_switch_current_thread, false);
