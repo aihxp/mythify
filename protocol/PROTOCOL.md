@@ -106,8 +106,8 @@ Reorient any time with `status`. Report the whole session with `summary`.
 | `timeline [--recent N] [--json]` | Read-only fanout worker timeline: task start and finish events, duration, status, errors, and output metadata from durable state. |
 | `phase [--recent N] [--json]` | Read-only phase view: active plan steps grouped into Understand, Design, Build, Judge, and Verify, with durable evidence counts. |
 | `classify TASK [--json] [--triage never\|auto\|always] [--platform P] [--effort E] [--speed S] [--session-model M] [--spawn-ceiling C] [--reviewer-strength R]` | Identify task type, risk, ambiguity, ceremony, execution profile, verification strategy, fanout fit, fast model triage fit, and model policy. |
-| `host-model switch MODEL [--platform P] [--current-model M] [--thinking E] [--speed S] [--reason TEXT] [--json]` | Record a requested host chat model switch in `.mythify/host-model.json`, including host capability, switch result, and host confirmation fields; the host still owns the actual current chat model. |
-| `host-model status [--json]` | Show the recorded host model switch and host confirmation status. |
+| `host-model switch MODEL [--platform P] [--current-model M] [--thinking E] [--speed S] [--reason TEXT] [--json]` | Record a requested host chat model switch in `.mythify/host-model.json`, including host capability, switch result, host confirmation, and adapter proof scan fields; the host still owns the actual current chat model. |
+| `host-model status [--json]` | Show the recorded host model switch, host confirmation status, and adapter proof scan. |
 | `host-model clear [--json]` | Clear the recorded host model switch. |
 | `outcome start GOAL --success TEXT --verify COMMAND [--metric COMMAND] [--max-iterations N] [--allowed-paths CSV] [--visibility MODE] [--name NAME] [--json]` | Start a supervised outcome loop with verifier, optional metric, and retry budget. |
 | `outcome check [NAME] [--notes TEXT] [--timeout N] [--json]` | Run the verifier and optional metric, record the iteration, and return success, retry, or budget exhaustion. |
@@ -152,9 +152,9 @@ state directory, same file formats, same evidence rules:
 `plan_update_step` refuses `completed` or `failed` without a `result`.
 Outcome loops are host-supervised and stored in `.mythify/outcomes/`: make a
 bounded attempt, call `outcome_check`, then report success, retry, or stop.
-`host_model_switch` records intended host chat changes and host confirmation
-fields, but does not mutate or confirm the host unless it exposes that
-capability. `provider_probe` can probe a configured
+`host_model_switch` records intended host chat changes, host confirmation
+fields, and adapter proof scan fields, but does not mutate or confirm the host
+unless it exposes that capability. `provider_probe` can probe a configured
 OpenAI-compatible provider. `local_model_run` can run reader or triage prompts
 against a localhost OpenAI-compatible provider, writing no state and returning
 model output as material, not verification evidence. `host_cli_probe` can probe

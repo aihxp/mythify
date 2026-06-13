@@ -28,7 +28,7 @@ from pathlib import Path
 WORKSPACE_DIR_NAME = ".mythify"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
-PROTOCOL_SOURCE_SHA256 = "1f9dcd2859ddaf015697b194a48bf29f1160e36db1330062fc098057803a8888"
+PROTOCOL_SOURCE_SHA256 = "dc66fde7face3d68e20d4699b4a13f2c1cc214a696800477ec200ab5a3a11540"
 PROTOCOL_HASH_PREFIX = "<!-- Mythify protocol-sha256: "
 PROTOCOL_COPY_CANDIDATES = ("CLAUDE.md", "AGENTS.md", ".cursorrules")
 NO_WORKSPACE_MESSAGE = (
@@ -868,6 +868,52 @@ def host_capability_for_record(platform):
     return dict(HOST_CAPABILITIES.get(platform, HOST_CAPABILITIES["unknown"]))
 
 
+def host_adapter_proof_status(capability, key):
+    if capability.get("status") == "unknown":
+        return "unknown"
+    return "supported" if capability.get(key) else "unsupported"
+
+
+def build_host_adapter_proof_path(capability, key, current_chat):
+    return {
+        "status": host_adapter_proof_status(capability, key),
+        "proof_source": "host_capability.{0}".format(key),
+        "current_chat_path": bool(current_chat),
+        "requires_executed_host_evidence": True,
+    }
+
+
+def build_host_adapter_proof_scan(platform, capability, checked_at):
+    return {
+        "status": "metadata_only",
+        "platform": platform,
+        "proof_source": "host_capability_registry",
+        "checked_at": checked_at,
+        "host_state_mutated": False,
+        "writes_state": False,
+        "verification_recorded": False,
+        "material_not_evidence": True,
+        "guardrail": "current_chat_apply_or_confirm_requires_executed_host_evidence",
+        "paths": {
+            "current_chat_model_apply": build_host_adapter_proof_path(
+                capability, "can_switch_current_thread", True
+            ),
+            "current_chat_model_confirm": build_host_adapter_proof_path(
+                capability, "can_confirm_current_model", True
+            ),
+            "new_thread_model_apply": build_host_adapter_proof_path(
+                capability, "can_set_new_thread_model", False
+            ),
+            "worker_model_apply": build_host_adapter_proof_path(
+                capability, "can_set_worker_model", False
+            ),
+            "thinking_apply": build_host_adapter_proof_path(
+                capability, "can_set_thinking", False
+            ),
+        },
+    }
+
+
 def build_host_switch_result(platform, target_model, current_model, thinking, speed, capability):
     return {
         "status": "manual",
@@ -934,6 +980,12 @@ def with_host_capability(record):
             capability,
             str(enriched.get("updated", "") or ""),
         )
+    if not isinstance(enriched.get("adapter_proof_scan"), dict):
+        enriched["adapter_proof_scan"] = build_host_adapter_proof_scan(
+            platform,
+            capability,
+            str(enriched.get("updated", "") or ""),
+        )
     return enriched
 
 
@@ -964,6 +1016,7 @@ def build_host_model_record(args):
         "host_confirmation": build_host_confirmation(
             target_model, current_model, thinking, capability, updated
         ),
+        "adapter_proof_scan": build_host_adapter_proof_scan(platform, capability, updated),
         "updated": updated,
         "host_actions": host_switch_actions(platform, target_model, thinking, speed),
     }
@@ -975,6 +1028,8 @@ def format_host_model_record(record):
     capability = enriched.get("host_capability", host_capability_for_record("unknown"))
     switch_result = enriched.get("switch_result", {})
     confirmation = enriched.get("host_confirmation", {})
+    proof = enriched.get("adapter_proof_scan", {})
+    proof_paths = proof.get("paths", {})
     lines = [
         "[OK] Host model switch {0}.".format(enriched.get("status", "recorded")),
         "platform: {0}".format(enriched.get("platform", "unknown")),
@@ -988,6 +1043,22 @@ def format_host_model_record(record):
         ),
         "confirmation source: {0}".format(
             confirmation.get("confirmation_source", "none")
+        ),
+        "adapter proof scan: {0}".format(proof.get("status", "metadata_only")),
+        "current-chat apply proof: {0}".format(
+            proof_paths.get("current_chat_model_apply", {}).get("status", "unknown")
+        ),
+        "current-chat confirm proof: {0}".format(
+            proof_paths.get("current_chat_model_confirm", {}).get("status", "unknown")
+        ),
+        "new-thread model proof: {0}".format(
+            proof_paths.get("new_thread_model_apply", {}).get("status", "unknown")
+        ),
+        "worker model proof: {0}".format(
+            proof_paths.get("worker_model_apply", {}).get("status", "unknown")
+        ),
+        "thinking proof: {0}".format(
+            proof_paths.get("thinking_apply", {}).get("status", "unknown")
         ),
         "thinking: {0}".format(enriched.get("thinking", "auto")),
         "speed: {0}".format(enriched.get("speed", "auto")),

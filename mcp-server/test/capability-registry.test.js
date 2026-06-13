@@ -224,6 +224,11 @@ test("researched future adapters are candidates, not public host platforms", () 
   assert.equal(ADAPTER_CANDIDATES.antigravity.can_probe, true);
   assert.equal(ADAPTER_CANDIDATES.antigravity.can_run_noninteractive_prompt, true);
   assert.equal(ADAPTER_CANDIDATES.antigravity.can_run_bounded_worker, true);
+  assert.equal(ADAPTER_CANDIDATES.antigravity.current_chat_model_apply_status, "unsupported");
+  assert.equal(ADAPTER_CANDIDATES.antigravity.current_chat_model_confirm_status, "unsupported");
+  assert.equal(ADAPTER_CANDIDATES.antigravity.worker_model_override_status, "supported");
+  assert.equal(ADAPTER_CANDIDATES.antigravity.worker_model_override_command, "agy --model");
+  assert.equal(ADAPTER_CANDIDATES.antigravity.thinking_override_status, "unsupported");
   assert.equal(ADAPTER_CANDIDATES.antigravity.worker_output_is_evidence, false);
   assert.equal(ADAPTER_CANDIDATES.antigravity.permission_policy, "native_permissions_no_auto_bypass");
   assert.equal(ADAPTER_CANDIDATES.antigravity.trust_policy, "explicit_cwd_required");
@@ -231,16 +236,20 @@ test("researched future adapters are candidates, not public host platforms", () 
   assert.equal(ADAPTER_CANDIDATES["kimi-code"].can_probe, true);
   assert.equal(ADAPTER_CANDIDATES["kimi-code"].can_run_noninteractive_prompt, true);
   assert.equal(ADAPTER_CANDIDATES["kimi-code"].can_run_bounded_worker, true);
+  assert.equal(ADAPTER_CANDIDATES["kimi-code"].current_chat_model_apply_status, "unsupported");
+  assert.equal(ADAPTER_CANDIDATES["kimi-code"].worker_model_override_status, "unsupported");
   assert.equal(ADAPTER_CANDIDATES["kimi-code"].worker_output_is_evidence, false);
   assert.equal(ADAPTER_CANDIDATES["kimi-work"].status, "metadata_only");
   assert.equal(ADAPTER_CANDIDATES["kimi-work"].can_probe, false);
   assert.equal(ADAPTER_CANDIDATES["kimi-work"].can_run_bounded_worker, false);
+  assert.equal(ADAPTER_CANDIDATES["kimi-work"].current_chat_model_confirm_status, "unsupported");
   assert.equal(ADAPTER_CANDIDATES["kimi-work"].metadata_only, true);
   assert.equal(ADAPTER_CANDIDATES["kimi-work"].permission_policy, "manual_ask_before_acting");
   assert.equal(ADAPTER_CANDIDATES["kimi-work"].automation_policy, "no_documented_cli_or_api");
   assert.equal(ADAPTER_CANDIDATES["opencode-desktop"].status, "metadata_only");
   assert.equal(ADAPTER_CANDIDATES["opencode-desktop"].can_probe, false);
   assert.equal(ADAPTER_CANDIDATES["opencode-desktop"].can_run_bounded_worker, false);
+  assert.equal(ADAPTER_CANDIDATES["opencode-desktop"].worker_model_override_status, "unsupported");
   assert.equal(ADAPTER_CANDIDATES["opencode-desktop"].metadata_only, true);
   assert.equal(
     ADAPTER_CANDIDATES["opencode-desktop"].automation_policy,
@@ -251,6 +260,11 @@ test("researched future adapters are candidates, not public host platforms", () 
   assert.equal(ADAPTER_CANDIDATES.opencode.can_probe, true);
   assert.equal(ADAPTER_CANDIDATES.opencode.can_run_noninteractive_prompt, true);
   assert.equal(ADAPTER_CANDIDATES.opencode.can_run_bounded_worker, true);
+  assert.equal(ADAPTER_CANDIDATES.opencode.current_chat_model_apply_status, "unsupported");
+  assert.equal(ADAPTER_CANDIDATES.opencode.current_chat_model_confirm_status, "unsupported");
+  assert.equal(ADAPTER_CANDIDATES.opencode.worker_model_override_status, "supported");
+  assert.equal(ADAPTER_CANDIDATES.opencode.worker_model_override_command, "opencode run --model");
+  assert.equal(ADAPTER_CANDIDATES.opencode.thinking_override_status, "unsupported");
   assert.equal(ADAPTER_CANDIDATES.opencode.worker_output_is_evidence, false);
   assert.deepEqual(
     listAdapterCandidates("execution_substrate").map((candidate) => candidate.name).sort(),

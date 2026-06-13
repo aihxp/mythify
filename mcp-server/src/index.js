@@ -356,6 +356,59 @@ function hostCapabilityForRecord(platform) {
   };
 }
 
+function hostAdapterProofStatus(capability, key) {
+  if (capability.status === "unknown") {
+    return "unknown";
+  }
+  return capability[key] ? "supported" : "unsupported";
+}
+
+function buildHostAdapterProofPath(capability, key, currentChat) {
+  return {
+    status: hostAdapterProofStatus(capability, key),
+    proof_source: `host_capability.${key}`,
+    current_chat_path: Boolean(currentChat),
+    requires_executed_host_evidence: true,
+  };
+}
+
+function buildHostAdapterProofScan(platform, capability, checkedAt) {
+  return {
+    status: "metadata_only",
+    platform,
+    proof_source: "host_capability_registry",
+    checked_at: checkedAt || "",
+    host_state_mutated: false,
+    writes_state: false,
+    verification_recorded: false,
+    material_not_evidence: true,
+    guardrail: "current_chat_apply_or_confirm_requires_executed_host_evidence",
+    paths: {
+      current_chat_model_apply: buildHostAdapterProofPath(
+        capability,
+        "can_switch_current_thread",
+        true
+      ),
+      current_chat_model_confirm: buildHostAdapterProofPath(
+        capability,
+        "can_confirm_current_model",
+        true
+      ),
+      new_thread_model_apply: buildHostAdapterProofPath(
+        capability,
+        "can_set_new_thread_model",
+        false
+      ),
+      worker_model_apply: buildHostAdapterProofPath(
+        capability,
+        "can_set_worker_model",
+        false
+      ),
+      thinking_apply: buildHostAdapterProofPath(capability, "can_set_thinking", false),
+    },
+  };
+}
+
 function buildHostSwitchResult(platform, targetModel, currentModel, thinking, speed, capability) {
   return {
     status: "manual",
@@ -428,6 +481,10 @@ function withHostCapability(record) {
             capability,
             String(record.updated || "")
           ),
+    adapter_proof_scan:
+      record.adapter_proof_scan && typeof record.adapter_proof_scan === "object"
+        ? record.adapter_proof_scan
+        : buildHostAdapterProofScan(platform, capability, String(record.updated || "")),
   };
 }
 
@@ -468,6 +525,7 @@ function buildHostModelRecord({ platform, target_model, current_model, thinking,
       capability,
       updated
     ),
+    adapter_proof_scan: buildHostAdapterProofScan(resolvedPlatform, capability, updated),
     updated,
     host_actions: actions,
   };
@@ -482,6 +540,8 @@ function formatHostModelRecord(record) {
   const capability = withCapability.host_capability || hostCapabilityForRecord(withCapability.platform);
   const switchResult = withCapability.switch_result || {};
   const confirmation = withCapability.host_confirmation || {};
+  const proof = withCapability.adapter_proof_scan || {};
+  const proofPaths = proof.paths || {};
   const lines = [
     `[OK] Host model switch ${withCapability.status}.`,
     `platform: ${withCapability.platform}`,
@@ -489,6 +549,12 @@ function formatHostModelRecord(record) {
     `current model: ${withCapability.current_model || "unknown"}`,
     `host-confirmed model: ${confirmation.confirmed_current_model || confirmation.confirmation_status || "unsupported"}`,
     `confirmation source: ${confirmation.confirmation_source || "none"}`,
+    `adapter proof scan: ${proof.status || "metadata_only"}`,
+    `current-chat apply proof: ${proofPaths.current_chat_model_apply?.status || "unknown"}`,
+    `current-chat confirm proof: ${proofPaths.current_chat_model_confirm?.status || "unknown"}`,
+    `new-thread model proof: ${proofPaths.new_thread_model_apply?.status || "unknown"}`,
+    `worker model proof: ${proofPaths.worker_model_apply?.status || "unknown"}`,
+    `thinking proof: ${proofPaths.thinking_apply?.status || "unknown"}`,
     `thinking: ${withCapability.thinking}`,
     `speed: ${withCapability.speed}`,
     `switch status: ${switchResult.status || "manual"}`,
@@ -4515,12 +4581,57 @@ function inferHostCliFeatures(host, checks) {
   return { can_run_noninteractive_prompt: false, evidence: "unsupported host" };
 }
 
+function hostCliProofPath(status, source, currentChat) {
+  return {
+    status: status || "unknown",
+    proof_source: source,
+    current_chat_path: Boolean(currentChat),
+    requires_executed_host_evidence: true,
+  };
+}
+
+function buildHostCliProofScan(host, adapter) {
+  return {
+    status: "metadata_only",
+    host,
+    proof_source: adapter.proof_source || "capability_registry",
+    host_state_mutated: false,
+    writes_state: false,
+    verification_recorded: false,
+    material_not_evidence: true,
+    guardrail: "current_chat_apply_or_confirm_requires_executed_host_evidence",
+    paths: {
+      current_chat_model_apply: hostCliProofPath(
+        adapter.current_chat_model_apply_status,
+        "adapter_candidate.current_chat_model_apply_status",
+        true
+      ),
+      current_chat_model_confirm: hostCliProofPath(
+        adapter.current_chat_model_confirm_status,
+        "adapter_candidate.current_chat_model_confirm_status",
+        true
+      ),
+      worker_model_override: hostCliProofPath(
+        adapter.worker_model_override_status,
+        "adapter_candidate.worker_model_override_status",
+        false
+      ),
+      thinking_override: hostCliProofPath(
+        adapter.thinking_override_status,
+        "adapter_candidate.thinking_override_status",
+        false
+      ),
+    },
+  };
+}
+
 function probeHostCli({ host, bin, timeout_seconds }) {
   const selectedHost = host || "opencode";
   const config = HOST_CLI_PROBES[selectedHost];
   const timeoutSeconds =
     typeof timeout_seconds === "number" && timeout_seconds > 0 ? timeout_seconds : 10;
   const adapter = ADAPTER_CANDIDATES[selectedHost] || {};
+  const adapterProofScan = buildHostCliProofScan(selectedHost, adapter);
   const resolved = resolveHostCliBinary(selectedHost, bin);
   const result = {
     host: selectedHost,
@@ -4532,6 +4643,11 @@ function probeHostCli({ host, bin, timeout_seconds }) {
     evidence_status: "probe_only_not_verification",
     can_run_noninteractive_prompt: false,
     feature_evidence: "",
+    adapter_proof_scan: adapterProofScan,
+    current_chat_apply_status: adapterProofScan.paths.current_chat_model_apply.status,
+    current_chat_confirm_status: adapterProofScan.paths.current_chat_model_confirm.status,
+    worker_model_override_status: adapterProofScan.paths.worker_model_override.status,
+    thinking_override_status: adapterProofScan.paths.thinking_override.status,
     mcp_setup_guide: selectedHost === "antigravity" ? "docs/antigravity-mcp-setup.md" : "",
     checks: [],
     error: resolved.error,
@@ -4567,6 +4683,10 @@ function formatHostCliProbe(result) {
     `binary source: ${result.binary_source}`,
     `noninteractive prompt: ${result.can_run_noninteractive_prompt ? "yes" : "no"}`,
     `feature evidence: ${result.feature_evidence || "none"}`,
+    `current-chat apply proof: ${result.current_chat_apply_status || "unknown"}`,
+    `current-chat confirm proof: ${result.current_chat_confirm_status || "unknown"}`,
+    `worker model override proof: ${result.worker_model_override_status || "unknown"}`,
+    `thinking override proof: ${result.thinking_override_status || "unknown"}`,
     "evidence: probe output is material, not verification evidence.",
   ];
   if (result.mcp_setup_guide) {

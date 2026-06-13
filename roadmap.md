@@ -21,15 +21,13 @@ Status markers:
 
 ## Active Now
 
-- [>] Host adapter proof scan.
-  - Current goal: determine whether any installed or documented host exposes a
-    local capability to apply or confirm model and thinking changes.
-  - Next step: map Codex, Claude, Cursor, Kimi, OpenCode, and Antigravity host
-    apply or confirm candidates using probes and official local interfaces
-    only.
-  - Guardrail: this run may probe and design, but it must not mutate host
-    state or claim the current host chat changed without executed host
-    confirmation evidence.
+- [>] Stable adapter interface draft.
+  - Current goal: turn the host, host CLI, local model, API provider,
+    execution, and lifecycle lanes into one small adapter interface.
+  - Next step: design the shared fields every adapter lane should expose
+    without changing runtime behavior.
+  - Guardrail: this run should standardize metadata shape only; it must not
+    add automatic provider fallback or new write-enabled worker behavior.
 
 ## Next Queue
 
@@ -92,7 +90,6 @@ Role model:
 
 What remains:
 
-- [>] Scan host adapter proof candidates for apply or confirm capability.
 - [ ] Apply model or thinking changes when a host exposes a real capability.
 - [ ] Add adapter execution tests once a host exposes apply or confirm APIs.
 
@@ -110,6 +107,9 @@ Already shipped in this track:
 - [x] `host_confirmation` separates requested model, user-reported current
   model, confirmation status, source, timestamps, and unsupported states
   without treating user input as host proof.
+- [x] `adapter_proof_scan` reports supported, unsupported, or unknown apply
+  and confirm paths for host model status and host CLI probes without mutating
+  host state or recording verification evidence.
 
 Core rule: Mythify can recommend or request a host model switch, but it should
 not pretend the switch happened unless the host adapter confirms it.
@@ -288,6 +288,11 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add host adapter proof scans. Host model status now includes
+  `adapter_proof_scan`, and `host_cli_probe` reports current-chat apply,
+  current-chat confirm, worker model override, and thinking override proof
+  statuses for Kimi Code, OpenCode, Antigravity, and metadata-only desktop
+  lanes without mutating host state.
 - [x] 2026-06-13: add host-confirmed model fields. CLI and MCP
   `host_model_switch` records now include `host_confirmation`, separating
   requested model, user-reported current model, confirmation status,
@@ -533,7 +538,7 @@ Preserve:
 - [x] Generic OpenAI-compatible localhost adapter.
 - [x] Ollama setup profile.
 - [x] LM Studio setup profile.
-- [>] Host adapter proof scan for model and thinking overrides where the host
+- [x] Host adapter proof scan for model and thinking overrides where the host
   exposes them.
 
 ### v2.8
@@ -550,7 +555,7 @@ Preserve:
 ### v3.0
 
 - [ ] Stable cross-platform role assignment.
-- [ ] Stable adapter interface.
+- [>] Stable adapter interface.
 - [x] Desktop local-agent lane for Kimi Work and OpenCode Desktop style
   workflows.
 - [x] Execution adapter lane for Colab CLI style remote jobs.

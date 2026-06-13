@@ -76,6 +76,10 @@ function evidenceStatus(candidate) {
   return "unknown";
 }
 
+function proofStatus(candidate, field) {
+  return candidate[field] || "unknown";
+}
+
 export function renderAdapterCandidatesDoc(candidates = ADAPTER_CANDIDATES) {
   const rows = Object.entries(candidates)
     .sort(([left], [right]) => left.localeCompare(right))
@@ -87,6 +91,10 @@ export function renderAdapterCandidatesDoc(candidates = ADAPTER_CANDIDATES) {
       yesNo(candidate.openai_compatible),
       yesNo(candidate.can_probe),
       runPath(candidate),
+      proofStatus(candidate, "current_chat_model_apply_status"),
+      proofStatus(candidate, "current_chat_model_confirm_status"),
+      proofStatus(candidate, "worker_model_override_status"),
+      proofStatus(candidate, "thinking_override_status"),
       evidenceStatus(candidate),
     ]);
   const lines = [
@@ -96,8 +104,8 @@ export function renderAdapterCandidatesDoc(candidates = ADAPTER_CANDIDATES) {
     "",
     "This file is generated from `mcp-server/src/capability-registry.js`. Do not edit it by hand.",
     "",
-    "| Adapter | Kind | Status | Local | OpenAI Compatible | Probe | Run Path | Evidence |",
-    "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+    "| Adapter | Kind | Status | Local | OpenAI Compatible | Probe | Run Path | Current Chat Apply | Current Chat Confirm | Worker Model Override | Thinking Override | Evidence |",
+    "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
   ];
   for (const row of rows) {
     lines.push("| " + row.map(escapeCell).join(" | ") + " |");

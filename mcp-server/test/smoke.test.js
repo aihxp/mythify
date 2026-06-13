@@ -338,6 +338,12 @@ test("mythify MCP server smoke test", async (t) => {
       assert.match(switched, /current-chat confirmed: no/, "text does not claim confirmation");
       assert.match(switched, /host-confirmed model: unsupported/, "text reports unsupported confirmation");
       assert.match(switched, /confirmation source: none/, "text reports no confirmation source");
+      assert.match(switched, /adapter proof scan: metadata_only/, "text reports adapter proof scan");
+      assert.match(switched, /current-chat apply proof: unsupported/, "text reports unsupported current-chat apply");
+      assert.match(switched, /current-chat confirm proof: unsupported/, "text reports unsupported current-chat confirm");
+      assert.match(switched, /new-thread model proof: supported/, "text reports new-thread model proof");
+      assert.match(switched, /worker model proof: supported/, "text reports worker model proof");
+      assert.match(switched, /thinking proof: supported/, "text reports thinking proof");
       assert.match(switched, /current-chat switch: no/, "text does not claim current-chat switching");
       assert.match(switched, /new-thread model: yes/, "text exposes new-thread model capability");
       assert.match(switched, /worker model: yes/, "text exposes worker model capability");
@@ -371,6 +377,15 @@ test("mythify MCP server smoke test", async (t) => {
         status.host_confirmation.unsupported_reason,
         "host_capability_cannot_confirm_current_model"
       );
+      assert.equal(status.adapter_proof_scan.status, "metadata_only");
+      assert.equal(status.adapter_proof_scan.host_state_mutated, false);
+      assert.equal(status.adapter_proof_scan.verification_recorded, false);
+      assert.equal(status.adapter_proof_scan.material_not_evidence, true);
+      assert.equal(status.adapter_proof_scan.paths.current_chat_model_apply.status, "unsupported");
+      assert.equal(status.adapter_proof_scan.paths.current_chat_model_confirm.status, "unsupported");
+      assert.equal(status.adapter_proof_scan.paths.new_thread_model_apply.status, "supported");
+      assert.equal(status.adapter_proof_scan.paths.worker_model_apply.status, "supported");
+      assert.equal(status.adapter_proof_scan.paths.thinking_apply.status, "supported");
       assert.equal(status.host_capability.kind, "host");
       assert.equal(status.host_capability.status, "supported");
       assert.equal(status.host_capability.can_switch_current_thread, false);

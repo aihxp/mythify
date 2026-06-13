@@ -580,6 +580,22 @@ class TestClassification(CliTestCase):
             record["host_confirmation"]["unsupported_reason"],
             "host_capability_cannot_confirm_current_model",
         )
+        proof_paths = record["adapter_proof_scan"]["paths"]
+        self.assertEqual(record["adapter_proof_scan"]["status"], "metadata_only")
+        self.assertFalse(record["adapter_proof_scan"]["host_state_mutated"])
+        self.assertFalse(record["adapter_proof_scan"]["verification_recorded"])
+        self.assertTrue(record["adapter_proof_scan"]["material_not_evidence"])
+        self.assertEqual(
+            proof_paths["current_chat_model_apply"]["status"],
+            "unsupported",
+        )
+        self.assertEqual(
+            proof_paths["current_chat_model_confirm"]["status"],
+            "unsupported",
+        )
+        self.assertEqual(proof_paths["new_thread_model_apply"]["status"], "supported")
+        self.assertEqual(proof_paths["worker_model_apply"]["status"], "supported")
+        self.assertEqual(proof_paths["thinking_apply"]["status"], "supported")
         self.assertTrue((state / "host-model.json").exists())
 
         status_json = self.run_cli("host-model", "status", "--json")
@@ -587,12 +603,22 @@ class TestClassification(CliTestCase):
         status_record = json.loads(status_json.stdout)
         self.assertEqual(status_record["switch_result"]["status"], "manual")
         self.assertEqual(status_record["host_confirmation"]["confirmation_status"], "unsupported")
+        self.assertEqual(
+            status_record["adapter_proof_scan"]["paths"]["current_chat_model_apply"]["status"],
+            "unsupported",
+        )
         status_text = self.run_cli("host-model", "status")
         self.assertEqual(status_text.returncode, 0, status_text.stderr)
         self.assertIn("switch status: manual", status_text.stdout)
         self.assertIn("current-chat confirmed: no", status_text.stdout)
         self.assertIn("host-confirmed model: unsupported", status_text.stdout)
         self.assertIn("confirmation source: none", status_text.stdout)
+        self.assertIn("adapter proof scan: metadata_only", status_text.stdout)
+        self.assertIn("current-chat apply proof: unsupported", status_text.stdout)
+        self.assertIn("current-chat confirm proof: unsupported", status_text.stdout)
+        self.assertIn("new-thread model proof: supported", status_text.stdout)
+        self.assertIn("worker model proof: supported", status_text.stdout)
+        self.assertIn("thinking proof: supported", status_text.stdout)
         self.assertIn("current-chat switch: no", status_text.stdout)
         self.assertIn("new-thread model: yes", status_text.stdout)
 
@@ -642,6 +668,11 @@ class TestClassification(CliTestCase):
         self.assertFalse(record["switch_result"]["current_chat_confirmed"])
         self.assertEqual(record["host_confirmation"]["confirmation_status"], "unsupported")
         self.assertFalse(record["host_confirmation"]["current_model_confirmed"])
+        self.assertEqual(record["adapter_proof_scan"]["status"], "metadata_only")
+        self.assertEqual(
+            record["adapter_proof_scan"]["paths"]["current_chat_model_apply"]["status"],
+            "unsupported",
+        )
 
     def test_classify_vague_short_request_recommends_model_triage(self):
         result = self.run_cli("classify", "make this better", "--json")

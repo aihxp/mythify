@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Host adapter proof scans. CLI and MCP host-model status now include
+  `adapter_proof_scan`, and MCP `host_cli_probe` reports current-chat apply,
+  current-chat confirm, worker model override, and thinking override proof
+  statuses without mutating host state or recording verification evidence.
 - Host-confirmed model fields. CLI and MCP host-model records now include
   `host_confirmation`, separating requested model, user-reported current model,
   confirmation status, confirmation source, timestamps, and unsupported

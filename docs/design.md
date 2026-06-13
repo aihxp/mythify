@@ -457,6 +457,24 @@ host-model.json:
     "confirmed_at": "",
     "unsupported_reason": "host_capability_cannot_confirm_current_model"
   },
+  "adapter_proof_scan": {
+    "status": "metadata_only",
+    "platform": "codex-desktop",
+    "proof_source": "host_capability_registry",
+    "checked_at": "ISO-8601",
+    "host_state_mutated": false,
+    "writes_state": false,
+    "verification_recorded": false,
+    "material_not_evidence": true,
+    "guardrail": "current_chat_apply_or_confirm_requires_executed_host_evidence",
+    "paths": {
+      "current_chat_model_apply": {"status": "supported|unsupported|unknown"},
+      "current_chat_model_confirm": {"status": "supported|unsupported|unknown"},
+      "new_thread_model_apply": {"status": "supported|unsupported|unknown"},
+      "worker_model_apply": {"status": "supported|unsupported|unknown"},
+      "thinking_apply": {"status": "supported|unsupported|unknown"}
+    }
+  },
   "updated": "ISO-8601",
   "host_actions": ["str"]
 }
@@ -486,9 +504,14 @@ Host model switch status rules:
   adapter can check but has not produced evidence, `confirmed` only after
   positive host evidence, and `blocked` only after adapter evidence proves
   confirmation cannot be performed.
+- `adapter_proof_scan` is a non-mutating metadata scan. Its path statuses are
+  `supported`, `unsupported`, or `unknown`, and `host_state_mutated` must stay
+  `false`. A supported path means the registry or probe found a possible path;
+  it is not proof that the host changed.
 - CLI and MCP status output must expose `host_capability`, `can_apply_current_chat`,
-  `switch_result`, and `host_confirmation` so callers can distinguish desired
-  state, user-reported state, and host-confirmed state.
+  `switch_result`, `host_confirmation`, and `adapter_proof_scan` so callers can
+  distinguish desired state, user-reported state, host-confirmed state, and
+  future apply or confirm paths.
 
 outcomes/&lt;slug&gt;/goal.json:
 
@@ -693,10 +716,10 @@ does AND when to use it, since descriptions drive tool selection.
 | Tool | Input schema | Behavior |
 | :--- | :--- | :--- |
 | `classify_task` | `{task: string, format?: enum(text, json), triage?: enum(never, auto, always), triage_engine?: enum(claude-cli, codex-cli, cursor-agent, command), triage_model?: string, triage_timeout_seconds?: number, platform?: enum(auto, unknown, codex-desktop, codex-cli, claude-desktop, claude-code, cursor-desktop, cursor-agent), effort?: enum(auto, low, medium, high), speed?: enum(auto, standard, fast), session_model?: string, spawn_ceiling?: enum(auto, lower_only, same_or_lower, allow_stronger), reviewer_strength?: enum(auto, same_or_lower, allow_stronger)}` | Classify a task before planning. Returns task type, risk, ambiguity, ceremony level, execution profile, verification strategy, fanout recommendation, fast model triage fit, model policy, task-based host recommendation, signals, and next action. With `triage: auto`, run one fast local model only when the deterministic gate recommends it. |
-| `host_model_switch` | `{action?: enum(switch, status, clear), platform?: enum(auto, unknown, codex-desktop, codex-cli, claude-desktop, claude-code, cursor-desktop, cursor-agent), target_model?: string, current_model?: string, thinking?: enum(auto, low, medium, high, xhigh, max), speed?: enum(auto, standard, fast), reason?: string, format?: enum(text, json)}` | Record, show, or clear a requested host chat model switch. `switch` writes `.mythify/host-model.json`, returns platform-specific switch guidance, registry-backed `host_capability`, `switch_result`, and `host_confirmation`, and makes later `classify_task` and `fanout_start` calls use the recorded target as the session model when no explicit or env session model is supplied. It does not claim to mutate or confirm the current host chat unless a future host integration exposes that capability and confirms the result. |
+| `host_model_switch` | `{action?: enum(switch, status, clear), platform?: enum(auto, unknown, codex-desktop, codex-cli, claude-desktop, claude-code, cursor-desktop, cursor-agent), target_model?: string, current_model?: string, thinking?: enum(auto, low, medium, high, xhigh, max), speed?: enum(auto, standard, fast), reason?: string, format?: enum(text, json)}` | Record, show, or clear a requested host chat model switch. `switch` writes `.mythify/host-model.json`, returns platform-specific switch guidance, registry-backed `host_capability`, `switch_result`, `host_confirmation`, and `adapter_proof_scan`, and makes later `classify_task` and `fanout_start` calls use the recorded target as the session model when no explicit or env session model is supplied. It does not claim to mutate or confirm the current host chat unless a future host integration exposes that capability and confirms the result. |
 | `provider_probe` | `{provider?: enum(generic-openai-compatible, ollama, lm-studio, llama-cpp, vllm), base_url?: string, model?: string, check?: enum(models, chat, both), api_key_env?: string, timeout_seconds?: number, prompt?: string, format?: enum(text, json)}` | Probe an OpenAI-compatible provider by calling `/v1/models` and, when requested, `/v1/chat/completions`. Generic defaults: `MYTHIFY_OPENAI_COMPAT_BASE_URL`, `MYTHIFY_OPENAI_COMPAT_MODEL`, and `MYTHIFY_OPENAI_COMPAT_API_KEY`. `provider: "ollama"` defaults to `MYTHIFY_OLLAMA_BASE_URL` or `http://localhost:11434/v1`; `provider: "lm-studio"` defaults to `MYTHIFY_LM_STUDIO_BASE_URL` or `http://localhost:1234/v1`; `provider: "llama-cpp"` defaults to `MYTHIFY_LLAMA_CPP_BASE_URL` or `http://localhost:8080/v1`; `provider: "vllm"` defaults to `MYTHIFY_VLLM_BASE_URL` or `http://localhost:8000/v1`. Local profiles use provider-specific model env vars and no auth header by default. Returns provider availability, model presence, chat response tail, and `material_not_evidence: true`. It does not write state, spawn workers, or count as verification evidence. |
 | `local_model_run` | `{provider?: enum(generic-openai-compatible, ollama, lm-studio, llama-cpp, vllm), role?: enum(reader, triage), base_url?: string, model?: string, prompt: string, api_key_env?: string, timeout_seconds?: number, max_tokens?: number, format?: enum(text, json)}` | Run a role-limited prompt against a localhost OpenAI-compatible provider. Generic defaults: `MYTHIFY_OPENAI_COMPAT_BASE_URL`, `MYTHIFY_OPENAI_COMPAT_MODEL`, and `MYTHIFY_OPENAI_COMPAT_API_KEY`. `provider: "ollama"`, `provider: "lm-studio"`, `provider: "llama-cpp"`, and `provider: "vllm"` default to local profiles. The base URL must be `localhost`, `127.0.0.1`, `::1`, or `0.0.0.0`. Returns model output with `material_not_evidence: true`, `evidence_status: "model_output_not_verification"`, `writes_state: false`, and `verification_recorded: false`. It does not edit files, run commands, write state, or count model output as verification evidence. |
-| `host_cli_probe` | `{host?: enum(kimi-code, opencode, antigravity), bin?: string, timeout_seconds?: number, format?: enum(text, json)}` | Probe Kimi Code, OpenCode, or Antigravity CLI availability by running only version and help commands. Defaults to `MYTHIFY_KIMI_BIN`, `MYTHIFY_OPENCODE_BIN`, or `MYTHIFY_ANTIGRAVITY_BIN`, then PATH and common install paths. Returns binary resolution, feature evidence, `can_run_noninteractive_prompt`, and `material_not_evidence: true`. It does not execute a prompt, write state, spawn workers, or count as verification evidence. Antigravity MCP setup guidance lives in `docs/antigravity-mcp-setup.md`; the probe does not install or mutate MCP config. |
+| `host_cli_probe` | `{host?: enum(kimi-code, opencode, antigravity), bin?: string, timeout_seconds?: number, format?: enum(text, json)}` | Probe Kimi Code, OpenCode, or Antigravity CLI availability by running only version and help commands. Defaults to `MYTHIFY_KIMI_BIN`, `MYTHIFY_OPENCODE_BIN`, or `MYTHIFY_ANTIGRAVITY_BIN`, then PATH and common install paths. Returns binary resolution, feature evidence, proof statuses for current-chat apply, current-chat confirm, worker model override, and thinking override, plus `material_not_evidence: true`. It does not execute a prompt, write state, spawn workers, or count as verification evidence. Antigravity MCP setup guidance lives in `docs/antigravity-mcp-setup.md`; the probe does not install or mutate MCP config. |
 | `host_cli_run` | `{host?: enum(kimi-code, opencode, antigravity), bin?: string, prompt: string, cwd?: string, timeout_seconds?: number, model?: string, agent?: string, format?: enum(text, json)}` | Run a bounded non-interactive prompt through Kimi Code, OpenCode, or Antigravity. Kimi uses `kimi --print -p PROMPT --final-message-only`. OpenCode uses `opencode run --format json [--model MODEL] [--agent AGENT] PROMPT`. Antigravity uses `agy [--model MODEL] -p PROMPT`, requires explicit `cwd`, and never passes permission-bypass flags. Defaults to `MYTHIFY_KIMI_BIN`, `MYTHIFY_OPENCODE_BIN`, or `MYTHIFY_ANTIGRAVITY_BIN`, then PATH and common install paths. Returns stdout and stderr tails, timeout and exit metadata, `trust_policy`, `permission_policy`, `material_not_evidence: true`, `evidence_status: "worker_output_not_verification"`, `writes_state: false`, and `verification_recorded: false`. It does not edit files directly, write Mythify state, or count worker output as verification evidence; merged work must still be verified with `verify_run`. |
 | `execution_probe` | `{adapter?: enum(google-colab-cli), bin?: string, timeout_seconds?: number, format?: enum(text, json)}` | Probe Google Colab CLI availability by running only version and help commands. Defaults to `MYTHIFY_COLAB_BIN`, then PATH and common install paths. Returns binary resolution, feature evidence, `non_billable: true`, `job_execution_enabled: false`, and `material_not_evidence: true`. It does not provision a runtime, request an accelerator, execute notebooks, upload data, write state, or count as verification evidence. |
 | `execution_run` | `{adapter?: enum(google-colab-cli), bin?: string, cwd?: string, script_path: string, script_args?: string[], accelerator_type?: enum(cpu, gpu, tpu), accelerator?: enum(T4, L4, G4, H100, A100, v5e1, v6e1), billing_ack?: boolean, data_movement_ack?: boolean, cleanup_ack?: boolean, timeout_seconds?: number, format?: enum(text, json)}` | Run a guarded Google Colab CLI ephemeral job through `colab run`. Defaults to `MYTHIFY_COLAB_BIN`, then PATH and common install paths. It requires `billing_ack: true`, `data_movement_ack: true`, and `cleanup_ack: true` before invoking the CLI, resolves `script_path` locally, supports CPU by default or explicit GPU/TPU accelerator flags, never passes `--keep`, and returns stdout and stderr tails plus exit metadata. It writes no Mythify state and returns `material_not_evidence: true`, `evidence_status: "remote_output_not_verification"`, and `verification_recorded: false`; remote logs or artifacts must be consumed by a separate verifier before any completion claim is verified. |
@@ -799,6 +822,8 @@ Classification always returns `model_policy`. It separates:
   `.mythify/host-model.json`; the host still owns the actual current chat
   model switch. The optional `host_confirmation` record separates
   user-reported current model input from host-confirmed current model evidence.
+  The `adapter_proof_scan` record reports supported, unsupported, or unknown
+  apply and confirm paths without mutating host state.
 - `session.recommendation`: task-based host settings with `action`,
   `target_profile`, `target_model`, `target_model_source`,
   `target_model_tier`, `thinking`, `speed`, and `reason`. The action is one

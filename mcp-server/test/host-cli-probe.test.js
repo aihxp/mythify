@@ -95,6 +95,12 @@ test("host_cli_probe detects Kimi Code prompt mode without running a prompt", as
         assert.equal(probed.material_not_evidence, true);
         assert.equal(probed.evidence_status, "probe_only_not_verification");
         assert.equal(probed.can_run_noninteractive_prompt, true);
+        assert.equal(probed.current_chat_apply_status, "unsupported");
+        assert.equal(probed.current_chat_confirm_status, "unsupported");
+        assert.equal(probed.worker_model_override_status, "unsupported");
+        assert.equal(probed.thinking_override_status, "unsupported");
+        assert.equal(probed.adapter_proof_scan.status, "metadata_only");
+        assert.equal(probed.adapter_proof_scan.host_state_mutated, false);
         assert.match(probed.feature_evidence, /-p/);
         assert.deepEqual(probed.checks.map((item) => item.args), [["--version"], ["--help"]]);
         assert.equal(fs.existsSync(path.join(stateDir, "verifications.jsonl")), false);
@@ -145,6 +151,14 @@ test("host_cli_probe detects OpenCode run help without starting a worker", async
         assert.equal(probed.status, "available");
         assert.equal(probed.material_not_evidence, true);
         assert.equal(probed.can_run_noninteractive_prompt, true);
+        assert.equal(probed.current_chat_apply_status, "unsupported");
+        assert.equal(probed.current_chat_confirm_status, "unsupported");
+        assert.equal(probed.worker_model_override_status, "supported");
+        assert.equal(probed.thinking_override_status, "unsupported");
+        assert.equal(
+          probed.adapter_proof_scan.paths.worker_model_override.proof_source,
+          "adapter_candidate.worker_model_override_status"
+        );
         assert.equal(probed.feature_evidence, "run --help succeeded");
         assert.deepEqual(probed.checks.map((item) => item.args), [["--version"], ["run", "--help"]]);
         assert.equal(fs.existsSync(path.join(stateDir, "verifications.jsonl")), false);
@@ -196,6 +210,11 @@ test("host_cli_probe detects Antigravity prompt mode without running a prompt", 
         assert.equal(probed.material_not_evidence, true);
         assert.equal(probed.evidence_status, "probe_only_not_verification");
         assert.equal(probed.can_run_noninteractive_prompt, true);
+        assert.equal(probed.current_chat_apply_status, "unsupported");
+        assert.equal(probed.current_chat_confirm_status, "unsupported");
+        assert.equal(probed.worker_model_override_status, "supported");
+        assert.equal(probed.thinking_override_status, "unsupported");
+        assert.equal(probed.adapter_proof_scan.paths.worker_model_override.status, "supported");
         assert.equal(probed.mcp_setup_guide, "docs/antigravity-mcp-setup.md");
         assert.match(probed.feature_evidence, /-p/);
         assert.deepEqual(probed.checks.map((item) => item.args), [["--version"], ["--help"]]);
@@ -236,6 +255,8 @@ test("host_cli_probe reports missing binaries without writing verification evide
         assert.equal(parsed.status, "blocked");
         assert.equal(parsed.binary_source, "explicit");
         assert.equal(parsed.material_not_evidence, true);
+        assert.equal(parsed.current_chat_apply_status, "unsupported");
+        assert.equal(parsed.adapter_proof_scan.verification_recorded, false);
         assert.equal(parsed.checks.length, 0);
         assert.match(parsed.error, /not executable/);
         assert.equal(fs.existsSync(path.join(stateDir, "verifications.jsonl")), false);
