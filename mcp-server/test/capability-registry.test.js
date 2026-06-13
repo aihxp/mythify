@@ -103,6 +103,13 @@ test("researched future adapters are candidates, not public host platforms", () 
   assert.deepEqual(ADAPTER_CANDIDATES.ollama.local_roles, ["reader", "triage"]);
   assert.equal(ADAPTER_CANDIDATES.ollama.default_base_url, "http://localhost:11434/v1");
   assert.equal(ADAPTER_CANDIDATES.ollama.output_is_evidence, false);
+  assert.equal(ADAPTER_CANDIDATES["lm-studio"].status, "local_profile_supported");
+  assert.equal(ADAPTER_CANDIDATES["lm-studio"].openai_compatible, true);
+  assert.equal(ADAPTER_CANDIDATES["lm-studio"].can_probe, true);
+  assert.equal(ADAPTER_CANDIDATES["lm-studio"].can_run_local_roles, true);
+  assert.deepEqual(ADAPTER_CANDIDATES["lm-studio"].local_roles, ["reader", "triage"]);
+  assert.equal(ADAPTER_CANDIDATES["lm-studio"].default_base_url, "http://localhost:1234/v1");
+  assert.equal(ADAPTER_CANDIDATES["lm-studio"].output_is_evidence, false);
   assert.deepEqual(
     listAdapterCandidates("host").map((candidate) => candidate.name).sort(),
     ["antigravity", "kimi-code", "opencode"]

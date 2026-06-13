@@ -21,27 +21,27 @@ Status markers:
 
 ### In Progress
 
-- [>] LM Studio setup profile.
-  - Current goal: make LM Studio the next explicit local desktop model profile.
-  - Next step: map the Ollama profile pattern against LM Studio's local
-    OpenAI-compatible API shape.
+- [>] llama.cpp profile for GGUF power users.
+  - Current goal: add an explicit local profile for users who already run
+    llama.cpp servers.
+  - Next step: map llama.cpp's OpenAI-compatible server defaults against the
+    existing local profile adapter shape.
   - Guardrail: setup support must stay local-only, mark model output as
     material not verification evidence, and avoid provisioning or installing
     anything without an explicit user action.
 
 ### Next To Do
 
-1. [ ] llama.cpp profile for GGUF power users.
-   - Keep an explicit path for users who already manage GGUF models.
-2. [ ] vLLM profile for workstation, server, and team-local inference.
+1. [ ] vLLM profile for workstation, server, and team-local inference.
    - Keep server-style local inference separate from desktop onboarding.
-3. [ ] API provider adapter path with cost and timeout metadata.
+2. [ ] API provider adapter path with cost and timeout metadata.
    - Bring hosted provider work in after the local profiles prove the adapter
      shape.
+3. [ ] Role defaults per provider.
+   - Make provider selection explicit before widening hosted execution.
 
 ### Later
 
-- [ ] Role defaults per provider.
 - [ ] Antigravity worker adapter after local `agy -p`, model controls, workspace
   trust, and permissions are verified.
 - [ ] Kimi Work desktop lane after CLI adapters are stable.
@@ -101,6 +101,9 @@ Status markers:
 - [x] 2026-06-13: add stronger reviewer opt-in policy for classifier output
   and fanout tasks, keeping ordinary workers same-or-lower by default.
 - [x] 2026-06-13: add Ollama local setup profile for `provider_probe` and
+  `local_model_run`, defaulting to the local `/v1` endpoint with material-only
+  output.
+- [x] 2026-06-13: add LM Studio local setup profile for `provider_probe` and
   `local_model_run`, defaulting to the local `/v1` endpoint with material-only
   output.
 
@@ -191,12 +194,14 @@ They should enter through adapters, not special cases.
 
 Open:
 
-- [ ] LM Studio profile.
 - [ ] llama.cpp profile.
 - [ ] vLLM profile.
 
 Done:
 
+- [x] LM Studio profile defaults to `http://localhost:1234/v1`, uses
+  `MYTHIFY_LM_STUDIO_MODEL`, sends no auth header by default, and refuses
+  non-local URLs.
 - [x] Ollama profile defaults to `http://localhost:11434/v1`, uses
   `MYTHIFY_OLLAMA_MODEL`, sends no auth header by default, and refuses
   non-local URLs.
@@ -368,7 +373,7 @@ Preserve:
 - [x] Tests proving local output remains material, not evidence.
 - [x] Generic OpenAI-compatible localhost adapter.
 - [x] Ollama setup profile.
-- [ ] LM Studio setup profile.
+- [x] LM Studio setup profile.
 - [ ] Host adapter proof of concept for model and thinking overrides where the
   host exposes them.
 

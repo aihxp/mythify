@@ -60,6 +60,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `provider: "ollama"`, default to the local Ollama OpenAI-compatible `/v1`
   endpoint, use `MYTHIFY_OLLAMA_MODEL`, send no auth header by default, and keep
   output marked as material rather than verification evidence.
+- LM Studio local setup profile. `provider_probe` and `local_model_run` now
+  accept `provider: "lm-studio"`, default to the local LM Studio
+  OpenAI-compatible `/v1` endpoint, use `MYTHIFY_LM_STUDIO_MODEL`, send no auth
+  header by default, and keep output marked as material rather than
+  verification evidence.
 
 ## [2.5.0] - 2026-06-12
 
