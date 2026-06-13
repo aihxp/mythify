@@ -28,7 +28,7 @@ from pathlib import Path
 WORKSPACE_DIR_NAME = ".mythify"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
-PROTOCOL_SOURCE_SHA256 = "23a9b10229613fe634aade96358c3d939d33101120c43318879b2715708a407f"
+PROTOCOL_SOURCE_SHA256 = "7f6caa883896df1207f697cbb1fd7f03b30482a7ee2d9b7d8299415a04f94252"
 PROTOCOL_HASH_PREFIX = "<!-- Mythify protocol-sha256: "
 PROTOCOL_COPY_CANDIDATES = ("CLAUDE.md", "AGENTS.md", ".cursorrules")
 NO_WORKSPACE_MESSAGE = (
@@ -3721,6 +3721,327 @@ def cmd_progress(args, state):
     return 0
 
 
+RELEASE_READINESS_GATES = (
+    {
+        "id": "python_tests",
+        "label": "Python test suite",
+        "required": True,
+        "sources": ["tests/"],
+        "match_any": [
+            "python3 -m unittest discover -s tests",
+            "Python suite passes",
+        ],
+    },
+    {
+        "id": "node_mcp_tests",
+        "label": "Node MCP suite",
+        "required": True,
+        "sources": ["mcp-server/test/"],
+        "match_any": [
+            "npm test --prefix mcp-server",
+            "Node MCP suite passes",
+        ],
+    },
+    {
+        "id": "surface_manifest",
+        "label": "Surface manifest check",
+        "required": True,
+        "sources": ["protocol/surface-manifest.json", "scripts/check_surface_manifest.mjs"],
+        "match_any": [
+            "node scripts/check_surface_manifest.mjs",
+            "surface manifest",
+        ],
+    },
+    {
+        "id": "registry_docs",
+        "label": "Generated registry docs check",
+        "required": True,
+        "sources": ["scripts/build_registry_docs.mjs", "docs/adapter-candidates.md"],
+        "match_any": [
+            "node scripts/build_registry_docs.mjs --check",
+            "registry docs",
+            "generated docs",
+        ],
+    },
+    {
+        "id": "protocol_check",
+        "label": "Protocol variants check",
+        "required": True,
+        "sources": ["protocol/PROTOCOL.md", "AGENTS.md", "CLAUDE.md", ".cursorrules"],
+        "match_any": [
+            "python3 scripts/mythify.py protocol check",
+            "protocol check",
+        ],
+    },
+    {
+        "id": "variant_idempotence",
+        "label": "Generated variants idempotence",
+        "required": True,
+        "sources": ["scripts/build_variants.py", "AGENTS.md", "CLAUDE.md", ".cursorrules"],
+        "match_any": [
+            "scripts/build_variants.py",
+            "generated variants",
+            "variant idempotence",
+        ],
+    },
+    {
+        "id": "whitespace",
+        "label": "Whitespace check",
+        "required": True,
+        "sources": ["git diff --check"],
+        "match_any": [
+            "git diff --check",
+            "whitespace",
+        ],
+    },
+    {
+        "id": "forbidden_dash_scan",
+        "label": "Forbidden dash scan",
+        "required": True,
+        "sources": ["AGENTS.md", "docs/design.md"],
+        "match_any": [
+            "forbidden dash",
+            "dash scan",
+        ],
+    },
+    {
+        "id": "emoji_scan",
+        "label": "Emoji scan",
+        "required": True,
+        "sources": ["AGENTS.md", "docs/design.md"],
+        "match_any": [
+            "emoji scan",
+            "emoji-like",
+        ],
+    },
+)
+
+
+RELEASE_READINESS_ICONS = {
+    "passed": "[x]",
+    "failed": "[!]",
+    "missing": "[ ]",
+    "unknown": "[~]",
+    "clean": "[x]",
+    "dirty": "[!]",
+    "present": "[x]",
+}
+
+
+def project_root_for_state(state):
+    return state.parent if state.name == WORKSPACE_DIR_NAME else Path.cwd()
+
+
+def verification_search_text(record):
+    return "\n".join(
+        str(record.get(key) or "")
+        for key in ("claim", "command", "stdout_tail", "stderr_tail")
+    ).lower()
+
+
+def latest_matching_verification(records, gate):
+    needles = [item.lower() for item in gate["match_any"]]
+    matches = [
+        record
+        for record in records
+        if record.get("kind") == "executed"
+        and any(needle in verification_search_text(record) for needle in needles)
+    ]
+    return matches[-1] if matches else None
+
+
+def summarize_release_gate(gate, records):
+    record = latest_matching_verification(records, gate)
+    status = "missing"
+    if record is not None:
+        status = "passed" if record.get("verified") is True else "failed"
+    return {
+        "id": gate["id"],
+        "label": gate["label"],
+        "required": gate["required"],
+        "sources": list(gate["sources"]),
+        "status": status,
+        "latest_record": None
+        if record is None
+        else {
+            "timestamp": record.get("timestamp", ""),
+            "claim": record.get("claim"),
+            "command": record.get("command", ""),
+            "exit_code": record.get("exit_code"),
+            "verified": record.get("verified"),
+            "plan": record.get("plan"),
+            "step_id": record.get("step_id"),
+        },
+    }
+
+
+def git_status_summary(root):
+    try:
+        result = subprocess.run(
+            ["git", "--no-optional-locks", "status", "--short", "--branch"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env={**os.environ, "GIT_OPTIONAL_LOCKS": "0"},
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {
+            "status": "unknown",
+            "branch": "",
+            "clean": None,
+            "detail": str(exc),
+        }
+    output = result.stdout or ""
+    if result.returncode != 0:
+        return {
+            "status": "unknown",
+            "branch": "",
+            "clean": None,
+            "detail": (result.stderr or output or "git status failed").strip(),
+        }
+    lines = [line for line in output.splitlines() if line.strip()]
+    branch = ""
+    if lines and lines[0].startswith("## "):
+        branch = lines[0][3:].strip()
+    dirty_lines = [line for line in lines if not line.startswith("## ")]
+    clean = len(dirty_lines) == 0
+    return {
+        "status": "clean" if clean else "dirty",
+        "branch": branch,
+        "clean": clean,
+        "detail": "working tree clean" if clean else "{0} changed paths".format(len(dirty_lines)),
+        "changed_paths": dirty_lines[:20],
+    }
+
+
+def roadmap_summary(root):
+    path = root / "roadmap.md"
+    if not path.is_file():
+        return {
+            "status": "unknown",
+            "path": str(path),
+            "active_now": "",
+            "detail": "roadmap.md not found",
+        }
+    text = path.read_text(encoding="utf-8")
+    active_now = ""
+    match = re.search(r"(?ms)^## Active Now\n\n(.*?)(?:\n## |\Z)", text)
+    if match:
+        for line in match.group(1).splitlines():
+            stripped = line.strip()
+            if stripped.startswith("- ["):
+                active_now = stripped
+                break
+    return {
+        "status": "present" if active_now else "unknown",
+        "path": str(path),
+        "active_now": active_now,
+        "detail": "active slice found" if active_now else "no active slice found",
+    }
+
+
+def release_readiness_status(gates, git_state):
+    failed = sum(1 for gate in gates if gate["status"] == "failed")
+    missing = sum(1 for gate in gates if gate["status"] == "missing")
+    if failed or git_state.get("status") == "dirty":
+        return "blocked"
+    if missing:
+        return "needs_evidence"
+    if git_state.get("status") == "unknown":
+        return "needs_review"
+    return "ready_for_release_review"
+
+
+def build_release_readiness_view(state):
+    records = read_jsonl(state / "verifications.jsonl")
+    gates = [
+        summarize_release_gate(gate, records)
+        for gate in RELEASE_READINESS_GATES
+    ]
+    root = project_root_for_state(state)
+    git_state = git_status_summary(root)
+    roadmap = roadmap_summary(root)
+    counts = count_statuses(gates, ("passed", "failed", "missing", "unknown"))
+    return {
+        "state_dir": str(state),
+        "project_root": str(root),
+        "status": release_readiness_status(gates, git_state),
+        "gates": gates,
+        "counts": {"total": len(gates), **counts},
+        "project_state": {
+            "git": git_state,
+            "roadmap": roadmap,
+        },
+        "guardrail": (
+            "readiness summarizes recorded evidence and project state only; it "
+            "does not rerun gates or declare a release safe"
+        ),
+    }
+
+
+def format_release_gate(row):
+    icon = RELEASE_READINESS_ICONS.get(row["status"], "[ ]")
+    line = "  {0} {1}: {2}".format(icon, row["label"], row["status"])
+    record = row.get("latest_record")
+    if record:
+        line += " (exit {0}, {1})".format(
+            record.get("exit_code"),
+            record.get("timestamp") or "unknown-time",
+        )
+    else:
+        line += " (no recorded executed verifier)"
+    line += "; sources: {0}".format(", ".join(row["sources"]))
+    return line
+
+
+def format_release_readiness_view(view):
+    lines = ["[OK] Release readiness: {0}".format(view["state_dir"])]
+    counts = view["counts"]
+    lines.append("Readiness: {0}".format(view["status"]))
+    lines.append(
+        "Recorded gates: {0} total; {1} passed, {2} failed, {3} missing".format(
+            counts["total"],
+            counts.get("passed", 0),
+            counts.get("failed", 0),
+            counts.get("missing", 0),
+        )
+    )
+    lines.append("Gates:")
+    for gate in view["gates"]:
+        lines.append(format_release_gate(gate))
+    git_state = view["project_state"]["git"]
+    git_icon = RELEASE_READINESS_ICONS.get(git_state.get("status"), "[~]")
+    lines.append(
+        "Project git: {0} {1}; branch={2}; {3}".format(
+            git_icon,
+            git_state.get("status", "unknown"),
+            git_state.get("branch") or "unknown",
+            compact_label(git_state.get("detail"), "no detail"),
+        )
+    )
+    roadmap = view["project_state"]["roadmap"]
+    roadmap_icon = RELEASE_READINESS_ICONS.get(roadmap.get("status"), "[~]")
+    lines.append(
+        "Roadmap: {0} {1}; {2}".format(
+            roadmap_icon,
+            roadmap.get("status", "unknown"),
+            compact_label(roadmap.get("active_now"), roadmap.get("detail")),
+        )
+    )
+    lines.append("Guardrail: {0}.".format(view["guardrail"]))
+    return "\n".join(lines)
+
+
+def cmd_readiness(args, state):
+    view = build_release_readiness_view(state)
+    if args.json_output:
+        print(json.dumps(view, indent=2))
+    else:
+        print(format_release_readiness_view(view))
+    return 0
+
+
 TIMELINE_EVENT_ICONS = {
     "job_created": "[ ]",
     "task_started": "[>]",
@@ -5267,6 +5588,18 @@ def build_parser():
     )
     p.add_argument("--json", dest="json_output", action="store_true", help="Print JSON.")
     p.set_defaults(handler=cmd_progress)
+
+    p = sub.add_parser(
+        "readiness",
+        help="Show read-only release readiness from recorded gates.",
+        description=(
+            "Read-only release readiness: recorded verification gates, project "
+            "git state, roadmap state, and release-review status without "
+            "rerunning gates or declaring the release safe."
+        ),
+    )
+    p.add_argument("--json", dest="json_output", action="store_true", help="Print JSON.")
+    p.set_defaults(handler=cmd_readiness)
 
     p = sub.add_parser(
         "timeline",

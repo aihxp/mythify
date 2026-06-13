@@ -1,5 +1,5 @@
 <!-- Generated from protocol/PROTOCOL.md by scripts/build_variants.py. Edit the source, then rebuild. -->
-<!-- Mythify protocol-sha256: 23a9b10229613fe634aade96358c3d939d33101120c43318879b2715708a407f -->
+<!-- Mythify protocol-sha256: 7f6caa883896df1207f697cbb1fd7f03b30482a7ee2d9b7d8299415a04f94252 -->
 
 # The Mythify Protocol
 
@@ -105,6 +105,7 @@ Reorient any time with `status`. Report the whole session with `summary`.
 | `history [--recent N] [--json]` | Read-only verification history: executed and attested records, verdicts, exit codes, duration, and plan or step context. |
 | `background [--recent N] [--json]` | Read-only background task view: outcome loops, fanout jobs, task counts, current statuses, and next actions from durable state. |
 | `progress [--recent N] [--json]` | Read-only outcome loop progress: active and recent outcomes, iteration budget, verifier exit details, metric score when present, and next action from durable state. |
+| `readiness [--json]` | Read-only release readiness: recorded verification gates, project git state, roadmap state, and release-review status without rerunning gates or declaring the release safe. |
 | `timeline [--recent N] [--json]` | Read-only fanout worker timeline: task start and finish events, duration, status, errors, and output metadata from durable state. |
 | `phase [--recent N] [--json]` | Read-only phase view: active plan steps grouped into Understand, Design, Build, Judge, and Verify, with durable evidence counts. |
 | `classify TASK [--json] [--triage never\|auto\|always] [--platform P] [--effort E] [--speed S] [--session-model M] [--spawn-ceiling C] [--reviewer-strength R]` | Identify task type, risk, ambiguity, ceremony, execution profile, verification strategy, fanout fit, fast model triage fit, and model policy. |
@@ -138,15 +139,15 @@ Reorient any time with `status`. Report the whole session with `summary`.
 ## MCP note
 
 Clients using the Mythify MCP server instead of the CLI get the same contract
-through exactly 35 tools: `classify_task`, `host_model_switch`,
+through exactly 36 tools: `classify_task`, `host_model_switch`,
 `provider_probe`, `local_model_run`, `host_cli_probe`, `host_cli_run`,
 `execution_probe`, `execution_run`, `lifecycle_probe`, `outcome_start`, `outcome_check`,
 `outcome_status`,
 `outcome_results`, `outcome_stop`, `memory_store`, `memory_recall`,
 `memory_clear`, `lesson_record`, `lesson_recall`, `plan_create`,
 `plan_add_step`, `plan_update_step`, `plan_status`, `workflow_status`,
-`verification_history`, `background_status`, `outcome_progress`, `fanout_timeline`,
-`phase_status`, `verify_run`,
+`verification_history`, `background_status`, `outcome_progress`,
+`release_readiness`, `fanout_timeline`, `phase_status`, `verify_run`,
 `verify_claim`, `reflect`, plus the parallel delegation tools `fanout_start`,
 `fanout_status`, and `fanout_results`. Same
 state directory, same file formats, same evidence rules:
@@ -177,6 +178,9 @@ attested evidence without rerunning checks or upgrading attested claims.
 `outcome_progress` shows active and recent outcome loop progress from durable
 goal and iteration records without running checks, making attempts, stopping
 loops, or treating notes as verification.
+`release_readiness` shows required release gate rows from recorded executed
+verifications, roadmap state, and project git state without rerunning gates or
+declaring the release safe.
 `fanout_timeline` shows durable worker task timing, status, errors, and output
 metadata without mutating state or treating worker output as verification
 evidence. `phase_status` groups active plan steps into

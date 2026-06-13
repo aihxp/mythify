@@ -2,7 +2,7 @@
   "version": 1,
   "surfaces": {
     "cli": {
-      "command_count": 20,
+      "command_count": 21,
       "commands": [
         "init",
         "protocol",
@@ -11,6 +11,7 @@
         "history",
         "background",
         "progress",
+        "readiness",
         "timeline",
         "phase",
         "classify",
@@ -27,9 +28,9 @@
       ]
     },
     "mcp": {
-      "core_tool_count": 32,
+      "core_tool_count": 33,
       "fanout_tool_count": 3,
-      "total_tools": 35,
+      "total_tools": 36,
       "core_tools": [
         "classify_task",
         "host_model_switch",
@@ -44,6 +45,7 @@
         "verification_history",
         "background_status",
         "outcome_progress",
+        "release_readiness",
         "fanout_timeline",
         "phase_status",
         "memory_store",

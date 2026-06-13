@@ -1811,6 +1811,43 @@ class TestStatusAndSummary(CliTestCase):
         self.assertEqual(by_id["watch-progress-budget"]["iterations_remaining"], 3)
         self.assertEqual(self.state_snapshot(state), before)
 
+    def test_readiness_maps_recorded_gates_without_mutation(self):
+        state = self.init_workspace()
+        (self.project / "roadmap.md").write_text(
+            "## Active Now\n\n- [>] Release readiness view.\n",
+            encoding="utf-8",
+        )
+        seeded = self.run_cli(
+            "verify",
+            "run",
+            shell_py("raise SystemExit(0)"),
+            "--claim",
+            "Python suite passes for release readiness",
+        )
+        self.assertEqual(seeded.returncode, 0, seeded.stderr)
+
+        before = self.state_snapshot(state)
+        result = self.run_cli("readiness")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("[OK] Release readiness", result.stdout)
+        self.assertIn("Readiness: needs_evidence", result.stdout)
+        self.assertIn("Python test suite: passed", result.stdout)
+        self.assertIn("Node MCP suite: missing", result.stdout)
+        self.assertIn("Project git: [~] unknown", result.stdout)
+        self.assertIn("Roadmap: [x] present; - [>] Release readiness view.", result.stdout)
+        self.assertIn("Guardrail: readiness summarizes recorded evidence", result.stdout)
+        self.assertEqual(self.state_snapshot(state), before)
+
+        json_result = self.run_cli("readiness", "--json")
+        self.assertEqual(json_result.returncode, 0, json_result.stderr)
+        payload = json.loads(json_result.stdout)
+        self.assertEqual(payload["status"], "needs_evidence")
+        self.assertEqual(payload["counts"]["passed"], 1)
+        self.assertEqual(payload["counts"]["missing"], 8)
+        self.assertEqual(payload["project_state"]["roadmap"]["status"], "present")
+        self.assertEqual(payload["project_state"]["git"]["status"], "unknown")
+        self.assertEqual(self.state_snapshot(state), before)
+
     def test_timeline_includes_fanout_worker_events_without_mutation(self):
         state = self.init_workspace()
         job_id = "fo-20260613141414-abcd"

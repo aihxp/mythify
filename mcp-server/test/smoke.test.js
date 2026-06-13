@@ -641,6 +641,45 @@ test("mythify MCP server smoke test", async (t) => {
       assert.deepEqual(snapshotStateDir(stateDir), before, "outcome_progress json leaves state unchanged");
     });
 
+    await t.test("release_readiness shows recorded gates without mutation", async () => {
+      const seeded = textOf(
+        await client.callTool({
+          name: "verify_run",
+          arguments: {
+            command: `${JSON.stringify(process.execPath)} -e "process.exit(0)"`,
+            claim: "Python suite passes for release readiness",
+          },
+        })
+      );
+      assert.ok(seeded.startsWith("[OK]"), `readiness seed verification passes: ${seeded}`);
+
+      const before = snapshotStateDir(stateDir);
+      const text = textOf(
+        await client.callTool({
+          name: "release_readiness",
+          arguments: {},
+        })
+      );
+      assert.ok(text.startsWith("[OK] Release readiness"), `release_readiness reports [OK]: ${text}`);
+      assert.match(text, /Python test suite: passed/);
+      assert.match(text, /Node MCP suite: missing/);
+      assert.match(text, /Project git: \[(?:x|!|~)\] (?:clean|dirty|unknown)/);
+      assert.match(text, /Guardrail: readiness summarizes recorded evidence/);
+      assert.deepEqual(snapshotStateDir(stateDir), before, "release_readiness leaves state unchanged");
+
+      const jsonText = textOf(
+        await client.callTool({
+          name: "release_readiness",
+          arguments: { format: "json" },
+        })
+      );
+      const parsed = JSON.parse(jsonText.replace(/^\[OK\] /, ""));
+      assert.equal(parsed.counts.passed, 1);
+      assert.equal(parsed.counts.missing, 8);
+      assert.ok(["clean", "dirty", "unknown"].includes(parsed.project_state.git.status));
+      assert.deepEqual(snapshotStateDir(stateDir), before, "release_readiness json leaves state unchanged");
+    });
+
     await t.test("background_status shows read-only outcome and fanout state", async () => {
       const jobId = "fo-20260613131313-abcd";
       const jobDir = path.join(stateDir, "fanout", jobId);

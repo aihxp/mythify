@@ -215,7 +215,7 @@ runtime registrations.
 Current scope:
 
 - Top-level CLI command names and command count.
-- MCP core tool names, fanout tool names, and the 32 core plus 3 fanout count
+- MCP core tool names, fanout tool names, and the 33 core plus 3 fanout count
   split.
 
 Rules:
@@ -270,6 +270,27 @@ outcome loops:
 - Mutation boundary: the normal path must not run checks, make attempts, stop
   loops, change active outcomes, or edit goal or iteration records. It is a
   progress display, not a control surface.
+
+## Release readiness view
+
+The release readiness view is a read-only release-review surface:
+
+- CLI command: `readiness [--json]`.
+- MCP tool: `release_readiness`.
+- State sources: `.mythify/verifications.jsonl`, `roadmap.md`, and read-only
+  git status for the project root.
+- Output: release-review status, required gate rows, each gate's latest
+  matching executed verifier record, source file references, project git
+  status, and active roadmap slice.
+- Required gates: Python suite, Node MCP suite, surface manifest check,
+  generated registry docs check, protocol variants check, generated variants
+  idempotence, whitespace check, forbidden dash scan, and emoji scan.
+- Evidence boundary: the view only summarizes recorded executed verifier
+  records. Missing rows stay missing, failed rows stay failed, and attested
+  claims do not satisfy release gates.
+- Mutation boundary: the normal path must not append, edit, compact, or
+  remove Mythify state, must not rerun release gates, and must not tag,
+  publish, push, or declare the release safe.
 
 ## Verification history
 
@@ -599,6 +620,7 @@ datetime, pathlib, tempfile). Subcommand grammar:
 | `history [--recent N] [--json]` | Read-only verification history: executed and attested records, verdicts, commands, exit codes, duration, and plan or step context from durable state. It does not mutate state, rerun checks, or upgrade attested claims. | 0; 1 if no workspace |
 | `background [--recent N] [--json]` | Read-only background task view: outcome loops, fanout jobs, task counts, current statuses, and next actions from durable state. It does not mutate state or report model confidence as progress. | 0; 1 if no workspace |
 | `progress [--recent N] [--json]` | Read-only outcome loop progress: active and recent outcomes, iteration budget, verifier exit details, metric score when present, and next action from durable state. It does not mutate state, run checks, stop loops, or treat notes as verification. | 0; 1 if no workspace |
+| `readiness [--json]` | Read-only release readiness: recorded verification gates, project git state, roadmap state, and release-review status without rerunning gates or declaring the release safe. | 0; 1 if no workspace |
 | `timeline [--recent N] [--json]` | Read-only fanout worker timeline: recent fanout jobs, task start and finish events, duration, status, errors, and output metadata from durable state. It does not mutate state or report worker output as verification evidence. | 0; 1 if no workspace |
 | `phase [--recent N] [--json]` | Read-only phase view: active plan steps grouped into Understand, Design, Build, Judge, and Verify, with supporting evidence counts from durable state. It does not mutate state or report model confidence as progress. | 0; 1 if no workspace |
 | `outcome start GOAL --success TEXT --verify COMMAND [--metric COMMAND] [--max-iterations N] [--allowed-paths CSV] [--visibility MODE] [--name NAME] [--json]` | Start a supervised outcome loop, set it active, and record the verifier, optional metric, allowed path hints, visibility policy, and iteration budget. | 0; 1 if no workspace or invalid budget |
@@ -643,7 +665,7 @@ a literal file and fails), engines node >= 18. Use the registration API that the
 installed SDK version supports (prefer `registerTool`); verify against the
 installed package, not from memory.
 
-Exactly 35 tools: the 32 core tools below plus the 3 fanout tools defined in the
+Exactly 36 tools: the 33 core tools below plus the 3 fanout tools defined in the
 "Fanout: parallel delegation" section. Tool descriptions must state what the tool
 does AND when to use it, since descriptions drive tool selection.
 
@@ -662,6 +684,7 @@ does AND when to use it, since descriptions drive tool selection.
 | `verification_history` | `{recent?: number, format?: enum(text, json)}` | Show a read-only history of executed and attested verification records, including verdict, command or evidence, exit code, duration, and plan or step context. It must not mutate state, rerun checks, or upgrade attested claims. |
 | `background_status` | `{recent?: number, format?: enum(text, json)}` | Show a read-only background task view of durable outcome loops and fanout jobs, including task counts, statuses, and next actions. It must not mutate state and must not report model confidence as progress. |
 | `outcome_progress` | `{recent?: number, format?: enum(text, json)}` | Show a read-only progress view of active and recent outcome loops, including iteration budget, verifier exit details, metric score when present, and next action. It must not run checks, make attempts, stop loops, or treat notes as verification. |
+| `release_readiness` | `{format?: enum(text, json)}` | Show a read-only release readiness view from recorded verification gates, project git state, and roadmap state. It must not rerun gates, mutate state, tag, publish, push, or declare the release safe. |
 | `fanout_timeline` | `{recent?: number, format?: enum(text, json)}` | Show a read-only timeline of fanout job creation, task starts, task finishes, duration, status, errors, and output metadata. It must not mutate state and must not treat worker output as verification evidence. |
 | `phase_status` | `{recent?: number, format?: enum(text, json)}` | Show a read-only Understand, Design, Build, Judge, Verify phase view of active plan steps and durable evidence counts. It must not mutate state and must not report model confidence as progress. |
 | `outcome_start` | `{goal: string, success: string, verify_command: string, metric_command?: string, max_iterations?: number, allowed_paths?: string[], visibility?: enum(auto, quiet, summary, verbose, threaded), name?: string, format?: enum(text, json)}` | Start a supervised outcome loop and set it active. The host agent acts between checks; Mythify records the verifier, metric, budget, and visibility policy. |
@@ -899,7 +922,7 @@ document the project. Required structure:
 6. Memory and lessons: what to store, when to recall (before architectural decisions,
    at session start), project vs global lessons.
 7. Command quick reference matching the CLI table exactly.
-8. A short MCP note listing the 35 tool names for clients using the server instead
+8. A short MCP note listing the 36 tool names for clients using the server instead
    of the CLI, with delegation discipline for the fanout tools.
 
 ### Protocol handshake

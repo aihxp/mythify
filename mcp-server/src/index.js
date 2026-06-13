@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Mythify MCP server v2.5.0
 // Exposes the Mythify state model (memory, plans, lessons, verifications,
-// reflections) as 32 core MCP tools over stdio, plus the 3 fanout tools for
-// parallel delegation (src/fanout.js), 35 tools in total. On-disk formats are
+// reflections) as 33 core MCP tools over stdio, plus the 3 fanout tools for
+// parallel delegation (src/fanout.js), 36 tools in total. On-disk formats are
 // shared with the Python CLI (scripts/mythify.py); both implementations must
 // interoperate on the same .mythify state directory. Fanout is MCP-only; the
 // CLI deliberately does not implement it.
@@ -1562,6 +1562,266 @@ function formatOutcomeProgressView(view) {
   } else {
     lines.push("No outcome loops found.");
   }
+  lines.push(`Guardrail: ${view.guardrail}.`);
+  return lines.join("\n");
+}
+
+const RELEASE_READINESS_GATES = [
+  {
+    id: "python_tests",
+    label: "Python test suite",
+    required: true,
+    sources: ["tests/"],
+    match_any: ["python3 -m unittest discover -s tests", "Python suite passes"],
+  },
+  {
+    id: "node_mcp_tests",
+    label: "Node MCP suite",
+    required: true,
+    sources: ["mcp-server/test/"],
+    match_any: ["npm test --prefix mcp-server", "Node MCP suite passes"],
+  },
+  {
+    id: "surface_manifest",
+    label: "Surface manifest check",
+    required: true,
+    sources: ["protocol/surface-manifest.json", "scripts/check_surface_manifest.mjs"],
+    match_any: ["node scripts/check_surface_manifest.mjs", "surface manifest"],
+  },
+  {
+    id: "registry_docs",
+    label: "Generated registry docs check",
+    required: true,
+    sources: ["scripts/build_registry_docs.mjs", "docs/adapter-candidates.md"],
+    match_any: ["node scripts/build_registry_docs.mjs --check", "registry docs", "generated docs"],
+  },
+  {
+    id: "protocol_check",
+    label: "Protocol variants check",
+    required: true,
+    sources: ["protocol/PROTOCOL.md", "AGENTS.md", "CLAUDE.md", ".cursorrules"],
+    match_any: ["python3 scripts/mythify.py protocol check", "protocol check"],
+  },
+  {
+    id: "variant_idempotence",
+    label: "Generated variants idempotence",
+    required: true,
+    sources: ["scripts/build_variants.py", "AGENTS.md", "CLAUDE.md", ".cursorrules"],
+    match_any: ["scripts/build_variants.py", "generated variants", "variant idempotence"],
+  },
+  {
+    id: "whitespace",
+    label: "Whitespace check",
+    required: true,
+    sources: ["git diff --check"],
+    match_any: ["git diff --check", "whitespace"],
+  },
+  {
+    id: "forbidden_dash_scan",
+    label: "Forbidden dash scan",
+    required: true,
+    sources: ["AGENTS.md", "docs/design.md"],
+    match_any: ["forbidden dash", "dash scan"],
+  },
+  {
+    id: "emoji_scan",
+    label: "Emoji scan",
+    required: true,
+    sources: ["AGENTS.md", "docs/design.md"],
+    match_any: ["emoji scan", "emoji-like"],
+  },
+];
+
+const RELEASE_READINESS_ICONS = {
+  passed: "[x]",
+  failed: "[!]",
+  missing: "[ ]",
+  unknown: "[~]",
+  clean: "[x]",
+  dirty: "[!]",
+  present: "[x]",
+};
+
+function projectRootFromState(stateDir) {
+  return path.basename(stateDir) === ".mythify" ? path.dirname(stateDir) : process.cwd();
+}
+
+function verificationSearchText(record) {
+  return ["claim", "command", "stdout_tail", "stderr_tail"]
+    .map((key) => String(record[key] || ""))
+    .join("\n")
+    .toLowerCase();
+}
+
+function latestMatchingVerification(records, gate) {
+  const needles = gate.match_any.map((item) => item.toLowerCase());
+  const matches = records.filter(
+    (record) =>
+      record.kind === "executed" &&
+      needles.some((needle) => verificationSearchText(record).includes(needle))
+  );
+  return matches.length > 0 ? matches[matches.length - 1] : null;
+}
+
+function summarizeReleaseGate(gate, records) {
+  const record = latestMatchingVerification(records, gate);
+  const status = record ? (record.verified === true ? "passed" : "failed") : "missing";
+  return {
+    id: gate.id,
+    label: gate.label,
+    required: gate.required,
+    sources: [...gate.sources],
+    status,
+    latest_record: record
+      ? {
+          timestamp: record.timestamp || "",
+          claim: record.claim,
+          command: record.command || "",
+          exit_code: record.exit_code,
+          verified: record.verified,
+          plan: record.plan,
+          step_id: record.step_id,
+        }
+      : null,
+  };
+}
+
+function gitStatusSummary(root) {
+  const result = spawnSync("git", ["--no-optional-locks", "status", "--short", "--branch"], {
+    cwd: root,
+    encoding: "utf8",
+    timeout: 10000,
+    env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+  });
+  if (result.error) {
+    return {
+      status: "unknown",
+      branch: "",
+      clean: null,
+      detail: result.error.message,
+    };
+  }
+  const output = result.stdout || "";
+  if (result.status !== 0) {
+    return {
+      status: "unknown",
+      branch: "",
+      clean: null,
+      detail: String(result.stderr || output || "git status failed").trim(),
+    };
+  }
+  const lines = output.split(/\r?\n/).filter((line) => line.trim() !== "");
+  const branch = lines.length > 0 && lines[0].startsWith("## ") ? lines[0].slice(3).trim() : "";
+  const changedPaths = lines.filter((line) => !line.startsWith("## "));
+  const clean = changedPaths.length === 0;
+  return {
+    status: clean ? "clean" : "dirty",
+    branch,
+    clean,
+    detail: clean ? "working tree clean" : `${changedPaths.length} changed paths`,
+    changed_paths: changedPaths.slice(0, 20),
+  };
+}
+
+function roadmapSummary(root) {
+  const roadmapPath = path.join(root, "roadmap.md");
+  if (!fs.existsSync(roadmapPath)) {
+    return {
+      status: "unknown",
+      path: roadmapPath,
+      active_now: "",
+      detail: "roadmap.md not found",
+    };
+  }
+  const text = fs.readFileSync(roadmapPath, "utf8");
+  const match = text.match(/^## Active Now\n\n([\s\S]*?)(?:\n## |\n?$)/m);
+  let activeNow = "";
+  if (match) {
+    activeNow = (match[1].split(/\r?\n/).find((line) => line.trim().startsWith("- [")) || "").trim();
+  }
+  return {
+    status: activeNow ? "present" : "unknown",
+    path: roadmapPath,
+    active_now: activeNow,
+    detail: activeNow ? "active slice found" : "no active slice found",
+  };
+}
+
+function releaseReadinessStatus(gates, gitState) {
+  const failed = gates.filter((gate) => gate.status === "failed").length;
+  const missing = gates.filter((gate) => gate.status === "missing").length;
+  if (failed > 0 || gitState.status === "dirty") {
+    return "blocked";
+  }
+  if (missing > 0) {
+    return "needs_evidence";
+  }
+  if (gitState.status === "unknown") {
+    return "needs_review";
+  }
+  return "ready_for_release_review";
+}
+
+function buildReleaseReadinessView() {
+  const stateDir = resolveStateDir();
+  const records = readJsonl(verificationsPath());
+  const gates = RELEASE_READINESS_GATES.map((gate) => summarizeReleaseGate(gate, records));
+  const root = projectRootFromState(stateDir);
+  const gitState = gitStatusSummary(root);
+  const roadmap = roadmapSummary(root);
+  const counts = countStatuses(gates, ["passed", "failed", "missing", "unknown"]);
+  return {
+    state_dir: stateDir,
+    project_root: root,
+    status: releaseReadinessStatus(gates, gitState),
+    gates,
+    counts: { total: gates.length, ...counts },
+    project_state: {
+      git: gitState,
+      roadmap,
+    },
+    guardrail:
+      "readiness summarizes recorded evidence and project state only; it does not rerun gates or declare a release safe",
+  };
+}
+
+function formatReleaseGate(row) {
+  const icon = RELEASE_READINESS_ICONS[row.status] || "[ ]";
+  let line = `  ${icon} ${row.label}: ${row.status}`;
+  const record = row.latest_record;
+  if (record) {
+    line += ` (exit ${record.exit_code}, ${record.timestamp || "unknown-time"})`;
+  } else {
+    line += " (no recorded executed verifier)";
+  }
+  line += `; sources: ${row.sources.join(", ")}`;
+  return line;
+}
+
+function formatReleaseReadinessView(view) {
+  const lines = [`[OK] Release readiness: ${view.state_dir}`];
+  const counts = view.counts;
+  lines.push(`Readiness: ${view.status}`);
+  lines.push(
+    `Recorded gates: ${counts.total} total; ${counts.passed || 0} passed, ` +
+      `${counts.failed || 0} failed, ${counts.missing || 0} missing`
+  );
+  lines.push("Gates:");
+  for (const gate of view.gates) {
+    lines.push(formatReleaseGate(gate));
+  }
+  const gitState = view.project_state.git;
+  const gitIcon = RELEASE_READINESS_ICONS[gitState.status] || "[~]";
+  lines.push(
+    `Project git: ${gitIcon} ${gitState.status}; branch=${gitState.branch || "unknown"}; ` +
+      compactLabel(gitState.detail, "no detail")
+  );
+  const roadmap = view.project_state.roadmap;
+  const roadmapIcon = RELEASE_READINESS_ICONS[roadmap.status] || "[~]";
+  lines.push(
+    `Roadmap: ${roadmapIcon} ${roadmap.status}; ` +
+      compactLabel(roadmap.active_now, roadmap.detail)
+  );
   lines.push(`Guardrail: ${view.guardrail}.`);
   return lines.join("\n");
 }
@@ -5728,6 +5988,26 @@ server.registerTool(
       return `[OK] ${JSON.stringify(view, null, 2)}`;
     }
     return formatOutcomeProgressView(view);
+  })
+);
+
+server.registerTool(
+  "release_readiness",
+  {
+    title: "Show release readiness",
+    description:
+      "Show a read-only release readiness view from recorded verification gates, project git state, and roadmap state. " +
+      "Use this before tagging or publishing to see which expected gates have recorded evidence without rerunning gates or declaring the release safe.",
+    inputSchema: {
+      format: z.enum(["text", "json"]).optional().describe("Return text or JSON. Defaults to text."),
+    },
+  },
+  guarded(({ format }) => {
+    const view = buildReleaseReadinessView();
+    if (format === "json") {
+      return `[OK] ${JSON.stringify(view, null, 2)}`;
+    }
+    return formatReleaseReadinessView(view);
   })
 );
 

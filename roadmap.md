@@ -21,14 +21,13 @@ Status markers:
 
 ## Active Now
 
-- [>] Release readiness view.
-  - Current goal: show whether a release has the expected executable evidence,
-    generated-file checks, protocol checks, docs checks, and git state needed
-    before tagging.
-  - Next step: map existing gate inputs into readiness rows without inventing
-    approval or rerunning checks inside the read-only view.
-  - Guardrail: readiness reports recorded evidence and check status; it does
-    not declare a release safe without executed gates.
+- [>] Verified task success evaluation.
+  - Current goal: measure whether Mythify improves verified task success using
+    rerunnable local harness evidence.
+  - Next step: map the current evaluation harness outputs, metrics, and missing
+    evidence before changing benchmark behavior.
+  - Guardrail: evaluation evidence comes from rerunning verifiers, not model
+    self-ratings.
 
 ## Next Queue
 
@@ -215,12 +214,14 @@ Already shipped in this track:
 
 What remains:
 
-- [>] Release readiness view.
+Nothing open right now.
 
 Principle: reveal evidence, do not decorate self-report.
 
 Already shipped in this track:
 
+- [x] Release readiness through CLI `readiness` and MCP
+  `release_readiness`.
 - [x] Outcome loop progress through CLI `progress` and MCP
   `outcome_progress`.
 - [x] Verification history through CLI `history` and MCP
@@ -237,7 +238,7 @@ Already shipped in this track:
 
 What remains:
 
-- [ ] Does Mythify improve verified task success?
+- [>] Does Mythify improve verified task success?
 - [ ] Does it reduce false completion claims?
 - [ ] How much overhead does each profile add?
 - [ ] Which tasks benefit from local models?
@@ -255,6 +256,10 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add read-only release readiness. CLI `readiness` and MCP
+  `release_readiness` summarize recorded verification gates, project git state,
+  and roadmap state without rerunning gates, mutating state, tagging,
+  publishing, pushing, or declaring the release safe.
 - [x] 2026-06-13: add read-only outcome progress. CLI `progress` and MCP
   `outcome_progress` show active and recent outcome loops, iteration budget,
   last verifier exit details, metric score when present, and next action

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CLI `readiness` and MCP `release_readiness` read-only release readiness
+  views. The view summarizes recorded verification gates, project git state,
+  and roadmap state without rerunning gates, mutating state, or declaring the
+  release safe.
 - CLI `progress` and MCP `outcome_progress` read-only outcome progress views.
   The view shows active and recent outcome loops, iteration budget, verifier
   exit details, metric score when present, and next action without running
