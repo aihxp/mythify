@@ -789,9 +789,9 @@ quietly drift.
 `mcp-server/src/capability-registry.js` by `node scripts/build_registry_docs.mjs`.
 The Node suite and CI hygiene job compare the committed file with fresh
 registry output, so adapter docs cannot quietly drift from the registry.
-Some candidates are metadata-only: for example, Kimi Work is tracked as a
-`desktop_agent`, but Mythify does not run or automate it until a documented or
-locally probeable automation contract exists.
+Some candidates are metadata-only: Kimi Work and OpenCode Desktop are tracked
+as `desktop_agent` entries, but Mythify does not run or automate them until a
+documented or locally probeable automation contract exists.
 
 ## Limitations
 

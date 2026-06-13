@@ -87,6 +87,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a metadata-only `desktop_agent` candidate with manual model-switching and
   spawning posture until a documented or locally probeable automation contract
   exists.
+- OpenCode Desktop metadata. The capability registry now tracks OpenCode
+  Desktop as a metadata-only `desktop_agent` candidate and points automation
+  toward the existing OpenCode CLI worker plus future server or SDK slices
+  instead of driving the desktop app directly.
 
 ## [2.5.0] - 2026-06-12
 

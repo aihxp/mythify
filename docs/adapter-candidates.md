@@ -20,4 +20,5 @@ This file is generated from `mcp-server/src/capability-registry.js`. Do not edit
 | openai-api | api_provider | metadata_supported | no | yes | no | metadata only; no API worker | metadata only, not evidence |
 | openai-compatible-hosted | api_provider | metadata_supported | no | yes | no | metadata only; no API worker | metadata only, not evidence |
 | opencode | host | worker_supported | no | no | yes | bounded worker | material, not evidence |
+| opencode-desktop | desktop_agent | metadata_only | yes | no | no | metadata only | metadata only, not evidence |
 | vllm | model_provider | local_profile_supported | yes | yes | yes | local roles: reader, triage | material, not evidence |

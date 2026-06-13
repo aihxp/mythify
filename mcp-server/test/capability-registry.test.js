@@ -98,6 +98,7 @@ test("researched future adapters are candidates, not public host platforms", () 
     "openai-api",
     "openai-compatible-hosted",
     "opencode",
+    "opencode-desktop",
     "vllm",
   ]);
 
@@ -177,7 +178,7 @@ test("researched future adapters are candidates, not public host platforms", () 
   );
   assert.deepEqual(
     listAdapterCandidates("desktop_agent").map((candidate) => candidate.name).sort(),
-    ["kimi-work"]
+    ["kimi-work", "opencode-desktop"]
   );
   assert.equal(ADAPTER_CANDIDATES.antigravity.status, "worker_supported");
   assert.equal(ADAPTER_CANDIDATES.antigravity.can_probe, true);
@@ -197,6 +198,15 @@ test("researched future adapters are candidates, not public host platforms", () 
   assert.equal(ADAPTER_CANDIDATES["kimi-work"].metadata_only, true);
   assert.equal(ADAPTER_CANDIDATES["kimi-work"].permission_policy, "manual_ask_before_acting");
   assert.equal(ADAPTER_CANDIDATES["kimi-work"].automation_policy, "no_documented_cli_or_api");
+  assert.equal(ADAPTER_CANDIDATES["opencode-desktop"].status, "metadata_only");
+  assert.equal(ADAPTER_CANDIDATES["opencode-desktop"].can_probe, false);
+  assert.equal(ADAPTER_CANDIDATES["opencode-desktop"].can_run_bounded_worker, false);
+  assert.equal(ADAPTER_CANDIDATES["opencode-desktop"].metadata_only, true);
+  assert.equal(
+    ADAPTER_CANDIDATES["opencode-desktop"].automation_policy,
+    "use_opencode_cli_server_or_sdk_not_desktop_app"
+  );
+  assert.equal(ADAPTER_CANDIDATES["opencode-desktop"].app_bundle_id, "ai.opencode.desktop");
   assert.equal(ADAPTER_CANDIDATES.opencode.status, "worker_supported");
   assert.equal(ADAPTER_CANDIDATES.opencode.can_probe, true);
   assert.equal(ADAPTER_CANDIDATES.opencode.can_run_noninteractive_prompt, true);

@@ -272,12 +272,13 @@ Sources:
 
 ### OpenCode
 
-Fit: high-priority future CLI adapter.
+Fit: supported CLI adapter, plus metadata-only desktop local-agent candidate.
 
 Why:
 
 - Official docs say OpenCode supports 75+ providers and local models through
   AI SDK and Models.dev.
+- The official download page offers a Desktop App marked Beta.
 - Config supports `provider`, `model`, and `small_model`.
 - Local providers can use OpenAI-compatible base URLs, including llama.cpp,
   LM Studio, Ollama, and local NVIDIA NIM.
@@ -285,6 +286,8 @@ Why:
 - Agents can have custom prompts, models, and tool access.
 - The installed CLI exposes `opencode run -m provider/model`, `--variant`,
   `--agent`, `serve`, `web`, `mcp`, `models`, and provider auth commands.
+- The local desktop app bundle exists at `/Applications/OpenCode.app`, with
+  bundle id `ai.opencode.desktop` and local version `1.15.12`.
 
 Local probe:
 
@@ -297,15 +300,18 @@ Local probe:
 
 Mythify implication:
 
-- Add an `opencode` adapter after the generic command adapter.
-- First operation can be `run_prompt` with `model`, `variant`, `agent`,
-  `files`, `timeout`, `working_directory`, and `json_events`.
-- Treat OpenCode Desktop as a later UI target. The immediate product value is
-  CLI and server automation.
+- Keep the existing `opencode` host CLI worker path for bounded prompt runs.
+- Track OpenCode Desktop in the capability registry as
+  `kind: "desktop_agent"` and `status: "metadata_only"`.
+- Do not drive the desktop app directly. Programmatic work should use the
+  existing OpenCode CLI worker and future server or SDK slices until a desktop
+  automation contract exists.
 
 Sources:
 
+- [OpenCode docs](https://opencode.ai/docs/)
 - [OpenCode CLI](https://opencode.ai/docs/cli/)
+- [OpenCode SDK](https://opencode.ai/docs/sdk/)
 - [OpenCode config](https://opencode.ai/docs/config/)
 - [OpenCode models](https://opencode.ai/docs/models/)
 - [OpenCode providers](https://opencode.ai/docs/providers/)

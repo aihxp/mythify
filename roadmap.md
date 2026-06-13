@@ -21,23 +21,23 @@ Status markers:
 
 ## Active Now
 
-- [>] OpenCode Desktop lane after CLI and server adapters prove useful.
-  - Current goal: decide whether OpenCode Desktop should be a desktop host
-    lane, adapter candidate, or backlog-only research item.
-  - Next step: map available local entry points, model controls, workspace
-    boundary, automation hooks, and MCP or CLI compatibility.
-  - Guardrail: do not claim desktop control or spawning unless a local probe or
-    official contract proves it.
+- [>] Colab remote execution adapter after explicit billing, data movement,
+  and cleanup posture are designed.
+  - Current goal: decide whether Colab CLI can graduate from probe-only
+    execution substrate metadata to a bounded remote execution adapter.
+  - Next step: map billing, data movement, runtime provisioning, accelerator
+    request, artifact retrieval, cleanup, and official CLI support without
+    executing billable remote work.
+  - Guardrail: do not run remote jobs, provision accelerators, or move user
+    data until the adapter contract exposes explicit controls.
 
 ## Next Queue
 
-1. [ ] Colab remote execution adapter after explicit billing, data movement,
-   and cleanup posture are designed.
-2. [ ] Cost and timeout controls per role.
-3. [ ] Custom command or HTTP adapter path.
-4. [ ] Workflow dashboard or phase view that reveals evidence without
+1. [ ] Cost and timeout controls per role.
+2. [ ] Custom command or HTTP adapter path.
+3. [ ] Workflow dashboard or phase view that reveals evidence without
    decorating self-report.
-5. [ ] One-core architecture decision after the registry prototype proves
+4. [ ] One-core architecture decision after the registry prototype proves
    enough value.
 
 ## Open Work By Track
@@ -46,7 +46,7 @@ Status markers:
 
 What remains:
 
-- [>] OpenCode Desktop lane.
+Nothing open right now.
 
 Decision needed:
 
@@ -57,6 +57,7 @@ Decision needed:
 
 Already shipped in this track:
 
+- [x] OpenCode Desktop lane mapped as metadata-only `desktop_agent`.
 - [x] Kimi Work desktop lane mapped as metadata-only `desktop_agent`.
 - [x] Kimi Code CLI probe.
 - [x] OpenCode CLI probe.
@@ -245,6 +246,10 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: map OpenCode Desktop as a metadata-only `desktop_agent`
+  candidate in the capability registry. Automation stays on the existing
+  OpenCode CLI worker and future server or SDK slices until a desktop
+  automation contract exists.
 - [x] 2026-06-13: map Kimi Work desktop as a metadata-only `desktop_agent`
   candidate in the capability registry. Kimi Work remains manual for
   model-switching and spawning until a documented or locally probeable
@@ -398,7 +403,8 @@ Preserve:
 
 - [ ] Stable cross-platform role assignment.
 - [ ] Stable adapter interface.
-- [x] Desktop local-agent lane for Kimi Work style workflows.
+- [x] Desktop local-agent lane for Kimi Work and OpenCode Desktop style
+  workflows.
 - [ ] Execution adapter lane for Colab CLI style remote jobs.
 - [ ] Agent lifecycle lane for Agents CLI and ADK style workflows.
 - [ ] One-core architecture decision based on the registry prototype.
