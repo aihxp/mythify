@@ -1101,6 +1101,11 @@ Sections, in order:
     varies by model strength.
 13. License: MIT.
 
+The README also links `docs/cli-to-model-runtime-migration.md`, which explains
+the opt-in path from CLI-only usage to host, local model, API provider,
+execution substrate, and lifecycle lanes without hidden routing, automatic
+spending, or deployment.
+
 Document only what exists. No npx instructions, no badges for services not set up.
 
 ## Local Evaluation Harness

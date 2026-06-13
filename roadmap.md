@@ -21,13 +21,14 @@ Status markers:
 
 ## Active Now
 
-- [>] CLI-only to model-runtime orchestration migration guide.
-  - Current goal: write the path from today's CLI-first workflow to optional
-    host, local model, API provider, execution substrate, and lifecycle lanes.
-  - Next step: map the current CLI-only entry points to the new provider and
-    adapter contracts.
-  - Guardrail: keep migration guidance opt-in and operational; do not imply
-    hidden model routing, automatic spending, remote execution, or deployment.
+- [>] Host apply or confirm API proof watchlist.
+  - Current goal: keep the host model switching backlog honest until a host
+    exposes real current-chat apply, current-chat confirm, worker model, or
+    thinking APIs.
+  - Next step: map the current unsupported apply and confirm surfaces to proof
+    criteria and future tests.
+  - Guardrail: do not mutate host state or claim a host switch happened unless
+    a host adapter proves it.
 
 ## Next Queue
 
@@ -94,8 +95,9 @@ Role model:
 
 What remains:
 
-- [ ] Apply model or thinking changes when a host exposes a real capability.
-- [ ] Add adapter execution tests once a host exposes apply or confirm APIs.
+- [>] Host apply or confirm API proof watchlist.
+- [~] Apply model or thinking changes when a host exposes a real capability.
+- [~] Add adapter execution tests once a host exposes apply or confirm APIs.
 
 Already shipped in this track:
 
@@ -295,6 +297,11 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add CLI-only to model-runtime migration guide.
+  `docs/cli-to-model-runtime-migration.md` now documents the opt-in path from
+  the CLI baseline to MCP, host model policy, local models, host CLI workers,
+  hosted provider fanout, remote execution substrates, and agent lifecycle
+  lanes while preserving explicit user control and executable verification.
 - [x] 2026-06-13: add agent lifecycle lane contract. MCP `lifecycle_probe`
   now returns `lifecycle_lane_contract` with allowed probe commands, disabled
   lifecycle actions, future guarded actions, eval and deployment prerequisites,
@@ -586,7 +593,13 @@ Preserve:
 - [x] Agent lifecycle lane for Agents CLI and ADK style workflows.
 - [x] One-core architecture decision based on the registry prototype.
 - [x] Stronger workflow surfaces.
-- [>] Clear migration guide from CLI-only usage to model-runtime orchestration.
+- [x] Clear migration guide from CLI-only usage to model-runtime orchestration.
+
+### v3.1
+
+- [>] Host apply or confirm API proof watchlist.
+- [~] Apply model or thinking changes when a host exposes a real capability.
+- [~] Add adapter execution tests once a host exposes apply or confirm APIs.
 
 ## References
 
@@ -594,3 +607,4 @@ Preserve:
 - `docs/local-llm-and-new-host-research.md`
 - `docs/colab-cli-spike-plan.md`
 - `docs/antigravity-mcp-setup.md`
+- `docs/cli-to-model-runtime-migration.md`

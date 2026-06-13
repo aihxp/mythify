@@ -30,6 +30,11 @@ single runtime. The Python CLI and Node MCP server remain native adapters, while
 duplicated facts move into checked protocol files, registries, generated docs,
 schemas, or manifests one surface at a time.
 
+Migration guide: [docs/cli-to-model-runtime-migration.md](docs/cli-to-model-runtime-migration.md)
+shows how to move from CLI-only usage to optional host, local model, API
+provider, execution substrate, and lifecycle lanes without hidden routing or
+automatic spending.
+
 Each quick start begins from a local clone:
 
 ```bash

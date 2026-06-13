@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- CLI-only to model-runtime migration guide. `docs/cli-to-model-runtime-migration.md`
+  now documents the opt-in path from the CLI baseline to MCP, host model
+  policy, local models, host CLI workers, hosted provider fanout, remote
+  execution substrates, and agent lifecycle lanes while preserving explicit
+  user control and executable verification.
 - Agent lifecycle lane contract. MCP `lifecycle_probe` now returns
   `lifecycle_lane_contract` with allowed probe commands, disabled lifecycle
   actions, future guarded actions, eval and deployment prerequisites, mutation
