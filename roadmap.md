@@ -5,10 +5,12 @@ The goal is to keep Mythify focused as it grows beyond CLI-native users.
 
 ## How To Read This
 
-- Start with the Status Dashboard when deciding what to build next.
-- Use Track Backlogs when you need the fuller context for a work area.
-- Use Done when checking whether a slice already shipped.
-- Done means the work was implemented and verified unless a note says otherwise.
+Start here:
+
+- `Active Now` is the one slice currently being worked.
+- `Next Queue` is the ordered short list to pull from next.
+- `Open Work By Track` is everything not done yet.
+- `Shipped Work` is the archive of completed slices.
 
 Status markers:
 
@@ -17,9 +19,7 @@ Status markers:
 - `[x]` Done
 - `[~]` Deferred or waiting on external proof
 
-## Status Dashboard
-
-### In Progress
+## Active Now
 
 - [>] Kimi Work desktop lane after CLI adapters are stable.
   - Current goal: decide whether Kimi Work should be a desktop host lane,
@@ -29,20 +29,253 @@ Status markers:
   - Guardrail: do not claim desktop control or spawning unless a local probe or
     official contract proves it.
 
-### Next To Do
+## Next Queue
 
 1. [ ] OpenCode Desktop lane after CLI and server adapters prove useful.
 2. [ ] Colab remote execution adapter after explicit billing, data movement,
    and cleanup posture are designed.
+3. [ ] Cost and timeout controls per role.
+4. [ ] Custom command or HTTP adapter path.
+5. [ ] Workflow dashboard or phase view that reveals evidence without
+   decorating self-report.
+6. [ ] One-core architecture decision after the registry prototype proves
+   enough value.
 
-### Later
+## Open Work By Track
 
-- [ ] Workflow dashboard or phase view that reveals evidence without decorating
-  self-report.
+### Host Adapter Candidates
+
+What remains:
+
+- [>] Kimi Work desktop lane.
+- [ ] OpenCode Desktop lane.
+
+Decision needed:
+
+- Is each desktop product a host lane, a probe-only adapter candidate, or a
+  backlog-only research item?
+- What can be proven from local commands or official docs?
+- What should remain manual until a host exposes a real automation API?
+
+Already shipped in this track:
+
+- [x] Kimi Code CLI probe.
+- [x] OpenCode CLI probe.
+- [x] Kimi Code bounded worker run through `host_cli_run`.
+- [x] OpenCode bounded worker run through `host_cli_run`.
+- [x] Antigravity CLI probe.
+- [x] Antigravity MCP setup guide.
+- [x] Antigravity bounded worker run through `host_cli_run`.
+
+### Model Assignment
+
+What remains:
+
+- [ ] Cost and timeout controls per role.
+
+Already shipped in this track:
+
+- [x] Platform-aware model policy.
+- [x] Task-based host model recommendations.
+- [x] Same-or-lower default worker spawning.
+- [x] Explicit stronger-worker ceiling.
+- [x] Stronger reviewer opt-in flow.
+- [x] Provider-specific role defaults in CLI and MCP `model_policy`.
+- [x] API provider metadata exposed before hosted execution exists.
+
+Role model:
+
+- `session`: main host model, controlled by the user or host app.
+- `triage`: cheap or fast model for task classification.
+- `reader`: cheap, local, or privacy-preferred model for codebase reading.
+- `worker`: same-or-lower model for independent subtasks.
+- `reviewer`: same-or-stronger only when explicitly allowed.
+- `verifier`: command-first, not model-first.
+
+### Host Model Switching
+
+What remains:
+
+- [ ] Apply model or thinking changes when a host exposes a real capability.
+- [ ] Add host-confirmed current model fields where supported.
+- [ ] Add adapter execution tests once a host exposes apply or confirm APIs.
+
+Already shipped in this track:
+
+- [x] `host_model_switch` records requested model state.
+- [x] Status output includes registry-backed host capability information.
+- [x] Recorded desired model is not treated as proof that the host switched.
+- [x] `switch_result` separates manual requested state from applied or
+  host-confirmed current-chat state.
+- [x] CLI and MCP text output show current-chat confirmation, manual-action
+  status, and per-host capability fields.
+- [x] Focused tests cover current public capability fields for requested host
+  switch records.
+
+Core rule: Mythify can recommend or request a host model switch, but it should
+not pretend the switch happened unless the host adapter confirms it.
+
+### Local Model Support
+
+What remains:
+
+Nothing open right now.
+
+Already shipped in this track:
+
+- [x] Generic OpenAI-compatible provider probe can call `/v1/models` and
+  `/v1/chat/completions`.
+- [x] Generic OpenAI-compatible local adapter can run localhost reader and
+  triage prompts through `local_model_run`.
+- [x] Ollama profile defaults to `http://localhost:11434/v1`.
+- [x] LM Studio profile defaults to `http://localhost:1234/v1`.
+- [x] llama.cpp profile defaults to `http://localhost:8080/v1`.
+- [x] vLLM profile defaults to `http://localhost:8000/v1`.
+- [x] Local profiles send no auth header by default where appropriate.
+- [x] Local profiles refuse non-local URLs.
+- [x] Local model output is marked material, not verification evidence.
+- [x] Focused tests cover reader, triage, non-local refusal, and no
+  verification state writes.
+
+### API Provider Support
+
+What remains:
+
+- [ ] Custom command or HTTP adapter path.
+- [ ] Clear audit logs for spawned provider work.
+- [ ] Hosted execution for OpenAI, Anthropic, and OpenAI-compatible APIs.
+
+Already shipped in this track:
+
+- [x] OpenAI, Anthropic, and hosted OpenAI-compatible provider metadata includes
+  auth env names, billing posture, timeout defaults, cost metadata fields, and
+  pricing references.
+- [x] API provider metadata keeps execution disabled until a later explicit
+  hosted execution slice.
+- [x] No-surprise cross-provider fallback policy is recorded in API provider
+  metadata.
+- [x] Generic OpenAI-compatible probe shape exists.
+
+### Execution and Agent Lifecycle Adapters
+
+What remains:
+
+- [ ] Colab remote execution adapter, only after explicit billing and data
+  movement controls exist.
+
+Already shipped in this track:
+
+- [x] Google Colab CLI is classified as an `execution_substrate`.
+- [x] `execution_probe` checks Google Colab CLI availability with version and
+  help commands only.
+- [x] `docs/colab-cli-spike-plan.md` records the non-billable Colab scope.
+- [x] Google Agents CLI and ADK CLI are classified as `agent_lifecycle`
+  adapters.
+- [x] `lifecycle_probe` checks Google Agents CLI and ADK CLI availability with
+  version, help, and eval-help commands only.
+- [x] `docs/agents-cli-adk-spike-plan.md` records the non-deploying lifecycle
+  scope.
+
+Guardrails:
+
+- Colab CLI stays outside model assignment.
+- Agents CLI and ADK stay in `agent_lifecycle`, not `coding_host`.
+- Deployment commands are not enabled by default.
+- Remote execution requires explicit billing, data movement, and cleanup
+  posture before use.
+
+### Architecture Runway
+
+What remains:
+
+- [ ] Expand registry-backed generation only when another duplicated surface
+  has a focused drift test.
 - [ ] One-core architecture decision after the registry prototype proves enough
   value.
 
-### Done
+Already shipped in this track:
+
+- [x] Capability registry exists in `mcp-server/src/capability-registry.js`.
+- [x] Registry data is shown in `host_model_switch` status output.
+- [x] Generated adapter candidate docs come from the capability registry and
+  are protected by drift checks.
+- [x] Generated protocol files carry a source hash.
+- [x] CLI `protocol check` detects copied-file drift before workspace
+  initialization.
+- [x] Operation registry powers shared memory operation categories, default
+  category, state filename, and no-target clear refusals.
+- [x] Verification records include active plan and in-progress step context.
+- [x] Full CLI/MCP interop matrix covers shared mutating operations.
+- [x] Refusal paths have whole-state no-mutation snapshot checks.
+- [x] Log compaction archives raw top-level verification and reflection logs
+  before trimming active logs to recent valid records.
+
+### Workflow Surfaces
+
+What remains:
+
+- [ ] Status dashboard.
+- [ ] Background task view.
+- [ ] Phase view for Understand, Design, Build, Judge, Verify.
+- [ ] Fanout worker timeline.
+- [ ] Verification history.
+- [ ] Outcome loop progress.
+- [ ] Release readiness view.
+
+Principle: reveal evidence, do not decorate self-report.
+
+### Evaluation
+
+What remains:
+
+- [ ] Does Mythify improve verified task success?
+- [ ] Does it reduce false completion claims?
+- [ ] How much overhead does each profile add?
+- [ ] Which tasks benefit from local models?
+- [ ] Which roles require stronger models?
+- [ ] Where does fanout help, and where does it waste tokens?
+
+Already shipped in this track:
+
+- [x] Local bare-vs-Mythify evaluation harness.
+- [x] Fast Mythify profile support.
+
+Evidence should come from rerunning verifiers, not from model self-ratings.
+
+## Shipped Work
+
+### Recent Completed Slices
+
+- [x] 2026-06-13: refactor roadmap navigation around `Active Now`,
+  `Next Queue`, `Open Work By Track`, and `Shipped Work`, so unfinished items
+  appear before completed history in each track.
+- [x] 2026-06-13: add bounded Antigravity worker runs through `host_cli_run`,
+  with explicit workspace `cwd`, optional model flag forwarding, native
+  permission handling, and material-only output. The local `agy` shim on this
+  host was broken, so the live prompt path is covered by deterministic MCP
+  tests and the official CLI contract instead of a real Antigravity run.
+- [x] 2026-06-13: add provider-specific role defaults to `model_policy`,
+  including allowed roles, default roles, billing posture, execution boundary,
+  evidence status, state-write posture, and selected role provider profiles.
+- [x] 2026-06-13: add hosted API provider metadata for OpenAI, Anthropic, and
+  hosted OpenAI-compatible endpoints, including cost fields, timeout defaults,
+  explicit billing posture, and no hidden provider fallback.
+- [x] 2026-06-13: add vLLM local setup profile for `provider_probe` and
+  `local_model_run`, defaulting to `http://localhost:8000/v1` with
+  material-only output.
+- [x] 2026-06-13: add llama.cpp local setup profile for `provider_probe` and
+  `local_model_run`, defaulting to `http://localhost:8080/v1` with
+  material-only output.
+- [x] 2026-06-13: add LM Studio local setup profile for `provider_probe` and
+  `local_model_run`, defaulting to the local `/v1` endpoint with material-only
+  output.
+- [x] 2026-06-13: add Ollama local setup profile for `provider_probe` and
+  `local_model_run`, defaulting to the local `/v1` endpoint with material-only
+  output.
+- [x] 2026-06-13: add stronger reviewer opt-in policy for classifier output
+  and fanout tasks, keeping ordinary workers same-or-lower by default.
+
+### Foundation Completed Slices
 
 - [x] 2026-06-12: rebuild around contract-first Mythify v2.
 - [x] 2026-06-12: add fanout parallel delegation for MCP.
@@ -55,8 +288,6 @@ Status markers:
 - [x] 2026-06-12: add host model switch records and status output.
 - [x] 2026-06-12: add initiating-model spawn ceilings.
 - [x] 2026-06-12: add fanout visibility, effort, and speed controls.
-- [x] 2026-06-12: add the local bare-vs-Mythify evaluation harness.
-- [x] 2026-06-12: add fast Mythify profile support.
 - [x] 2026-06-12: add the capability registry for host, provider, execution,
   and lifecycle adapter metadata.
 - [x] 2026-06-12: add generic OpenAI-compatible provider probe.
@@ -87,248 +318,6 @@ Status markers:
   protected by Node and CI drift checks.
 - [x] 2026-06-13: add advisory per-role provider defaults to CLI and MCP
   `model_policy`, including reader role metadata and no implicit fallback.
-- [x] 2026-06-13: add stronger reviewer opt-in policy for classifier output
-  and fanout tasks, keeping ordinary workers same-or-lower by default.
-- [x] 2026-06-13: add Ollama local setup profile for `provider_probe` and
-  `local_model_run`, defaulting to the local `/v1` endpoint with material-only
-  output.
-- [x] 2026-06-13: add LM Studio local setup profile for `provider_probe` and
-  `local_model_run`, defaulting to the local `/v1` endpoint with material-only
-  output.
-- [x] 2026-06-13: add llama.cpp local setup profile for `provider_probe` and
-  `local_model_run`, defaulting to `http://localhost:8080/v1` with
-  material-only output.
-- [x] 2026-06-13: add vLLM local setup profile for `provider_probe` and
-  `local_model_run`, defaulting to `http://localhost:8000/v1` with
-  material-only output.
-- [x] 2026-06-13: add hosted API provider metadata for OpenAI, Anthropic, and
-  hosted OpenAI-compatible endpoints, including cost fields, timeout defaults,
-  explicit billing posture, and no hidden provider fallback.
-- [x] 2026-06-13: add provider-specific role defaults to `model_policy`,
-  including allowed roles, default roles, billing posture, execution boundary,
-  evidence status, state-write posture, and selected role provider profiles.
-- [x] 2026-06-13: add bounded Antigravity worker runs through `host_cli_run`,
-  with explicit workspace `cwd`, optional model flag forwarding, native
-  permission handling, and material-only output. The local `agy` shim on this
-  host was broken, so the live prompt path is covered by deterministic MCP
-  tests and the official CLI contract instead of a real Antigravity run.
-
-## Track Backlogs
-
-### Architecture Runway
-
-Why this track exists: local models, API providers, and host CLIs create more
-places for drift. Add enough structure to keep adapters honest without pausing
-product work.
-
-Open:
-
-- [ ] Expand registry-backed generation only when another duplicated surface
-  has a focused drift test.
-
-Done:
-
-- [x] Log compaction archives raw top-level verification and reflection logs
-  before trimming active logs to recent valid records.
-- [x] Generated adapter candidate docs come from
-  `mcp-server/src/capability-registry.js` and are protected by drift checks.
-- [x] Capability registry exists in `mcp-server/src/capability-registry.js`.
-- [x] Registry data is shown in `host_model_switch` status output.
-- [x] Verification records include active plan and in-progress step context.
-- [x] Full CLI/MCP interop matrix covers shared mutating operations.
-- [x] Refusal paths have whole-state no-mutation snapshot checks.
-- [x] Memory operation registry powers shared CLI and MCP memory categories,
-  default category, state filename, and no-target clear refusals.
-- [x] Generated protocol files carry a source hash, and CLI `protocol check`
-  detects copied-file drift before workspace initialization.
-
-### Model Assignment
-
-Core idea: Mythify should assign roles, not vibes.
-
-Roles:
-
-- `session`: main host model, controlled by the user or host app.
-- `triage`: cheap or fast model for task classification.
-- `reader`: cheap, local, or privacy-preferred model for codebase reading.
-- `worker`: same-or-lower model for independent subtasks.
-- `reviewer`: same-or-stronger only when explicitly allowed.
-- `verifier`: command-first, not model-first.
-
-Open:
-
-- [ ] Cost and timeout controls per role.
-
-Done:
-
-- [x] Provider-specific role defaults are exposed in CLI and MCP
-  `model_policy.provider_defaults.provider_catalog`.
-- [x] API provider metadata is exposed through `model_policy` before hosted
-  provider execution exists.
-- [x] Stronger reviewer opt-in flow requires explicit classifier or fanout
-  policy before review tasks can exceed the initiating session model.
-- [x] Per-role provider defaults are explicit in CLI and MCP `model_policy`.
-- [x] Platform-aware model policy.
-- [x] Task-based host model recommendations.
-- [x] Same-or-lower default worker spawning.
-- [x] Explicit stronger-worker ceiling.
-
-### Host Model Switching
-
-Core rule: Mythify can recommend or request a host model switch, but it should
-not pretend the switch happened unless the host adapter confirms it.
-
-Open:
-
-- [ ] Apply model or thinking changes when a host exposes a real capability.
-- [ ] Add host-confirmed current model fields where supported.
-- [ ] Add adapter execution tests once a host exposes apply or confirm APIs.
-
-Done:
-
-- [x] `host_model_switch` records requested model state.
-- [x] Status output includes registry-backed host capability information.
-- [x] Recorded desired model is not treated as proof that the host switched.
-- [x] `switch_result` separates manual requested state from applied or
-  host-confirmed current-chat state.
-- [x] CLI and MCP text output show current-chat confirmation, manual-action
-  status, and per-host capability fields.
-- [x] Focused tests cover current public capability fields for requested host
-  switch records.
-
-### Local Model Support
-
-Local models are useful for privacy, cost, and high-volume background work.
-They should enter through adapters, not special cases.
-
-Open:
-
-Done:
-
-- [x] vLLM profile defaults to `http://localhost:8000/v1`, uses
-  `MYTHIFY_VLLM_MODEL`, sends no auth header by default, and refuses non-local
-  URLs.
-- [x] llama.cpp profile defaults to `http://localhost:8080/v1`, uses
-  `MYTHIFY_LLAMA_CPP_MODEL`, sends no auth header by default, and refuses
-  non-local URLs.
-- [x] LM Studio profile defaults to `http://localhost:1234/v1`, uses
-  `MYTHIFY_LM_STUDIO_MODEL`, sends no auth header by default, and refuses
-  non-local URLs.
-- [x] Ollama profile defaults to `http://localhost:11434/v1`, uses
-  `MYTHIFY_OLLAMA_MODEL`, sends no auth header by default, and refuses
-  non-local URLs.
-- [x] Generic OpenAI-compatible provider probe can call `/v1/models` and
-  `/v1/chat/completions`.
-- [x] Generic OpenAI-compatible local adapter can run localhost reader and
-  triage prompts through `local_model_run`.
-- [x] Local model output is marked material, not verification evidence.
-- [x] Focused tests cover reader, triage, non-local refusal, and no verification
-  state writes.
-
-### API Provider Support
-
-API users need reliable orchestration, cost control, and auditability.
-
-Open:
-
-- [ ] Custom command or HTTP adapter path.
-- [ ] Clear audit logs for spawned provider work.
-- [ ] Hosted execution for OpenAI, Anthropic, and OpenAI-compatible APIs.
-
-Done:
-
-- [x] OpenAI, Anthropic, and hosted OpenAI-compatible provider metadata includes
-  auth env names, billing posture, timeout defaults, cost metadata fields, and
-  pricing references.
-- [x] API provider metadata keeps execution disabled until a later explicit
-  hosted execution slice.
-- [x] No-surprise cross-provider fallback policy is recorded in API provider
-  metadata.
-- [x] Generic OpenAI-compatible probe shape exists.
-
-### Host Adapter Candidates
-
-Prefer adapters that can be probed and verified from a terminal. A host adapter
-should not claim model switching, spawning, or MCP setup unless a local probe or
-official contract proves the capability.
-
-Open:
-
-- [ ] Kimi Work desktop lane.
-- [ ] OpenCode Desktop lane.
-
-Done:
-
-- [x] Kimi Code CLI probe.
-- [x] OpenCode CLI probe.
-- [x] Kimi Code bounded worker run through `host_cli_run`.
-- [x] OpenCode bounded worker run through `host_cli_run`.
-- [x] Antigravity bounded worker run through `host_cli_run`.
-- [x] Antigravity CLI probe.
-- [x] Antigravity MCP setup guide.
-
-### Execution and Agent Lifecycle Adapters
-
-Some tools are useful to Mythify but are not model providers.
-
-Open:
-
-- [ ] Colab remote execution adapter, only after explicit billing and data
-  movement controls exist.
-
-Done:
-
-- [x] Google Colab CLI is classified as an `execution_substrate`.
-- [x] `execution_probe` checks Google Colab CLI availability with version and
-  help commands only.
-- [x] `docs/colab-cli-spike-plan.md` records the non-billable Colab scope.
-- [x] Google Agents CLI and ADK CLI are classified as `agent_lifecycle`
-  adapters.
-- [x] `lifecycle_probe` checks Google Agents CLI and ADK CLI availability with
-  version, help, and eval-help commands only.
-- [x] `docs/agents-cli-adk-spike-plan.md` records the non-deploying lifecycle
-  scope.
-
-Guardrails:
-
-- Colab CLI stays outside model assignment.
-- Agents CLI and ADK stay in `agent_lifecycle`, not `coding_host`.
-- Deployment commands are not enabled by default.
-- Remote execution requires explicit billing, data movement, and cleanup
-  posture before use.
-
-### Workflow Surfaces
-
-Mythify already supports the workflow shape through protocol state, CLI, and
-MCP tools. Later, it can make the process more visible.
-
-Open:
-
-- [ ] Status dashboard.
-- [ ] Background task view.
-- [ ] Phase view for Understand, Design, Build, Judge, Verify.
-- [ ] Fanout worker timeline.
-- [ ] Verification history.
-- [ ] Outcome loop progress.
-- [ ] Release readiness view.
-
-Principle: reveal evidence, do not decorate self-report.
-
-### Evaluation
-
-The local eval harness is a start. Future work should measure the core claim
-more deeply.
-
-Open questions:
-
-- [ ] Does Mythify improve verified task success?
-- [ ] Does it reduce false completion claims?
-- [ ] How much overhead does each profile add?
-- [ ] Which tasks benefit from local models?
-- [ ] Which roles require stronger models?
-- [ ] Where does fanout help, and where does it waste tokens?
-
-Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ## Product Thesis
 
