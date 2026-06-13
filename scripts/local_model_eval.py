@@ -36,6 +36,9 @@ SCENARIOS = {
         "task_category": "string_processing_bugfix",
         "local_model_roles": ["reader", "triage"],
         "local_model_fit_reason": "small deterministic Python function with local tests and limited context",
+        "fanout_fit": "waste_candidate",
+        "fanout_fit_reason": "single focused bug fix with one tiny implementation surface and one local verifier",
+        "fanout_merge_verifier": "python3 -m unittest",
         "task": "Fix `word_count.py` so `python3 -m unittest` passes. Keep the implementation small. Do not edit the test file.",
         "files": {
             "word_count.py": "\n".join(
@@ -78,6 +81,9 @@ SCENARIOS = {
         "task_category": "standard_library_bugfix",
         "local_model_roles": ["reader", "triage"],
         "local_model_fit_reason": "small parser task with explicit expected behavior and local tests",
+        "fanout_fit": "waste_candidate",
+        "fanout_fit_reason": "single parser fix with no independent subtasks to merge before verification",
+        "fanout_merge_verifier": "python3 -m unittest",
         "task": "Fix `query_parser.py` so `python3 -m unittest` passes. Preserve repeated keys as lists. Do not edit the test file.",
         "files": {
             "query_parser.py": "\n".join(
@@ -123,6 +129,9 @@ SCENARIOS = {
         "task_category": "numeric_data_bugfix",
         "local_model_roles": ["reader", "triage"],
         "local_model_fit_reason": "small data-shape bug with explicit fixtures and local tests",
+        "fanout_fit": "waste_candidate",
+        "fanout_fit_reason": "single numeric bug fix where extra workers would duplicate context without independent outputs",
+        "fanout_merge_verifier": "python3 -m unittest",
         "task": "Fix `inventory.py` so `python3 -m unittest` passes. Handle quantities, missing quantities, and numeric strings. Do not edit the test file.",
         "files": {
             "inventory.py": "\n".join(
@@ -160,6 +169,42 @@ SCENARIOS = {
         },
     },
 }
+
+
+FANOUT_VALUE_POLICY = [
+    {
+        "task_shape": "independent_surface_mapping",
+        "fanout_fit": "helps",
+        "decision_rule": "Use fanout when two or more self-contained code, docs, or adapter surfaces can be inspected without waiting on each other.",
+        "value_signal": "distinct worker material can be merged, then checked by one orchestrator-run verifier",
+        "cost_signal": "each task is a fresh worker call, so keep context narrow and task prompts independent",
+        "verification_boundary": "worker output is material until the orchestrator merges it and runs verify_run or outcome_check",
+    },
+    {
+        "task_shape": "parallel_research_or_comparison",
+        "fanout_fit": "helps",
+        "decision_rule": "Use fanout when independent sources, host adapters, or benchmark variants can be compared side by side.",
+        "value_signal": "parallel reads reduce wall-clock time and make disagreement visible before implementation",
+        "cost_signal": "each source or variant spends separate quota or local compute",
+        "verification_boundary": "claims still need source links, command evidence, or a merged executable check",
+    },
+    {
+        "task_shape": "single_focused_bugfix",
+        "fanout_fit": "wastes",
+        "decision_rule": "Avoid fanout for one small implementation surface with one direct verifier.",
+        "value_signal": "a single worker can make the edit and run the verifier",
+        "cost_signal": "extra workers duplicate prompt context and consume quota without independent outputs",
+        "verification_boundary": "run the local verifier once after the focused edit",
+    },
+    {
+        "task_shape": "dependent_sequence",
+        "fanout_fit": "wastes",
+        "decision_rule": "Avoid fanout when each step depends on the previous step's concrete output.",
+        "value_signal": "sequential host work preserves ordering and reduces merge confusion",
+        "cost_signal": "parallel workers would speculate, then require reconciliation work",
+        "verification_boundary": "advance one step at a time and verify each completion claim",
+    },
+]
 
 
 ROLE_STRENGTH_POLICY = [
@@ -533,6 +578,9 @@ def run_one(mode, engine, model, speed, parent, timeout, scenario_name, iteratio
         "scenario": scenario_name,
         "task_category": scenario.get("task_category", "unknown"),
         "local_model_candidate_roles": list(scenario.get("local_model_roles", [])),
+        "fanout_fit": scenario.get("fanout_fit", "unknown"),
+        "fanout_fit_reason": scenario.get("fanout_fit_reason", ""),
+        "fanout_merge_verifier": scenario.get("fanout_merge_verifier", ""),
         "iteration": iteration,
         "mode": mode,
         "mythify_profile": resolved_profile,
@@ -830,6 +878,105 @@ def local_model_benefit_effect(runs, scenario_names):
     }
 
 
+def fanout_value_effect(summary, runs, scenario_names):
+    policy_rows = [dict(row) for row in FANOUT_VALUE_POLICY]
+    helps_when = [
+        row["task_shape"]
+        for row in policy_rows
+        if row["fanout_fit"] == "helps"
+    ]
+    wastes_when = [
+        row["task_shape"]
+        for row in policy_rows
+        if row["fanout_fit"] == "wastes"
+    ]
+
+    scenario_rows = []
+    for scenario_name in scenario_names:
+        scenario = SCENARIOS[scenario_name]
+        selected = [run for run in runs if run["scenario"] == scenario_name]
+        bare_runs = [run for run in selected if run["mode"] == "bare"]
+        mythify_runs = [run for run in selected if run["mode"] == "mythify"]
+        bare_success = sum(1 for run in bare_runs if run["verify_exit_code"] == 0)
+        mythify_success = sum(1 for run in mythify_runs if run["verify_exit_code"] == 0)
+        mythify_evidence = sum(1 for run in mythify_runs if mythify_evidence_ok(run))
+        mythify_verified_rate = rate(mythify_success, len(mythify_runs))
+        mythify_evidence_rate = rate(mythify_evidence, len(mythify_runs))
+        fanout_fit = scenario.get("fanout_fit", "unknown")
+        single_worker_sufficient = (
+            fanout_fit == "waste_candidate"
+            and len(mythify_runs) > 0
+            and mythify_verified_rate > 0
+            and mythify_evidence_rate > 0
+        )
+        if single_worker_sufficient:
+            observed_value_signal = "single_worker_sufficient"
+        elif fanout_fit == "helps_candidate":
+            observed_value_signal = "needs_merged_fanout_verifier"
+        else:
+            observed_value_signal = "inconclusive"
+        scenario_rows.append({
+            "scenario": scenario_name,
+            "title": scenario["title"],
+            "task_category": scenario.get("task_category", "unknown"),
+            "fanout_fit": fanout_fit,
+            "fanout_fit_reason": scenario.get("fanout_fit_reason", ""),
+            "fanout_merge_verifier": scenario.get("fanout_merge_verifier", ""),
+            "fresh_worker_call_cost": "fanout would run one fresh worker per task; this harness records fit but does not estimate tokens, dollars, or local compute",
+            "bare_attempted": len(bare_runs),
+            "mythify_attempted": len(mythify_runs),
+            "bare_verified_success_rate": rate(bare_success, len(bare_runs)),
+            "mythify_verified_success_rate": mythify_verified_rate,
+            "mythify_evidence_success_rate": mythify_evidence_rate,
+            "single_worker_sufficient": single_worker_sufficient,
+            "observed_value_signal": observed_value_signal,
+        })
+
+    observed_help_candidates = sum(
+        1 for row in scenario_rows if row["fanout_fit"] == "helps_candidate"
+    )
+    observed_waste_candidates = sum(
+        1 for row in scenario_rows if row["fanout_fit"] == "waste_candidate"
+    )
+    single_worker_sufficient_count = sum(
+        1 for row in scenario_rows if row["single_worker_sufficient"]
+    )
+    if (
+        scenario_rows
+        and observed_waste_candidates == len(scenario_rows)
+        and single_worker_sufficient_count == observed_waste_candidates
+    ):
+        conclusion = "built_in_scenarios_do_not_justify_fanout"
+    elif observed_help_candidates > 0:
+        conclusion = "fanout_candidates_require_merged_verifier"
+    else:
+        conclusion = "insufficient_evidence"
+
+    return {
+        "metric": "fanout_value_fit",
+        "comparison": "fanout_policy_plus_harness_outcomes",
+        "evidence_source": "scenario fanout-fit metadata plus per-workspace python3 -m unittest exit code",
+        "requires_independent_tasks": True,
+        "helps_when": helps_when,
+        "wastes_when": wastes_when,
+        "policy": policy_rows,
+        "scenario_count": len(scenario_rows),
+        "observed_help_candidate_count": observed_help_candidates,
+        "observed_waste_candidate_count": observed_waste_candidates,
+        "single_worker_sufficient_count": single_worker_sufficient_count,
+        "observed_harness": {
+            "bare_attempted": summary["bare"]["attempted"],
+            "mythify_attempted": summary["mythify"]["attempted"],
+            "mythify_verified_success_rate": summary["mythify"]["verified_success_rate"],
+            "mythify_evidence_success_rate": summary["mythify"]["evidence_success_rate"],
+        },
+        "scenarios": scenario_rows,
+        "conclusion": conclusion,
+        "statistical_strength": "local_smoke",
+        "caveat": "This reports fanout fit and single-worker sufficiency for built-in smoke scenarios; proving fanout value requires independent worker outputs, a merged artifact, and a verifier run after the merge.",
+    }
+
+
 def role_strength_effect(summary, runs):
     mythify_runs = [run for run in runs if run["mode"] == "mythify"]
     observed_profiles = sorted({
@@ -974,6 +1121,7 @@ def main(argv=None):
                 "mythify_speed": mythify_speed,
             },
             "local_model_benefit": local_model_benefit_effect(runs, scenario_names),
+            "fanout_value": fanout_value_effect(summary, runs, scenario_names),
             "role_strength": role_strength_effect(summary, runs),
             "runs": runs,
         }

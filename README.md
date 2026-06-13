@@ -770,8 +770,10 @@ exit codes: `verified_task_success` for verifier pass-rate delta, and
 verifiers. `profile_overhead` reports measured Mythify profile duration
 overhead from local subprocess wall-clock timings. `local_model_benefit`
 reports scenario categories that fit local reader and triage roles, plus the
-observed harness outcomes for those categories. `role_strength` reports which
-roles require, allow, or reject stronger models under Mythify policy. The
+observed harness outcomes for those categories. `fanout_value` reports where
+fanout is policy-fit versus waste-prone, pairing the built-in scenarios with
+verifier-backed single-worker sufficiency signals. `role_strength` reports
+which roles require, allow, or reject stronger models under Mythify policy. The
 false-completion signal is bounded to model process exit code 0; output text is
 retained for audit but not tone-scored.
 The default `--mythify-profile auto` uses the fast profile for the built-in
@@ -867,10 +869,10 @@ documented or locally probeable automation contract exists.
   downloading a GitHub release, but the MCP server is still configured by local
   absolute path; there are no `npx` instructions because nothing is published to npm.
 - No large benchmark eval has been run yet. The `verified_task_success`,
-  `false_completion_claims`, `profile_overhead`, and `local_model_benefit`
-  report blocks, plus the `role_strength` policy report, are rerunnable smoke
-  signals for the Mythify effect, not statistically meaningful evidence by
-  themselves.
+  `false_completion_claims`, `profile_overhead`, `local_model_benefit`, and
+  `fanout_value` report blocks, plus the `role_strength` policy report, are
+  rerunnable smoke signals for the Mythify effect, not statistically
+  meaningful evidence by themselves.
 - Protocol adherence varies by model strength. Weaker models follow the discipline
   less reliably, and the gains shrink accordingly.
 

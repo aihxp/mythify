@@ -21,13 +21,15 @@ Status markers:
 
 ## Active Now
 
-- [>] Fanout value evaluation.
-  - Current goal: identify where fanout helps and where it wastes tokens,
-    quota, or local compute.
-  - Next step: map fanout job records, task status fields, visibility policy,
-    and verification boundaries before adding any fanout-value report.
-  - Guardrail: fanout value evidence must compare independent task outcomes
-    with verified merged results, not worker enthusiasm or parallelism itself.
+- [>] Provider worker audit logs.
+  - Current goal: make spawned provider work auditable before hosted API
+    execution is enabled.
+  - Next step: map current provider metadata, fanout job records, and hosted
+    execution-disabled paths so the audit log schema does not imply execution
+    exists before it does.
+  - Guardrail: audit logs can record requests, providers, billing posture,
+    cost metadata fields, and evidence boundaries, but they must not treat
+    provider output as verification evidence.
 
 ## Next Queue
 
@@ -135,7 +137,7 @@ Already shipped in this track:
 
 What remains:
 
-- [ ] Clear audit logs for spawned provider work.
+- [>] Clear audit logs for spawned provider work.
 - [ ] Hosted execution for OpenAI, Anthropic, and OpenAI-compatible APIs.
 
 Already shipped in this track:
@@ -238,10 +240,16 @@ Already shipped in this track:
 
 What remains:
 
-- [>] Where does fanout help, and where does it waste tokens?
+Nothing open right now.
 
 Already shipped in this track:
 
+- [x] Fanout value is reported through the local eval harness
+  `fanout_value` JSON block, showing helpful and waste-prone task shapes,
+  per-scenario fanout-fit metadata, verifier-backed single-worker sufficiency
+  for built-in smoke scenarios, and a caveat that real fanout value requires
+  independent worker outputs, a merged artifact, and a verifier run after the
+  merge.
 - [x] Stronger-model role requirements are reported through the local eval
   harness `role_strength` JSON block, showing that no role requires stronger
   models by default, reviewers have a scoped stronger-model opt-in, broader
@@ -276,6 +284,13 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-13: add fanout value evaluation reporting.
+  `scripts/local_model_eval.py` now emits `fanout_value`, a policy and
+  harness-evidence report showing helpful and waste-prone task shapes,
+  per-scenario fanout-fit metadata, verifier-backed single-worker sufficiency
+  counts for built-in smoke scenarios, observed harness rates, and a caveat
+  that proving real fanout value requires independent worker outputs, a merged
+  artifact, and a verifier run after the merge.
 - [x] 2026-06-13: add stronger-model role evaluation reporting.
   `scripts/local_model_eval.py` now emits `role_strength`, a policy and
   harness-evidence report showing required stronger roles, scoped reviewer

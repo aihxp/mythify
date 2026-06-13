@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `scripts/local_model_eval.py` now emits a `fanout_value` report block. It
+  records helpful and waste-prone task shapes, per-scenario fanout-fit
+  metadata, verifier-backed single-worker sufficiency signals, and a caveat
+  that proving real fanout value requires independent worker outputs, a merged
+  artifact, and a verifier run after the merge.
 - `scripts/local_model_eval.py` now emits a `role_strength` report block. It
   records required stronger roles, scoped reviewer opt-in roles, broader
   stronger-worker opt-in roles, per-role policy rows, observed harness rates,

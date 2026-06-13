@@ -1063,6 +1063,14 @@ The JSON report must include:
   Mythify evidence rates, category summaries, and the local smoke-test caveat.
   The harness must not claim provider-specific local model benefit unless the
   report came from a local-model-backed command or provider check.
+- `fanout_value`: the direct answer to the fanout-value question. It records
+  `metric: "fanout_value_fit"`, helpful and waste-prone task shapes, policy
+  rows, per-scenario fanout-fit metadata, observed verifier-backed success
+  rates, Mythify evidence rates, single-worker sufficiency counts, and the
+  local smoke-test caveat. The harness must not treat parallelism, worker
+  enthusiasm, or worker output alone as value; proving real fanout value
+  requires independent worker outputs, a merged artifact, and a verifier run
+  after the merge.
 - `role_strength`: the direct answer to the stronger-model role question. It
   records `metric: "stronger_model_role_requirement"`, default spawn ceiling,
   required stronger roles, scoped reviewer opt-in roles, broad stronger opt-in

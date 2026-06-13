@@ -169,6 +169,15 @@ class LocalModelEvalTests(unittest.TestCase):
         self.assertIn("string_processing_bugfix", benefit["candidate_categories"])
         self.assertEqual(benefit["scenarios"][0]["local_model_candidate_roles"], ["reader", "triage"])
         self.assertEqual(benefit["scenarios"][0]["observed_benefit"], "neutral")
+        fanout = report["fanout_value"]
+        self.assertEqual(fanout["metric"], "fanout_value_fit")
+        self.assertEqual(fanout["conclusion"], "built_in_scenarios_do_not_justify_fanout")
+        self.assertIn("independent_surface_mapping", fanout["helps_when"])
+        self.assertIn("single_focused_bugfix", fanout["wastes_when"])
+        self.assertEqual(fanout["observed_waste_candidate_count"], 1)
+        self.assertEqual(fanout["single_worker_sufficient_count"], 1)
+        self.assertEqual(fanout["scenarios"][0]["fanout_fit"], "waste_candidate")
+        self.assertTrue(fanout["scenarios"][0]["single_worker_sufficient"])
         strength = report["role_strength"]
         self.assertEqual(strength["metric"], "stronger_model_role_requirement")
         self.assertEqual(strength["required_stronger_roles"], [])
@@ -214,6 +223,9 @@ class LocalModelEvalTests(unittest.TestCase):
         self.assertEqual(report["false_completion_claims"]["winner_by_lower_false_completion_rate"], "tie")
         self.assertEqual(report["profile_overhead"]["profiles"]["fast"]["attempted"], 3)
         self.assertEqual(report["local_model_benefit"]["scenario_count"], 3)
+        self.assertEqual(report["fanout_value"]["scenario_count"], 3)
+        self.assertEqual(report["fanout_value"]["observed_waste_candidate_count"], 3)
+        self.assertEqual(report["fanout_value"]["single_worker_sufficient_count"], 3)
         self.assertEqual(
             sorted(report["local_model_benefit"]["candidate_categories"]),
             ["numeric_data_bugfix", "standard_library_bugfix", "string_processing_bugfix"],
@@ -332,6 +344,41 @@ class LocalModelEvalTests(unittest.TestCase):
         self.assertEqual(effect["scenarios"][0]["verified_success_rate_delta"], 1.0)
         self.assertEqual(effect["categories"][0]["mythify_verified_success_rate"], 1.0)
         self.assertIn("provider-specific benefit requires rerunning", effect["caveat"])
+
+    def test_fanout_value_effect_uses_policy_and_verifier_outcomes(self):
+        runs = [
+            {
+                "scenario": "word_count_bugfix",
+                "mode": "bare",
+                "model_exit_code": 0,
+                "verify_exit_code": 1,
+                "model_duration_seconds": 1.0,
+                "mythify_records": {"verifications": 0, "plans": 0},
+            },
+            {
+                "scenario": "word_count_bugfix",
+                "mode": "mythify",
+                "mythify_profile": "fast",
+                "model_exit_code": 0,
+                "verify_exit_code": 0,
+                "model_duration_seconds": 2.0,
+                "mythify_records": {"verifications": 1, "plans": 0},
+            },
+        ]
+        summary = local_model_eval.summarize_runs(runs)
+        effect = local_model_eval.fanout_value_effect(summary, runs, ["word_count_bugfix"])
+
+        self.assertEqual(effect["metric"], "fanout_value_fit")
+        self.assertEqual(effect["comparison"], "fanout_policy_plus_harness_outcomes")
+        self.assertTrue(effect["requires_independent_tasks"])
+        self.assertIn("parallel_research_or_comparison", effect["helps_when"])
+        self.assertIn("dependent_sequence", effect["wastes_when"])
+        self.assertEqual(effect["observed_waste_candidate_count"], 1)
+        self.assertEqual(effect["observed_help_candidate_count"], 0)
+        self.assertEqual(effect["single_worker_sufficient_count"], 1)
+        self.assertEqual(effect["conclusion"], "built_in_scenarios_do_not_justify_fanout")
+        self.assertEqual(effect["scenarios"][0]["observed_value_signal"], "single_worker_sufficient")
+        self.assertIn("merged artifact", effect["caveat"])
 
     def test_role_strength_effect_uses_policy_and_verifier_outcomes(self):
         runs = [
