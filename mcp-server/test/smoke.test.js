@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -50,6 +51,29 @@ function textOf(result) {
   const texts = result.content.filter((c) => c.type === "text").map((c) => c.text);
   assert.ok(texts.length > 0, "tool result has at least one text block");
   return texts.join("\n");
+}
+
+function snapshotStateDir(root) {
+  const snapshot = {};
+  function walk(dir) {
+    for (const name of fs.readdirSync(dir).sort()) {
+      const itemPath = path.join(dir, name);
+      const stat = fs.statSync(itemPath);
+      if (stat.isDirectory()) {
+        walk(itemPath);
+      } else if (stat.isFile()) {
+        const rel = path.relative(root, itemPath).split(path.sep).join("/");
+        snapshot[rel] = crypto
+          .createHash("sha256")
+          .update(fs.readFileSync(itemPath))
+          .digest("hex");
+      }
+    }
+  }
+  if (fs.existsSync(root)) {
+    walk(root);
+  }
+  return snapshot;
 }
 
 test("mythify MCP server smoke test", async (t) => {
@@ -289,6 +313,7 @@ test("mythify MCP server smoke test", async (t) => {
       );
       assert.ok(created.startsWith("[OK]"), `plan_create reports [OK]: ${created}`);
 
+      const snapshotBeforeRefusal = snapshotStateDir(stateDir);
       const refused = textOf(
         await client.callTool({
           name: "plan_update_step",
@@ -297,6 +322,11 @@ test("mythify MCP server smoke test", async (t) => {
       );
       assert.ok(refused.startsWith("[FAIL]"), `refusal starts with [FAIL]: ${refused}`);
       assert.match(refused, /Evidence required/, "refusal explains the evidence rule");
+      assert.deepEqual(
+        snapshotStateDir(stateDir),
+        snapshotBeforeRefusal,
+        "refused plan_update_step leaves every state file unchanged"
+      );
 
       const planAfterRefusal = JSON.parse(
         fs.readFileSync(path.join(stateDir, "plans", "smoke-goal.json"), "utf8")
@@ -421,11 +451,17 @@ test("mythify MCP server smoke test", async (t) => {
     });
 
     await t.test("memory_clear with no arguments refuses", async () => {
+      const snapshotBeforeRefusal = snapshotStateDir(stateDir);
       const refused = textOf(
         await client.callTool({ name: "memory_clear", arguments: {} })
       );
       assert.ok(refused.startsWith("[FAIL]"), `clear-all refusal starts with [FAIL]: ${refused}`);
       assert.match(refused, /confirm_clear_all/, "refusal explains the guard");
+      assert.deepEqual(
+        snapshotStateDir(stateDir),
+        snapshotBeforeRefusal,
+        "refused memory_clear leaves every state file unchanged"
+      );
 
       const stillThere = textOf(
         await client.callTool({ name: "memory_recall", arguments: { query: "color" } })
@@ -538,6 +574,7 @@ test("MYTHIFY_REQUIRE_VERIFIED_STEP gate on plan_update_step", async (t) => {
       );
       assert.ok(inProgress.startsWith("[OK]"), `in_progress succeeds: ${inProgress}`);
 
+      const snapshotBeforeRefusal = snapshotStateDir(stateDir);
       const refused = textOf(
         await client.callTool({
           name: "plan_update_step",
@@ -563,6 +600,11 @@ test("MYTHIFY_REQUIRE_VERIFIED_STEP gate on plan_update_step", async (t) => {
         planAfterRefusal.steps[0].status,
         "in_progress",
         "refused completion leaves the step not completed"
+      );
+      assert.deepEqual(
+        snapshotStateDir(stateDir),
+        snapshotBeforeRefusal,
+        "verified-step refusal leaves every state file unchanged"
       );
     });
 
@@ -650,6 +692,54 @@ test("MYTHIFY_REQUIRE_VERIFIED_STEP gate on plan_update_step", async (t) => {
       );
       assert.equal(planAfterRefusal.steps[1].status, "pending");
     });
+  } finally {
+    await client.close();
+    fs.rmSync(stateDir, { recursive: true, force: true });
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  }
+});
+
+test("MCP verify_run disabled refusal preserves whole state", async () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-disabled-state-"));
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-disabled-home-"));
+
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [SERVER_PATH],
+    env: {
+      ...process.env,
+      MYTHIFY_DIR: stateDir,
+      HOME: homeDir,
+      MYTHIFY_DISABLE_RUN: "1",
+    },
+  });
+  const client = new Client({ name: "mythify-disabled-verify-test", version: "2.5.0" });
+  await client.connect(transport);
+
+  try {
+    const stored = textOf(
+      await client.callTool({
+        name: "memory_store",
+        arguments: { key: "seed", value: "kept" },
+      })
+    );
+    assert.ok(stored.startsWith("[OK]"), `memory_store succeeds: ${stored}`);
+
+    const snapshotBeforeRefusal = snapshotStateDir(stateDir);
+    const refused = textOf(
+      await client.callTool({
+        name: "verify_run",
+        arguments: { command: 'node -e "process.exit(0)"', claim: "disabled should not run" },
+      })
+    );
+    assert.ok(refused.startsWith("[FAIL]"), `verify_run disabled refuses: ${refused}`);
+    assert.match(refused, /MYTHIFY_DISABLE_RUN/);
+    assert.deepEqual(
+      snapshotStateDir(stateDir),
+      snapshotBeforeRefusal,
+      "disabled verify_run leaves every state file unchanged"
+    );
+    assert.equal(fs.existsSync(path.join(stateDir, "verifications.jsonl")), false);
   } finally {
     await client.close();
     fs.rmSync(stateDir, { recursive: true, force: true });

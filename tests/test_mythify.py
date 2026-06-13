@@ -83,6 +83,13 @@ class CliTestCase(unittest.TestCase):
                     records.append(json.loads(line))
         return records
 
+    def state_snapshot(self, state):
+        snapshot = {}
+        for path in sorted(state.rglob("*")):
+            if path.is_file():
+                snapshot[path.relative_to(state).as_posix()] = path.read_bytes()
+        return snapshot
+
 
 class TestInit(CliTestCase):
     def test_init_creates_documented_layout(self):
@@ -631,6 +638,57 @@ class TestStepUpdates(CliTestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn(EVIDENCE_MESSAGE, result.stderr)
         self.assertEqual(plan_file.read_text(encoding="utf-8"), before)
+
+    def test_refusals_preserve_whole_state_snapshot(self):
+        state, plan_file = self.make_plan()
+        seeded_memory = self.run_cli("memory", "set", "keep", "yes")
+        self.assertEqual(seeded_memory.returncode, 0, seeded_memory.stderr)
+        seeded_lesson = self.run_cli("lesson", "add", "Snapshot lesson", "keep this")
+        self.assertEqual(seeded_lesson.returncode, 0, seeded_lesson.stderr)
+        seeded_outcome = self.run_cli(
+            "outcome",
+            "start",
+            "Snapshot outcome",
+            "--success",
+            "python exits zero",
+            "--verify",
+            shell_py("raise SystemExit(0)"),
+            "--name",
+            "snapshot-outcome",
+        )
+        self.assertEqual(seeded_outcome.returncode, 0, seeded_outcome.stderr)
+
+        before = self.state_snapshot(state)
+        missing_result = self.run_cli("step", "1", "completed")
+        self.assertEqual(missing_result.returncode, 1)
+        self.assertIn(EVIDENCE_MESSAGE, missing_result.stderr)
+        self.assertEqual(self.state_snapshot(state), before)
+
+        before = self.state_snapshot(state)
+        refused_clear = self.run_cli("memory", "clear")
+        self.assertEqual(refused_clear.returncode, 1)
+        self.assertIn("Refusing to clear memory", refused_clear.stderr)
+        self.assertEqual(self.state_snapshot(state), before)
+
+        in_progress = self.run_cli("step", "1", "in_progress")
+        self.assertEqual(in_progress.returncode, 0, in_progress.stderr)
+        before = self.state_snapshot(state)
+        verified_gate = self.run_cli(
+            "step", "1", "completed", "not verified",
+            env_extra={"MYTHIFY_REQUIRE_VERIFIED_STEP": "1"},
+        )
+        self.assertEqual(verified_gate.returncode, 1)
+        self.assertIn(VERIFIED_EVIDENCE_MESSAGE, verified_gate.stderr)
+        self.assertEqual(self.state_snapshot(state), before)
+
+        before = self.state_snapshot(state)
+        disabled_verify = self.run_cli(
+            "verify", "run", shell_py("raise SystemExit(0)"),
+            env_extra={"MYTHIFY_DISABLE_RUN": "1"},
+        )
+        self.assertEqual(disabled_verify.returncode, 2)
+        self.assertIn(VERIFY_RUN_DISABLED_MESSAGE, disabled_verify.stderr)
+        self.assertEqual(self.state_snapshot(state), before)
 
     def test_completed_with_result_persists_and_prints_next_pending(self):
         state, plan_file = self.make_plan()

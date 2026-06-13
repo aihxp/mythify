@@ -689,6 +689,10 @@ state directory across host-model state, memory, lessons, plans and steps,
 outcomes, verification records, and reflections. It skips automatically when
 `node` is not on PATH or `mcp-server/node_modules` is missing.
 
+Whole-state no-mutation tests snapshot every file under `.mythify` before and
+after representative refusal paths, proving guarded failures do not create,
+delete, or rewrite unrelated state.
+
 ## Limitations
 
 - No published npm package yet. You can get the code by cloning the repository or

@@ -710,6 +710,23 @@ Coverage matrix:
   APIs intentionally append logs rather than exposing a read tool for individual
   log entries.
 
+### Whole-state refusal no-mutation checks
+
+Refusal paths that promise "nothing was recorded", "nothing was cleared", or
+"the plan was not modified" must be tested with whole-state snapshots. A
+snapshot includes every regular file under the active `.mythify` directory,
+keyed by relative path and content hash. Representative CLI and MCP refusal
+tests must compare the full snapshot before and after the refused operation so
+new files, removed files, and unrelated file rewrites are all caught.
+
+Representative refusal paths:
+
+- CLI: `step completed` without RESULT, `step completed` blocked by
+  `MYTHIFY_REQUIRE_VERIFIED_STEP=1`, `memory clear` with no target, and
+  `verify run` with `MYTHIFY_DISABLE_RUN=1`.
+- MCP: `plan_update_step` without `result`, `memory_clear` with no target, and
+  `verify_run` with `MYTHIFY_DISABLE_RUN=1`.
+
 ## Fanout: parallel delegation (MCP only)
 
 Fanout gives the orchestrating model parallel sub-workers through one-shot

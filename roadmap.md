@@ -21,20 +21,21 @@ Status markers:
 
 ### In Progress
 
-- [>] Whole-state no-mutation checks for refusal paths
-  - Current goal: prove guarded tools leave project state untouched when they
-    refuse.
-  - Next step: map refusal paths that should preserve all state files.
-  - Guardrail: compare state snapshots, not just target files.
+- [>] Operation registry prototype
+  - Current goal: reduce duplicated operation contracts for a small, proven
+    surface.
+  - Next step: choose the narrowest shared surface for the first registry
+    prototype.
+  - Guardrail: add the registry only where it reduces drift.
 
 ### Next To Do
 
-1. [ ] Add whole-state no-mutation checks for refusal paths.
-   - Prove guarded tools leave project state untouched when they refuse.
-2. [ ] Add operation registry prototype for a small surface.
+1. [ ] Add operation registry prototype for a small surface.
    - Use it only where it reduces drift.
-3. [ ] Add deployed-copy version handshake between protocol text and CLI.
+2. [ ] Add deployed-copy version handshake between protocol text and CLI.
    - Detect when installed copies drift from the source protocol.
+3. [ ] Add host model switch capability contract and status model.
+   - Keep requested switches separate from host-confirmed switches.
 
 ### Later
 
@@ -88,6 +89,7 @@ Status markers:
 - [x] 2026-06-13: add bounded Kimi Code and OpenCode host CLI worker runs.
 - [x] 2026-06-13: add step-bound verification records for CLI and MCP evidence.
 - [x] 2026-06-13: expand CLI/MCP interop coverage across shared mutating state.
+- [x] 2026-06-13: add whole-state no-mutation checks for refusal paths.
 
 ## Track Backlogs
 
@@ -100,7 +102,6 @@ product work.
 Open:
 
 - [ ] Operation registry prototype for a small surface.
-- [ ] Whole-state no-mutation checks for refusal paths.
 - [ ] Deployed-copy version handshake between protocol text and CLI.
 - [ ] Log compaction or rotation for long-lived `.mythify` directories.
 - [ ] Generate docs tables, schemas, or fixtures from the registry only after a
@@ -112,6 +113,7 @@ Done:
 - [x] Registry data is shown in `host_model_switch` status output.
 - [x] Verification records include active plan and in-progress step context.
 - [x] Full CLI/MCP interop matrix covers shared mutating operations.
+- [x] Refusal paths have whole-state no-mutation snapshot checks.
 
 ### Model Assignment
 
@@ -329,7 +331,7 @@ Preserve:
 
 - [ ] Operation registry prototype for a small surface.
 - [x] Step-bound verification records.
-- [ ] Whole-state refusal no-mutation checks.
+- [x] Whole-state refusal no-mutation checks.
 - [ ] Host model switch capability contract and status model.
 - [x] Agents CLI and ADK lifecycle spike.
 

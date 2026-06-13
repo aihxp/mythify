@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Expanded CLI/MCP interop coverage for shared mutating state: host-model
   records, memory, lessons, plans and steps, outcomes, verification records,
   and reflections.
+- Whole-state no-mutation tests for representative CLI and MCP refusal paths,
+  comparing every file under `.mythify` before and after guarded failures.
 
 ## [2.5.0] - 2026-06-12
 
