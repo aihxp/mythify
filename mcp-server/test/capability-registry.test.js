@@ -119,6 +119,15 @@ test("researched future adapters are candidates, not public host platforms", () 
   assert.equal(ADAPTER_CANDIDATES["llama-cpp"].model_env, "MYTHIFY_LLAMA_CPP_MODEL");
   assert.equal(ADAPTER_CANDIDATES["llama-cpp"].base_url_env, "MYTHIFY_LLAMA_CPP_BASE_URL");
   assert.equal(ADAPTER_CANDIDATES["llama-cpp"].output_is_evidence, false);
+  assert.equal(ADAPTER_CANDIDATES.vllm.status, "local_profile_supported");
+  assert.equal(ADAPTER_CANDIDATES.vllm.openai_compatible, true);
+  assert.equal(ADAPTER_CANDIDATES.vllm.can_probe, true);
+  assert.equal(ADAPTER_CANDIDATES.vllm.can_run_local_roles, true);
+  assert.deepEqual(ADAPTER_CANDIDATES.vllm.local_roles, ["reader", "triage"]);
+  assert.equal(ADAPTER_CANDIDATES.vllm.default_base_url, "http://localhost:8000/v1");
+  assert.equal(ADAPTER_CANDIDATES.vllm.model_env, "MYTHIFY_VLLM_MODEL");
+  assert.equal(ADAPTER_CANDIDATES.vllm.base_url_env, "MYTHIFY_VLLM_BASE_URL");
+  assert.equal(ADAPTER_CANDIDATES.vllm.output_is_evidence, false);
   assert.deepEqual(
     listAdapterCandidates("host").map((candidate) => candidate.name).sort(),
     ["antigravity", "kimi-code", "opencode"]
