@@ -274,7 +274,8 @@ Later candidates:
   automation, scheduled tasks, Python execution, and office workflows after the
   CLI adapter path is stable.
 - OpenCode Desktop: track after the CLI/server adapter proves useful.
-- Antigravity desktop MCP setup guide: useful before full worker automation.
+- [x] 2026-06-12: add Antigravity CLI probe and MCP setup guide before full
+  worker automation.
 - Antigravity worker adapter: only after `agy -p`, model controls, workspace
   trust, and permissions are verified locally.
 
@@ -385,7 +386,7 @@ Preserve:
 - CLI/MCP interop matrix for every mutating operation.
 - Kimi Code CLI adapter proof of concept.
 - OpenCode CLI adapter proof of concept.
-- Antigravity CLI probe and MCP setup guide.
+- Done 2026-06-12: Antigravity CLI probe and MCP setup guide.
 
 ### v3.0
 

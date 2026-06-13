@@ -2397,6 +2397,20 @@ const HOST_CLI_PROBES = {
       { name: "run_help", args: ["run", "--help"] },
     ],
   },
+  antigravity: {
+    envName: "MYTHIFY_ANTIGRAVITY_BIN",
+    binaryNames: ["agy"],
+    fallbacks: [
+      path.join(os.homedir(), ".local", "bin", "agy"),
+      "/opt/homebrew/bin/agy",
+      "/usr/local/bin/agy",
+      "/Applications/Antigravity.app/Contents/Resources/app/bin/antigravity",
+    ],
+    checks: [
+      { name: "version", args: ["--version"] },
+      { name: "help", args: ["--help"] },
+    ],
+  },
 };
 
 function resolveHostCliBinary(host, explicitBin) {
@@ -2489,6 +2503,16 @@ function inferHostCliFeatures(host, checks) {
       evidence: runHelp && runHelp.ok ? "run --help succeeded" : "run --help failed",
     };
   }
+  if (host === "antigravity") {
+    const help = checks.find((item) => item.name === "help");
+    return {
+      can_run_noninteractive_prompt: Boolean(help && help.ok && outputContains(help, "-p")),
+      evidence:
+        help && help.ok && outputContains(help, "-p")
+          ? "help output includes -p prompt mode"
+          : "help output did not expose -p prompt mode",
+    };
+  }
   return { can_run_noninteractive_prompt: false, evidence: "unsupported host" };
 }
 
@@ -2509,6 +2533,7 @@ function probeHostCli({ host, bin, timeout_seconds }) {
     evidence_status: "probe_only_not_verification",
     can_run_noninteractive_prompt: false,
     feature_evidence: "",
+    mcp_setup_guide: selectedHost === "antigravity" ? "docs/antigravity-mcp-setup.md" : "",
     checks: [],
     error: resolved.error,
   };
@@ -2545,6 +2570,9 @@ function formatHostCliProbe(result) {
     `feature evidence: ${result.feature_evidence || "none"}`,
     "evidence: probe output is material, not verification evidence.",
   ];
+  if (result.mcp_setup_guide) {
+    lines.push(`mcp setup guide: ${result.mcp_setup_guide}`);
+  }
   for (const item of result.checks || []) {
     const details = [
       `${item.name}: ${item.ok ? "ok" : "failed"}`,
@@ -2849,13 +2877,13 @@ server.registerTool(
       "Use this before enabling a host CLI adapter. The result is material, not verification evidence, and does not execute a prompt or start workers.",
     inputSchema: {
       host: z
-        .enum(["kimi-code", "opencode"])
+        .enum(["kimi-code", "opencode", "antigravity"])
         .optional()
         .describe("Host CLI to probe. Defaults to opencode."),
       bin: z
         .string()
         .optional()
-        .describe("Explicit CLI binary path. Defaults to MYTHIFY_KIMI_BIN or MYTHIFY_OPENCODE_BIN, then PATH and common install paths."),
+        .describe("Explicit CLI binary path. Defaults to MYTHIFY_KIMI_BIN, MYTHIFY_OPENCODE_BIN, or MYTHIFY_ANTIGRAVITY_BIN, then PATH and common install paths."),
       timeout_seconds: z
         .number()
         .positive()

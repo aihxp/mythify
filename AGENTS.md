@@ -143,8 +143,8 @@ Outcome loops are host-supervised and stored in `.mythify/outcomes/`: make a
 bounded attempt, call `outcome_check`, then report success, retry, or stop.
 `host_model_switch` records intended host chat changes but does not mutate the
 host unless it exposes that capability. `provider_probe` can probe a configured
-OpenAI-compatible provider, and `host_cli_probe` can probe Kimi Code or
-OpenCode CLI availability with version and help commands. Probe output is
+OpenAI-compatible provider, and `host_cli_probe` can probe Kimi Code,
+OpenCode, or Antigravity CLI availability with version and help commands. Probe output is
 material, not verification evidence. `classify_task` mirrors CLI triage and
 model policy. Fanout workers accept `engine`, `model`, `effort`, and `speed`;
 stronger workers require `spawn_ceiling: "allow_stronger"` when tier is known.

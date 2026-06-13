@@ -158,6 +158,58 @@ test("host_cli_probe detects OpenCode run help without starting a worker", async
   }
 });
 
+test("host_cli_probe detects Antigravity prompt mode without running a prompt", async () => {
+  const { root, stateDir, homeDir, binDir } = makeProject("mythify-host-antigravity-");
+  const logPath = path.join(root, "agy-args.jsonl");
+  const agyBin = path.join(binDir, "agy");
+  writeStub(
+    agyBin,
+    [
+      "#!/usr/bin/env node",
+      'const fs = require("node:fs");',
+      `fs.appendFileSync(${JSON.stringify(logPath)}, JSON.stringify(process.argv.slice(2)) + "\\n");`,
+      'const args = process.argv.slice(2);',
+      'if (args.length === 1 && args[0] === "--version") { console.log("agy 0.1.0"); process.exit(0); }',
+      'if (args.length === 1 && args[0] === "--help") { console.log("usage: agy [-p prompt] /mcp /model"); process.exit(0); }',
+      'console.error("unexpected args: " + args.join(" "));',
+      "process.exit(3);",
+      "",
+    ].join("\n")
+  );
+  try {
+    await withClient(
+      cleanEnv({
+        MYTHIFY_DIR: stateDir,
+        HOME: homeDir,
+      }),
+      async (client) => {
+        const probedText = textOf(
+          await client.callTool({
+            name: "host_cli_probe",
+            arguments: { host: "antigravity", bin: agyBin, format: "json" },
+          })
+        );
+        assert.ok(probedText.startsWith("[OK]"), `host_cli_probe reports [OK]: ${probedText}`);
+        const probed = JSON.parse(probedText.replace(/^\[OK\] /, ""));
+        assert.equal(probed.host, "antigravity");
+        assert.equal(probed.status, "available");
+        assert.equal(probed.material_not_evidence, true);
+        assert.equal(probed.evidence_status, "probe_only_not_verification");
+        assert.equal(probed.can_run_noninteractive_prompt, true);
+        assert.equal(probed.mcp_setup_guide, "docs/antigravity-mcp-setup.md");
+        assert.match(probed.feature_evidence, /-p/);
+        assert.deepEqual(probed.checks.map((item) => item.args), [["--version"], ["--help"]]);
+        assert.equal(fs.existsSync(path.join(stateDir, "verifications.jsonl")), false);
+
+        const logged = fs.readFileSync(logPath, "utf8").trim().split(/\n/).map((line) => JSON.parse(line));
+        assert.deepEqual(logged, [["--version"], ["--help"]]);
+      }
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("host_cli_probe reports missing binaries without writing verification evidence", async () => {
   const { root, stateDir, homeDir } = makeProject("mythify-host-missing-");
   try {

@@ -69,6 +69,9 @@ test("researched future adapters are candidates, not public host platforms", () 
     listAdapterCandidates("host").map((candidate) => candidate.name).sort(),
     ["antigravity", "kimi-code", "opencode"]
   );
+  assert.equal(ADAPTER_CANDIDATES.antigravity.status, "probe_supported");
+  assert.equal(ADAPTER_CANDIDATES.antigravity.can_probe, true);
+  assert.equal(ADAPTER_CANDIDATES.antigravity.can_run_noninteractive_prompt, false);
   assert.equal(ADAPTER_CANDIDATES["kimi-code"].status, "probe_supported");
   assert.equal(ADAPTER_CANDIDATES["kimi-code"].can_probe, true);
   assert.equal(ADAPTER_CANDIDATES["kimi-code"].can_run_noninteractive_prompt, false);

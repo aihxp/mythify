@@ -185,9 +185,11 @@ export const ADAPTER_CANDIDATES = {
   },
   antigravity: {
     kind: "host",
-    status: "candidate",
+    status: "probe_supported",
     local: false,
     openai_compatible: false,
+    can_probe: true,
+    can_run_noninteractive_prompt: false,
   },
   "google-colab-cli": {
     kind: "execution_substrate",
