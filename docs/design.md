@@ -39,6 +39,7 @@ mythify/
 |-- .cursorrules                 generated from protocol/PROTOCOL.md
 |-- protocol/
 |   |-- PROTOCOL.md              canonical protocol source
+|   |-- classification-rules.json deterministic classifier keywords
 |   |-- operation-registry.json  shared operation metadata
 |   `-- surface-manifest.json    shared public surface metadata
 |-- scripts/
@@ -57,6 +58,7 @@ mythify/
 |   |-- src/index.js
 |   |-- src/operation-registry.js
 |   |-- src/surface-manifest.js
+|   |-- protocol/classification-rules.json package copy of classifier keywords
 |   |-- test/capability-registry.test.js
 |   |-- test/execution-probe.test.js
 |   |-- test/host-cli-probe.test.js
@@ -108,8 +110,9 @@ Evidence for the decision:
   `runShellCapture` implementations.
 - The shared registries are working where the duplicated facts are narrow:
   `protocol/operation-registry.json` owns memory operation metadata, and
-  `mcp-server/src/capability-registry.js` owns host, provider, execution, and
-  lifecycle capability metadata.
+  `protocol/classification-rules.json` owns deterministic classifier keyword
+  metadata. `mcp-server/src/capability-registry.js` owns host, provider,
+  execution, and lifecycle capability metadata.
 - Drift is still easy to create in prose and copied surface metadata. The
   dashboard slice raised the MCP tool contract to 30 tools, while the README
   component summary still said 29 until this decision pass.
@@ -245,6 +248,26 @@ Rules:
   runtime registrations cannot quietly disagree about public surface metadata.
 - Add a new surface only after drift has been observed and the check can prove
   the shared metadata reduces maintenance risk.
+
+## Classification rules manifest
+
+Shared deterministic task-classification keyword rules live in
+`protocol/classification-rules.json`. The Python CLI and Node MCP server both
+load this manifest at startup, so keyword additions such as review wording only
+need one data edit.
+
+Rules:
+
+- The manifest owns keyword matching data only. It does not own classification
+  scoring, risk policy, ceremony policy, model policy, fanout policy, or
+  verification hints.
+- Keep runtime behavior in the native CLI and MCP adapters unless duplication
+  has already caused drift.
+- Python and Node tests must cover any newly added terms that affect public
+  classification behavior.
+- `mcp-server/protocol/classification-rules.json` is a package-local mirror so
+  the npm tarball can run without access to repository-root files. Run
+  `node scripts/check_classification_rules_manifest.mjs` to verify the mirror.
 
 ## Background task view
 
@@ -719,7 +742,7 @@ Implementation notes:
 ## MCP server: mcp-server/
 
 Node 18+, ESM (`"type": "module"`). Dependencies: `@modelcontextprotocol/sdk`
-(current 1.x) and `zod` (3.x). package.json: name `mythify-mcp`, version `3.0.0`,
+(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.0.0`,
 scripts `{"start": "node src/index.js", "test": "node --test test/*.test.js"}`
 (the glob form, because modern Node treats a bare directory argument to --test as
 a literal file and fails), engines node >= 18. Use the registration API that the
@@ -1085,7 +1108,8 @@ Sections, in order:
    this closes the discipline gap, not the capability gap).
 3. Components table: protocol variants, CLI, MCP server, skill.
 4. Quick start A: drop-in (copy `CLAUDE.md` or `AGENTS.md`, `scripts/mythify.py`,
-   and `protocol/operation-registry.json` into a project, run
+   `protocol/operation-registry.json`, and
+   `protocol/classification-rules.json` into a project, run
    `python3 scripts/mythify.py protocol check FILE`, then `init`).
 5. Quick start B: MCP server (npm install inside `mcp-server/`, then the example
    client config; note `MYTHIFY_DIR` and `MYTHIFY_DISABLE_RUN`).

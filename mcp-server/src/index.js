@@ -54,6 +54,7 @@ import {
 } from "./operation-registry.js";
 
 const VERSION = "3.0.0";
+const CLASSIFICATION_RULES_PATH = new URL("../protocol/classification-rules.json", import.meta.url);
 const TAIL_CHARS = 4000;
 const STEP_STATUSES = ["pending", "in_progress", "completed", "failed", "skipped"];
 const OUTCOME_STATUSES = ["active", "succeeded", "failed", "stopped"];
@@ -65,36 +66,26 @@ const STEP_ICONS = {
   skipped: "[~]",
 };
 
-const CLASSIFICATION_RULES = [
-  [
-    "security",
-    [
-      "security", "vulnerability", "secret", "credential", "auth",
-      "authentication", "authorization", "login", "permission",
-      "permissions", "sandbox", "exploit", "token",
-    ],
-  ],
-  ["release", ["release", "publish", "version", "tag", "npm", "package", "ship", "deploy"]],
-  ["migration", ["migrate", "migration", "upgrade", "dependency", "dependencies", "schema", "breaking"]],
-  ["performance", ["performance", "optimize", "slow", "latency", "throughput", "memory leak", "profile"]],
-  ["frontend_ui", ["ui", "frontend", "component", "css", "responsive", "browser", "page", "screen", "layout"]],
-  ["benchmark", ["benchmark", "eval", "measure", "metric", "compare", "pass rate", "success rate"]],
-  ["research", ["research", "investigate", "find online", "look up", "survey", "source", "latest"]],
-  [
-    "review",
-    [
-      "review", "audit", "inspect", "critique", "findings", "risk",
-      "evaluate", "evaluation", "assess", "assessment",
-    ],
-  ],
-  ["debugging", ["debug", "diagnose", "trace", "reproduce", "root cause"]],
-  ["bugfix", ["bug", "fix", "failing", "failure", "error", "exception", "broken", "crash", "regression"]],
-  ["test_generation", ["test", "tests", "coverage", "unit", "integration", "regression test"]],
-  ["refactor", ["refactor", "cleanup", "clean up", "simplify", "rename", "restructure"]],
-  ["feature", ["feature", "add", "implement", "support", "build", "create", "new"]],
-  ["docs", ["docs", "documentation", "readme", "guide", "changelog", "manual"]],
-  ["design", ["design", "architecture", "plan", "approach", "proposal", "spec"]],
-];
+function loadClassificationRules() {
+  const manifest = JSON.parse(fs.readFileSync(CLASSIFICATION_RULES_PATH, "utf8"));
+  const rules = [];
+  const seen = new Set();
+  for (const entry of manifest.task_types || []) {
+    const taskType = String(entry?.id || "").trim();
+    const terms = entry?.terms;
+    if (!taskType || seen.has(taskType) || !Array.isArray(terms) || terms.length === 0) {
+      throw new Error("Invalid classification rule entry");
+    }
+    seen.add(taskType);
+    rules.push([taskType, terms.map(String)]);
+  }
+  if (rules.length === 0) {
+    throw new Error("Classification rules manifest is empty");
+  }
+  return rules;
+}
+
+const CLASSIFICATION_RULES = loadClassificationRules();
 
 const VERIFICATION_HINTS = {
   security: "Run security-focused tests plus the relevant normal suite; inspect permissions and secret handling.",
@@ -1707,6 +1698,17 @@ const RELEASE_READINESS_GATES = [
     required: true,
     sources: ["protocol/surface-manifest.json", "scripts/check_surface_manifest.mjs"],
     match_any: ["node scripts/check_surface_manifest.mjs", "surface manifest"],
+  },
+  {
+    id: "classification_rules_manifest",
+    label: "Classification rules manifest check",
+    required: true,
+    sources: [
+      "protocol/classification-rules.json",
+      "mcp-server/protocol/classification-rules.json",
+      "scripts/check_classification_rules_manifest.mjs",
+    ],
+    match_any: ["node scripts/check_classification_rules_manifest.mjs", "classification rules manifest"],
   },
   {
     id: "registry_docs",

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- CLI and MCP deterministic classification now load task keyword rules from
+  `protocol/classification-rules.json`, removing the duplicated review keyword
+  table that caused audit follow-up drift.
 - CLI and MCP task classification now treat `evaluate` and `assess`
   codebase/product prompts as review work instead of trivial direct work.
 - Security guidance now names verification logs and outcome iterations as
@@ -16,30 +19,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tails.
 - Audit and readiness docs now distinguish historical snapshots from current
   release signals.
+- Completed audit, roadmap, and superseded v3 release-decision notes are now
+  archived under `docs/archive/`, with current status preserved in root stubs
+  and `docs/release.md`.
 
 ## [3.0.0] - 2026-06-14
 
 ### Added
 
 - v3.0.0 final release gate report.
-  `docs/v3-final-release-gate.md` records that the metadata-aligned final gate
-  passed and that creating a `v3.0.0` tag still requires explicit approval.
+  `docs/archive/release/v3-final-release-gate-2026-06-14.md` records that the
+  metadata-aligned final gate passed and that creating a `v3.0.0` tag still
+  required explicit approval at that time.
 - v3.0.0 release metadata alignment.
-  `docs/v3-release-metadata-alignment.md` records package metadata, lockfile,
-  changelog anchors, and release-facing docs aligned to `3.0.0` before any
-  release-candidate tag or publish action.
+  `docs/archive/release/v3-release-metadata-alignment-2026-06-14.md` records
+  package metadata, lockfile, changelog anchors, and release-facing docs aligned
+  to `3.0.0` before any release-candidate tag or publish action.
 - Release version alignment decision record.
-  `docs/release-version-alignment-decision.md` records `3.0.0` as the intended
-  next release version before any release-candidate tag, with package metadata,
-  lockfile, changelog, docs, and final release gates still requiring alignment.
+  `docs/archive/release/release-version-alignment-decision-2026-06-14.md`
+  records `3.0.0` as the intended next release version before any
+  release-candidate tag.
 - v3.0 release-candidate decision record.
-  `docs/v3-release-candidate-decision.md` records that a v3.0
-  release-candidate tag should wait until package metadata, changelog anchors,
-  release docs, and final release gates all align on the intended version.
+  `docs/archive/release/v3-release-candidate-decision-2026-06-14.md` records
+  why the v3.0 release-candidate tag waited until metadata, changelog anchors,
+  release docs, and final release gates aligned.
 - v3.0 release readiness sweep report.
-  `docs/v3-release-readiness-sweep.md` records the read-only readiness result,
-  executed gates, remaining external-proof waiting items, and the next safe
-  release-candidate decision step without tagging or publishing.
+  `docs/archive/release/v3-release-readiness-sweep-2026-06-14.md` records the
+  read-only readiness result, executed gates, remaining external-proof waiting
+  items, and the next safe release-candidate decision step without tagging or
+  publishing.
+- Release process guide. `docs/release.md` documents the current `v3.0.0`
+  release gate, build artifacts, GitHub release process, and GitHub package
+  artifact posture.
 - Host apply and confirm proof watchlist.
   `docs/host-apply-confirm-proof-watchlist.md` now defines proof gates for
   current-chat model apply, current-chat model confirm, worker model override,

@@ -22,6 +22,7 @@ mkdir -p /path/to/your/project/scripts
 mkdir -p /path/to/your/project/protocol
 cp scripts/mythify.py /path/to/your/project/scripts/
 cp protocol/operation-registry.json /path/to/your/project/protocol/
+cp protocol/classification-rules.json /path/to/your/project/protocol/
 cd /path/to/your/project
 python3 scripts/mythify.py protocol check AGENTS.md
 python3 scripts/mythify.py init

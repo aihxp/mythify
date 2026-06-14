@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "description": "Shared deterministic task classification keyword rules for the Python CLI and Node MCP server.",
+  "task_types": [
+    {
+      "id": "security",
+      "terms": [
+        "security",
+        "vulnerability",
+        "secret",
+        "credential",
+        "auth",
+        "authentication",
+        "authorization",
+        "login",
+        "permission",
+        "permissions",
+        "sandbox",
+        "exploit",
+        "token"
+      ]
+    },
+    {
+      "id": "release",
+      "terms": [
+        "release",
+        "publish",
+        "version",
+        "tag",
+        "npm",
+        "package",
+        "ship",
+        "deploy"
+      ]
+    },
+    {
+      "id": "migration",
+      "terms": [
+        "migrate",
+        "migration",
+        "upgrade",
+        "dependency",
+        "dependencies",
+        "schema",
+        "breaking"
+      ]
+    },
+    {
+      "id": "performance",
+      "terms": [
+        "performance",
+        "optimize",
+        "slow",
+        "latency",
+        "throughput",
+        "memory leak",
+        "profile"
+      ]
+    },
+    {
+      "id": "frontend_ui",
+      "terms": [
+        "ui",
+        "frontend",
+        "component",
+        "css",
+        "responsive",
+        "browser",
+        "page",
+        "screen",
+        "layout"
+      ]
+    },
+    {
+      "id": "benchmark",
+      "terms": [
+        "benchmark",
+        "eval",
+        "measure",
+        "metric",
+        "compare",
+        "pass rate",
+        "success rate"
+      ]
+    },
+    {
+      "id": "research",
+      "terms": [
+        "research",
+        "investigate",
+        "find online",
+        "look up",
+        "survey",
+        "source",
+        "latest"
+      ]
+    },
+    {
+      "id": "review",
+      "terms": [
+        "review",
+        "audit",
+        "inspect",
+        "critique",
+        "findings",
+        "risk",
+        "evaluate",
+        "evaluation",
+        "assess",
+        "assessment"
+      ]
+    },
+    {
+      "id": "debugging",
+      "terms": [
+        "debug",
+        "diagnose",
+        "trace",
+        "reproduce",
+        "root cause"
+      ]
+    },
+    {
+      "id": "bugfix",
+      "terms": [
+        "bug",
+        "fix",
+        "failing",
+        "failure",
+        "error",
+        "exception",
+        "broken",
+        "crash",
+        "regression"
+      ]
+    },
+    {
+      "id": "test_generation",
+      "terms": [
+        "test",
+        "tests",
+        "coverage",
+        "unit",
+        "integration",
+        "regression test"
+      ]
+    },
+    {
+      "id": "refactor",
+      "terms": [
+        "refactor",
+        "cleanup",
+        "clean up",
+        "simplify",
+        "rename",
+        "restructure"
+      ]
+    },
+    {
+      "id": "feature",
+      "terms": [
+        "feature",
+        "add",
+        "implement",
+        "support",
+        "build",
+        "create",
+        "new"
+      ]
+    },
+    {
+      "id": "docs",
+      "terms": [
+        "docs",
+        "documentation",
+        "readme",
+        "guide",
+        "changelog",
+        "manual"
+      ]
+    },
+    {
+      "id": "design",
+      "terms": [
+        "design",
+        "architecture",
+        "plan",
+        "approach",
+        "proposal",
+        "spec"
+      ]
+    }
+  ]
+}

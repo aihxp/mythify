@@ -12,7 +12,8 @@ state unless the user selects that path and the adapter contract allows it.
 Start here and keep this path working forever:
 
 1. Copy a generated protocol file into a project.
-2. Copy `scripts/mythify.py` and `protocol/operation-registry.json`.
+2. Copy `scripts/mythify.py`, `protocol/operation-registry.json`, and
+   `protocol/classification-rules.json`.
 3. Run `python3 scripts/mythify.py protocol check CLAUDE.md`.
 4. Run `python3 scripts/mythify.py init`.
 5. Use `classify`, `plan`, `step`, `verify run`, `reflect`, and `summary`.
@@ -213,4 +214,3 @@ At every step, keep verification separate from model or worker output.
 | Hosted provider worker | Guarded fanout API engine | Require acknowledgements, then execute a verifier. |
 | Remote compute job | `execution_run` | Verify artifacts or logs separately. |
 | Agent lifecycle capability check | `lifecycle_probe` | Probe output is material; no action commands run. |
-

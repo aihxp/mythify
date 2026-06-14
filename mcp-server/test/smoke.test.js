@@ -16,6 +16,12 @@ import { MEMORY_CLEAR_MCP_REFUSAL } from "../src/operation-registry.js";
 import { MCP_TOOL_COUNT, MCP_TOOL_NAMES } from "../src/surface-manifest.js";
 
 const SERVER_PATH = fileURLToPath(new URL("../src/index.js", import.meta.url));
+const CLASSIFICATION_RULES = JSON.parse(
+  fs.readFileSync(new URL("../protocol/classification-rules.json", import.meta.url), "utf8")
+);
+const ROOT_CLASSIFICATION_RULES = JSON.parse(
+  fs.readFileSync(new URL("../../protocol/classification-rules.json", import.meta.url), "utf8")
+);
 
 function textOf(result) {
   assert.ok(Array.isArray(result.content), "tool result has a content array");
@@ -95,6 +101,10 @@ test("mythify MCP server smoke test", async (t) => {
       const names = tools.map((tool) => tool.name).sort();
       assert.equal(names.length, MCP_TOOL_COUNT);
       assert.deepEqual(names, [...MCP_TOOL_NAMES].sort());
+    });
+
+    await t.test("packaged classification rules mirror the root manifest", () => {
+      assert.deepEqual(CLASSIFICATION_RULES, ROOT_CLASSIFICATION_RULES);
     });
 
     await t.test("classify_task recommends ceremony and verification", async () => {
@@ -341,6 +351,8 @@ test("mythify MCP server smoke test", async (t) => {
           arguments: { task: "Evaluate the Mythify codebase and product", format: "json" },
         })
       );
+      const reviewRules = CLASSIFICATION_RULES.task_types.find((entry) => entry.id === "review");
+      assert.ok(reviewRules.terms.includes("evaluate"));
       const reviewParsed = JSON.parse(reviewText.replace(/^\[OK\] /, ""));
       assert.equal(reviewParsed.task_type, "review");
       assert.equal(reviewParsed.ceremony, "light");
@@ -787,7 +799,7 @@ test("mythify MCP server smoke test", async (t) => {
       );
       const parsed = JSON.parse(jsonText.replace(/^\[OK\] /, ""));
       assert.equal(parsed.counts.passed, 1);
-      assert.equal(parsed.counts.missing, 8);
+      assert.equal(parsed.counts.missing, 9);
       assert.ok(["clean", "dirty", "unknown"].includes(parsed.project_state.git.status));
       assert.deepEqual(snapshotStateDir(stateDir), before, "release_readiness json leaves state unchanged");
     });

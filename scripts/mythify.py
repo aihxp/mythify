@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mythify v2 command line interface.
+"""Mythify command line interface.
 
 Zero-dependency orchestrator for disciplined agent work: plans with stepwise
 progress, executed-or-attested verification records, persistent key-value
@@ -28,6 +28,7 @@ from pathlib import Path
 WORKSPACE_DIR_NAME = ".mythify"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
+CLASSIFICATION_RULES_PATH = REPO_ROOT / "protocol" / "classification-rules.json"
 PROTOCOL_SOURCE_SHA256 = "dc66fde7face3d68e20d4699b4a13f2c1cc214a696800477ec200ab5a3a11540"
 PROTOCOL_HASH_PREFIX = "<!-- Mythify protocol-sha256: "
 PROTOCOL_COPY_CANDIDATES = ("CLAUDE.md", "AGENTS.md", ".cursorrules")
@@ -63,7 +64,25 @@ def load_operation_registry():
         return json.load(handle)
 
 
+def load_classification_rules():
+    with CLASSIFICATION_RULES_PATH.open("r", encoding="utf-8") as handle:
+        manifest = json.load(handle)
+    rules = []
+    seen = set()
+    for entry in manifest.get("task_types", []):
+        task_type = str(entry.get("id", "")).strip()
+        terms = entry.get("terms", [])
+        if not task_type or task_type in seen or not isinstance(terms, list) or not terms:
+            raise ValueError("Invalid classification rule entry")
+        seen.add(task_type)
+        rules.append((task_type, tuple(str(term) for term in terms)))
+    if not rules:
+        raise ValueError("Classification rules manifest is empty")
+    return tuple(rules)
+
+
 OPERATION_REGISTRY = load_operation_registry()
+CLASSIFICATION_RULES = load_classification_rules()
 MEMORY_OPERATION_REGISTRY = OPERATION_REGISTRY["surfaces"]["memory"]
 MEMORY_CATEGORIES = tuple(MEMORY_OPERATION_REGISTRY["categories"])
 MEMORY_DEFAULT_CATEGORY = MEMORY_OPERATION_REGISTRY["default_category"]
@@ -528,76 +547,6 @@ STRONG_HOST_TASK_TYPES = (
     "security",
     "release",
     "migration",
-)
-
-CLASSIFICATION_RULES = (
-    (
-        "security",
-        (
-            "security", "vulnerability", "secret", "credential", "auth",
-            "authentication", "authorization", "login", "permission",
-            "permissions", "sandbox", "exploit", "token",
-        ),
-    ),
-    (
-        "release",
-        ("release", "publish", "version", "tag", "npm", "package", "ship", "deploy"),
-    ),
-    (
-        "migration",
-        ("migrate", "migration", "upgrade", "dependency", "dependencies", "schema", "breaking"),
-    ),
-    (
-        "performance",
-        ("performance", "optimize", "slow", "latency", "throughput", "memory leak", "profile"),
-    ),
-    (
-        "frontend_ui",
-        ("ui", "frontend", "component", "css", "responsive", "browser", "page", "screen", "layout"),
-    ),
-    (
-        "benchmark",
-        ("benchmark", "eval", "measure", "metric", "compare", "pass rate", "success rate"),
-    ),
-    (
-        "research",
-        ("research", "investigate", "find online", "look up", "survey", "source", "latest"),
-    ),
-    (
-        "review",
-        (
-            "review", "audit", "inspect", "critique", "findings", "risk",
-            "evaluate", "evaluation", "assess", "assessment",
-        ),
-    ),
-    (
-        "debugging",
-        ("debug", "diagnose", "trace", "reproduce", "root cause"),
-    ),
-    (
-        "bugfix",
-        ("bug", "fix", "failing", "failure", "error", "exception", "broken", "crash", "regression"),
-    ),
-    (
-        "test_generation",
-        ("test", "tests", "coverage", "unit", "integration", "regression test"),
-    ),
-    (
-        "refactor",
-        ("refactor", "cleanup", "clean up", "simplify", "rename", "restructure"),
-    ),
-    (
-        "feature",
-        ("feature", "add", "implement", "support", "build", "create", "new"),
-    ),
-    (
-        "docs",
-        ("docs", "documentation", "readme", "guide", "changelog", "manual"),
-    ),
-    (
-        "design",
-        ("design", "architecture", "plan", "approach", "proposal", "spec"),
-    ),
 )
 
 VERIFICATION_HINTS = {
@@ -4057,6 +4006,20 @@ RELEASE_READINESS_GATES = (
         "match_any": [
             "node scripts/check_surface_manifest.mjs",
             "surface manifest",
+        ],
+    },
+    {
+        "id": "classification_rules_manifest",
+        "label": "Classification rules manifest check",
+        "required": True,
+        "sources": [
+            "protocol/classification-rules.json",
+            "mcp-server/protocol/classification-rules.json",
+            "scripts/check_classification_rules_manifest.mjs",
+        ],
+        "match_any": [
+            "node scripts/check_classification_rules_manifest.mjs",
+            "classification rules manifest",
         ],
     },
     {

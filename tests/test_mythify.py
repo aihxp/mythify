@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CLI = REPO_ROOT / "scripts" / "mythify.py"
 OPERATION_REGISTRY = REPO_ROOT / "protocol" / "operation-registry.json"
 SURFACE_MANIFEST = REPO_ROOT / "protocol" / "surface-manifest.json"
+CLASSIFICATION_RULES = REPO_ROOT / "protocol" / "classification-rules.json"
 
 NO_WORKSPACE_MESSAGE = (
     "[FAIL] No .mythify workspace found. Run: python3 scripts/mythify.py init"
@@ -144,6 +145,10 @@ class TestProtocolHandshake(CliTestCase):
             OPERATION_REGISTRY,
             self.project / "protocol" / "operation-registry.json",
         )
+        shutil.copy2(
+            CLASSIFICATION_RULES,
+            self.project / "protocol" / "classification-rules.json",
+        )
         env = dict(os.environ)
         env.pop("MYTHIFY_DIR", None)
         env["HOME"] = str(self.home)
@@ -249,6 +254,13 @@ class TestClassification(CliTestCase):
         self.assertEqual(payload["model_policy"]["verifier"]["engine"], "local_command")
 
     def test_classify_evaluate_and_assess_codebase_as_review(self):
+        manifest = self.read_json(CLASSIFICATION_RULES)
+        review_rules = next(
+            entry for entry in manifest["task_types"] if entry["id"] == "review"
+        )
+        self.assertIn("evaluate", review_rules["terms"])
+        self.assertIn("assess", review_rules["terms"])
+
         examples = (
             ("Evaluate the Mythify codebase and product", "evaluate"),
             ("Assess the Mythify codebase and product quality", "assess"),
@@ -1981,7 +1993,7 @@ class TestStatusAndSummary(CliTestCase):
         payload = json.loads(json_result.stdout)
         self.assertEqual(payload["status"], "needs_evidence")
         self.assertEqual(payload["counts"]["passed"], 1)
-        self.assertEqual(payload["counts"]["missing"], 8)
+        self.assertEqual(payload["counts"]["missing"], 9)
         self.assertEqual(payload["project_state"]["roadmap"]["status"], "present")
         self.assertEqual(payload["project_state"]["git"]["status"], "unknown")
         self.assertEqual(self.state_snapshot(state), before)

@@ -18,6 +18,7 @@ capability gap.
 | :--- | :--- | :--- |
 | Protocol variants | `CLAUDE.md`, `AGENTS.md`, `.cursorrules` | Drop-in rules files, generated from `protocol/PROTOCOL.md` by `scripts/build_variants.py`. |
 | CLI | `scripts/mythify.py` | Zero-dependency Python 3.9+ orchestrator for plans, memory, lessons, outcome loops, verification, and reflection. |
+| Shared manifests | `protocol/operation-registry.json`, `protocol/classification-rules.json`, `protocol/surface-manifest.json` | Shared facts used by the CLI, MCP server, tests, and docs to prevent drift. |
 | MCP server | `mcp-server/` | Node 18+ server exposing the same state directory through 36 MCP tools, including task classification, host model switch state, provider probes, local model runs, host CLI probes, bounded host CLI worker runs, execution probes and runs, lifecycle probes, outcome loops, workflow status, verification history, background task status, outcome progress, release readiness, fanout worker timeline, phase status, and parallel delegation (fanout). |
 | Skill | `skills/mythify/` | Manus-style skill package; `scripts/package_skill.py` builds `dist/mythify.skill`. |
 
@@ -52,6 +53,7 @@ mkdir -p /path/to/your/project/scripts
 mkdir -p /path/to/your/project/protocol
 cp scripts/mythify.py /path/to/your/project/scripts/
 cp protocol/operation-registry.json /path/to/your/project/protocol/
+cp protocol/classification-rules.json /path/to/your/project/protocol/
 cd /path/to/your/project
 python3 scripts/mythify.py protocol check CLAUDE.md
 python3 scripts/mythify.py init
@@ -106,12 +108,14 @@ Environment variables:
 
 ```bash
 python3 scripts/package_skill.py
+(cd mcp-server && npm pack)
 ```
 
-This zips `skills/mythify/` into `dist/mythify.skill` with `SKILL.md` at the zip root
-and `references/` beside it, ready to import into Manus or any skill-compatible
-agent. If you would rather not build it yourself, a prebuilt `mythify.skill` is
-attached to each GitHub release at
+This zips `skills/mythify/` into `dist/mythify.skill` with `SKILL.md` at the zip
+root and `references/` beside it, and creates the MCP npm tarball under
+`mcp-server/`. See [docs/release.md](docs/release.md) for the full release gate
+and GitHub release process. If you would rather not build the skill yourself, a
+prebuilt `mythify.skill` is attached to each GitHub release at
 [https://github.com/aihxp/mythify/releases](https://github.com/aihxp/mythify/releases).
 
 ## How it works
@@ -801,9 +805,9 @@ task:
 
 - `bare`: the model gets only the task prompt.
 - `mythify`: the model gets `AGENTS.md`, `scripts/mythify.py`,
-  `protocol/operation-registry.json`, and an initialized `.mythify/` workspace,
-  then is told to use the selected Mythify profile and record `verify run`
-  evidence.
+  `protocol/operation-registry.json`, `protocol/classification-rules.json`, and
+  an initialized `.mythify/` workspace, then is told to use the selected
+  Mythify profile and record `verify run` evidence.
 
 The harness verifies both workspaces with `python3 -m unittest` and reports
 pass rate, Mythify evidence rate, average duration, and per-run output tails.
@@ -892,6 +896,15 @@ delete, or rewrite unrelated state.
 Operation registry tests compare the memory CLI and MCP behavior with
 `protocol/operation-registry.json` so duplicated operation contracts cannot
 quietly drift.
+
+Classification keyword rules live in `protocol/classification-rules.json` so
+the CLI and MCP server share deterministic task-type matching data without
+duplicating the table.
+
+The MCP npm package also carries a package-local mirror at
+`mcp-server/protocol/classification-rules.json`; run
+`node scripts/check_classification_rules_manifest.mjs` to check that it matches
+the root manifest before release.
 
 `protocol/surface-manifest.json` owns duplicated public surface metadata such
 as top-level CLI commands and MCP tool names. Run
