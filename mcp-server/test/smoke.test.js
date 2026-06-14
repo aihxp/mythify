@@ -686,6 +686,31 @@ test("mythify MCP server smoke test", async (t) => {
       );
       assert.match(second, /No new Mythify events to report/);
 
+      const marked = textOf(
+        await client.callTool({
+          name: "work_report",
+          arguments: { cursor: "fresh-chat", mark: true },
+        })
+      );
+      assert.match(marked, /Scope: mark cursor fresh-chat, 0 new events/);
+      assert.match(marked, /Cursor marked at latest event: fresh-chat/);
+
+      const markedSecond = textOf(
+        await client.callTool({
+          name: "work_report",
+          arguments: { since: "last", cursor: "fresh-chat", peek: true },
+        })
+      );
+      assert.match(markedSecond, /No new Mythify events to report/);
+
+      const invalidMark = textOf(
+        await client.callTool({
+          name: "work_report",
+          arguments: { mark: true, peek: true },
+        })
+      );
+      assert.match(invalidMark, /^\[FAIL\] mark cannot be combined with peek/);
+
       const jsonText = textOf(
         await client.callTool({
           name: "work_report",

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Mythify MCP server v3.1.0
+// Mythify MCP server v3.2.0
 // Exposes the Mythify state model (memory, plans, lessons, verifications,
 // reflections) as 34 core MCP tools over stdio, plus the 3 fanout tools for
 // parallel delegation (src/fanout.js), 37 tools in total. On-disk formats are
@@ -53,7 +53,7 @@ import {
   MEMORY_DEFAULT_CATEGORY,
 } from "./operation-registry.js";
 
-const VERSION = "3.1.0";
+const VERSION = "3.2.0";
 const CLASSIFICATION_RULES_PATH = new URL("../protocol/classification-rules.json", import.meta.url);
 const TAIL_CHARS = 4000;
 const STEP_STATUSES = ["pending", "in_progress", "completed", "failed", "skipped"];
@@ -1430,16 +1430,25 @@ function eventsAfterMarker(events, marker) {
   return events;
 }
 
-function buildWorkReport({ since = "last", recent = DEFAULT_REPORT_RECENT, cursor = "default", peek = false } = {}) {
+function buildWorkReport({
+  since = "last",
+  recent = DEFAULT_REPORT_RECENT,
+  cursor = "default",
+  peek = false,
+  mark = false,
+} = {}) {
   if (!Number.isInteger(recent) || recent < 0) {
     return { error: "[FAIL] Invalid recent: use 0 or a positive integer." };
+  }
+  if (mark && peek) {
+    return { error: "[FAIL] mark cannot be combined with peek." };
   }
   const cursorName = reportCursorName(cursor);
   const marker = readJsonRecover(reportCursorPath(cursorName), () => ({}));
   const allEvents = buildReportEvents();
-  const candidateEvents = since === "last" ? eventsAfterMarker(allEvents, marker) : allEvents;
+  const candidateEvents = mark ? [] : since === "last" ? eventsAfterMarker(allEvents, marker) : allEvents;
   const visibleEvents = recent === 0 ? [] : candidateEvents.slice(Math.max(0, candidateEvents.length - recent));
-  if (!peek) {
+  if (mark || !peek) {
     writeJsonAtomic(reportCursorPath(cursorName), {
       cursor: cursorName,
       updated_at: isoNow(),
@@ -1452,6 +1461,7 @@ function buildWorkReport({ since = "last", recent = DEFAULT_REPORT_RECENT, curso
     since,
     format: "chat",
     peek,
+    mark,
     events: visibleEvents,
     new_event_count: candidateEvents.length,
     shown_event_count: visibleEvents.length,
@@ -1465,10 +1475,17 @@ function buildWorkReport({ since = "last", recent = DEFAULT_REPORT_RECENT, curso
 
 function formatWorkReport(view) {
   const lines = [`[OK] Live work report: ${view.state_dir}`];
-  lines.push(
-    `Scope: since ${view.since}, cursor ${view.cursor}, ${view.new_event_count} new events ` +
-      `(${view.shown_event_count} shown, ${view.omitted_new_events} omitted)`
-  );
+  if (view.mark) {
+    lines.push(
+      `Scope: mark cursor ${view.cursor}, ${view.new_event_count} new events ` +
+        `(${view.shown_event_count} shown, ${view.omitted_new_events} omitted)`
+    );
+  } else {
+    lines.push(
+      `Scope: since ${view.since}, cursor ${view.cursor}, ${view.new_event_count} new events ` +
+        `(${view.shown_event_count} shown, ${view.omitted_new_events} omitted)`
+    );
+  }
   if (view.events.length > 0) {
     for (const event of view.events) {
       let line = `- ${event.summary || "Event recorded"}`;
@@ -1480,7 +1497,11 @@ function formatWorkReport(view) {
   } else {
     lines.push("No new Mythify events to report.");
   }
-  lines.push(view.cursor_updated ? `Cursor advanced: ${view.cursor}` : "Cursor unchanged: --peek");
+  if (view.mark) {
+    lines.push(`Cursor marked at latest event: ${view.cursor}`);
+  } else {
+    lines.push(view.cursor_updated ? `Cursor advanced: ${view.cursor}` : "Cursor unchanged: --peek");
+  }
   lines.push(`Guardrail: ${view.guardrail}.`);
   return lines.join("\n");
 }
@@ -6614,15 +6635,20 @@ server.registerTool(
         .describe(`Maximum events to include. Defaults to ${DEFAULT_REPORT_RECENT}.`),
       cursor: z.string().optional().describe("Report cursor name. Defaults to default."),
       peek: z.boolean().optional().describe("When true, leave the report cursor unchanged."),
+      mark: z
+        .boolean()
+        .optional()
+        .describe("When true, advance the cursor to the latest event without returning old events."),
       format: z.enum(REPORT_FORMATS).optional().describe("Return chat text or JSON. Defaults to chat."),
     },
   },
-  guarded(({ since, recent, cursor, peek, format }) => {
+  guarded(({ since, recent, cursor, peek, mark, format }) => {
     const view = buildWorkReport({
       since: since || "last",
       recent: typeof recent === "number" ? recent : DEFAULT_REPORT_RECENT,
       cursor: cursor || "default",
       peek: Boolean(peek),
+      mark: Boolean(mark),
     });
     if (view.error) {
       return view.error;

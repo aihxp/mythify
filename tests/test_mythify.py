@@ -1856,6 +1856,19 @@ class TestStatusAndSummary(CliTestCase):
         self.assertEqual(second.returncode, 0, second.stderr)
         self.assertIn("No new Mythify events to report.", second.stdout)
 
+        marked = self.run_cli("report", "--cursor", "fresh-chat", "--mark")
+        self.assertEqual(marked.returncode, 0, marked.stderr)
+        self.assertIn("Scope: mark cursor fresh-chat, 0 new events", marked.stdout)
+        self.assertIn("Cursor marked at latest event: fresh-chat", marked.stdout)
+
+        marked_second = self.run_cli("report", "--since", "last", "--cursor", "fresh-chat", "--peek")
+        self.assertEqual(marked_second.returncode, 0, marked_second.stderr)
+        self.assertIn("No new Mythify events to report.", marked_second.stdout)
+
+        invalid = self.run_cli("report", "--mark", "--peek")
+        self.assertEqual(invalid.returncode, 1)
+        self.assertIn("--mark cannot be combined with --peek", invalid.stderr)
+
         json_result = self.run_cli(
             "report",
             "--since",

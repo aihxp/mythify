@@ -29,7 +29,7 @@ WORKSPACE_DIR_NAME = ".mythify"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
 CLASSIFICATION_RULES_PATH = REPO_ROOT / "protocol" / "classification-rules.json"
-PROTOCOL_SOURCE_SHA256 = "d99dbfd49bb9ba63ec9c62d4348a0a3195aec9e653ebe89fc4dd99d19e53fbe3"
+PROTOCOL_SOURCE_SHA256 = "e679b6292468ba02d9fd700db79330f8f9786253cee0e25043b34d126d3c7fc1"
 PROTOCOL_HASH_PREFIX = "<!-- Mythify protocol-sha256: "
 PROTOCOL_COPY_CANDIDATES = ("CLAUDE.md", "AGENTS.md", ".cursorrules")
 NO_WORKSPACE_MESSAGE = (
@@ -3675,9 +3675,19 @@ def events_after_marker(events, marker):
     return events
 
 
-def build_work_report(state, since="last", recent=DEFAULT_REPORT_RECENT, cursor="default", peek=False):
+def build_work_report(
+    state,
+    since="last",
+    recent=DEFAULT_REPORT_RECENT,
+    cursor="default",
+    peek=False,
+    mark=False,
+):
     if recent < 0:
         fail("[FAIL] Invalid --recent: use 0 or a positive integer.")
+        return None
+    if mark and peek:
+        fail("[FAIL] --mark cannot be combined with --peek.")
         return None
     cursor_name = report_cursor_name(cursor)
     marker_path = report_cursor_path(state, cursor_name)
@@ -3685,7 +3695,9 @@ def build_work_report(state, since="last", recent=DEFAULT_REPORT_RECENT, cursor=
     if not isinstance(marker, dict):
         marker = {}
     all_events = build_report_events(state)
-    if since == "last":
+    if mark:
+        candidate_events = []
+    elif since == "last":
         candidate_events = events_after_marker(all_events, marker)
     else:
         candidate_events = all_events
@@ -3694,7 +3706,7 @@ def build_work_report(state, since="last", recent=DEFAULT_REPORT_RECENT, cursor=
     else:
         visible_events = candidate_events[-recent:]
     omitted = max(0, len(candidate_events) - len(visible_events))
-    if not peek:
+    if mark or not peek:
         last_event = all_events[-1] if all_events else marker.get("last_event")
         write_json_atomic(
             marker_path,
@@ -3710,6 +3722,7 @@ def build_work_report(state, since="last", recent=DEFAULT_REPORT_RECENT, cursor=
         "since": since,
         "format": "chat",
         "peek": peek,
+        "mark": mark,
         "events": visible_events,
         "new_event_count": len(candidate_events),
         "shown_event_count": len(visible_events),
@@ -3725,15 +3738,25 @@ def build_work_report(state, since="last", recent=DEFAULT_REPORT_RECENT, cursor=
 
 def format_work_report(view):
     lines = ["[OK] Live work report: {0}".format(view["state_dir"])]
-    lines.append(
-        "Scope: since {0}, cursor {1}, {2} new events ({3} shown, {4} omitted)".format(
-            view["since"],
-            view["cursor"],
-            view["new_event_count"],
-            view["shown_event_count"],
-            view["omitted_new_events"],
+    if view.get("mark"):
+        lines.append(
+            "Scope: mark cursor {0}, {1} new events ({2} shown, {3} omitted)".format(
+                view["cursor"],
+                view["new_event_count"],
+                view["shown_event_count"],
+                view["omitted_new_events"],
+            )
         )
-    )
+    else:
+        lines.append(
+            "Scope: since {0}, cursor {1}, {2} new events ({3} shown, {4} omitted)".format(
+                view["since"],
+                view["cursor"],
+                view["new_event_count"],
+                view["shown_event_count"],
+                view["omitted_new_events"],
+            )
+        )
     if view["events"]:
         for event in view["events"]:
             detail = event.get("detail")
@@ -3743,7 +3766,9 @@ def format_work_report(view):
             lines.append(line)
     else:
         lines.append("No new Mythify events to report.")
-    if view["cursor_updated"]:
+    if view.get("mark"):
+        lines.append("Cursor marked at latest event: {0}".format(view["cursor"]))
+    elif view["cursor_updated"]:
         lines.append("Cursor advanced: {0}".format(view["cursor"]))
     else:
         lines.append("Cursor unchanged: --peek")
@@ -3758,6 +3783,7 @@ def cmd_report(args, state):
         recent=args.recent,
         cursor=args.cursor,
         peek=args.peek,
+        mark=args.mark,
     )
     if view is None:
         return 1
@@ -6105,6 +6131,11 @@ def build_parser():
         "--peek",
         action="store_true",
         help="Do not advance the report cursor.",
+    )
+    p.add_argument(
+        "--mark",
+        action="store_true",
+        help="Advance the report cursor to the latest event without showing old events.",
     )
     p.set_defaults(handler=cmd_report)
 
