@@ -21,14 +21,13 @@ Status markers:
 
 ## Active Now
 
-- [>] v3.0 release readiness sweep.
-  - Current goal: verify that the roadmap, changelog, generated docs, tests,
-    and release readiness view are coherent after the model-runtime roadmap
-    slices.
-  - Next step: map release gates and current git state before deciding whether
-    a release tag is warranted.
-  - Guardrail: do not tag, publish, or claim release readiness without an
-    executed release gate.
+- [>] v3.0 release candidate tag decision.
+  - Current goal: decide whether the next action is a release candidate tag,
+    a version bump, or another cleanup slice.
+  - Next step: rerun the release readiness view on the final pushed commit and
+    compare it to `docs/v3-release-readiness-sweep.md`.
+  - Guardrail: do not tag, publish, or claim release safety without explicit
+    user intent and an executed release gate on the final commit.
 
 ## Next Queue
 
@@ -297,6 +296,10 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-14: add v3.0 release readiness sweep report.
+  `docs/v3-release-readiness-sweep.md` records the read-only readiness result,
+  executed gates, remaining external-proof waiting items, and the next safe
+  release-candidate decision step without tagging or publishing.
 - [x] 2026-06-14: add host apply and confirm proof watchlist.
   `docs/host-apply-confirm-proof-watchlist.md` now defines proof gates for
   current-chat model apply, current-chat model confirm, worker model override,
@@ -601,7 +604,8 @@ Preserve:
 
 ### v3.1
 
-- [>] v3.0 release readiness sweep.
+- [>] v3.0 release candidate tag decision.
+- [x] v3.0 release readiness sweep.
 - [x] Host apply or confirm API proof watchlist.
 - [~] Apply model or thinking changes when a host exposes a real capability.
 - [~] Add adapter execution tests once a host exposes apply or confirm APIs.
@@ -610,6 +614,7 @@ Preserve:
 
 - `docs/host-model-switching-research.md`
 - `docs/host-apply-confirm-proof-watchlist.md`
+- `docs/v3-release-readiness-sweep.md`
 - `docs/local-llm-and-new-host-research.md`
 - `docs/colab-cli-spike-plan.md`
 - `docs/antigravity-mcp-setup.md`

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- v3.0 release readiness sweep report.
+  `docs/v3-release-readiness-sweep.md` records the read-only readiness result,
+  executed gates, remaining external-proof waiting items, and the next safe
+  release-candidate decision step without tagging or publishing.
 - Host apply and confirm proof watchlist.
   `docs/host-apply-confirm-proof-watchlist.md` now defines proof gates for
   current-chat model apply, current-chat model confirm, worker model override,
