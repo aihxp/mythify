@@ -21,14 +21,11 @@ Status markers:
 
 ## Active Now
 
-- [>] v3.0.0 final release gate and tag decision.
-  - Current goal: run the final release gate on the metadata-aligned commit and
-    decide whether to create a `v3.0.0` release-candidate tag.
-  - Next step: rerun the full release gate after the metadata alignment commit
-    is on `main`.
-  - Guardrail: do not tag or publish until package metadata, changelog anchors,
-    release docs, and executed release gates all point at the same intended
-    release version.
+- [~] v3.0.0 tag and publish authorization.
+  - Current state: metadata is aligned to `3.0.0`, final gates pass, and the
+    release candidate is ready for an explicit tag decision.
+  - Waiting on: explicit user intent to create a `v3.0.0` tag or publish.
+  - Guardrail: no tag or publish happens by default.
 
 ## Next Queue
 
@@ -297,6 +294,9 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-14: run v3.0.0 final release gate and tag decision.
+  `docs/v3-final-release-gate.md` records passed final gates and a ready for
+  explicit tag approval decision; no tag or publish was performed.
 - [x] 2026-06-14: align v3.0.0 release metadata.
   `docs/v3-release-metadata-alignment.md` records package metadata, lockfile,
   changelog anchors, and release-facing docs aligned to `3.0.0`; no tag or
@@ -617,7 +617,8 @@ Preserve:
 
 ### v3.1
 
-- [>] v3.0.0 final release gate and tag decision.
+- [~] v3.0.0 tag and publish authorization.
+- [x] v3.0.0 final release gate and tag decision.
 - [x] v3.0.0 release metadata alignment.
 - [x] release version alignment decision.
 - [x] v3.0 release candidate tag decision.
@@ -630,6 +631,7 @@ Preserve:
 
 - `docs/host-model-switching-research.md`
 - `docs/host-apply-confirm-proof-watchlist.md`
+- `docs/v3-final-release-gate.md`
 - `docs/v3-release-metadata-alignment.md`
 - `docs/release-version-alignment-decision.md`
 - `docs/v3-release-candidate-decision.md`

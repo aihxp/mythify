@@ -13,6 +13,9 @@ No entries yet.
 
 ### Added
 
+- v3.0.0 final release gate report.
+  `docs/v3-final-release-gate.md` records that the metadata-aligned final gate
+  passed and that creating a `v3.0.0` tag still requires explicit approval.
 - v3.0.0 release metadata alignment.
   `docs/v3-release-metadata-alignment.md` records package metadata, lockfile,
   changelog anchors, and release-facing docs aligned to `3.0.0` before any
