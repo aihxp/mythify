@@ -113,7 +113,8 @@ jobs:
           await client.connect(transport);
           try {
             const listed = await client.listTools();
-            assert.equal(listed.tools.length, 36);
+            const manifest = JSON.parse(fs.readFileSync("protocol/surface-manifest.json", "utf8"));
+            assert.equal(listed.tools.length, manifest.surfaces.mcp.total_tools);
           } finally {
             await client.close();
           }
