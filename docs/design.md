@@ -22,7 +22,7 @@ same state directory.
 - No emojis. Use ASCII markers: `[OK]`, `[FAIL]`, `[WARN]`.
 - No em dashes (U+2014) and no en dashes (U+2013). Use commas, colons, parentheses,
   or plain hyphens instead.
-- No TODO markers, no placeholder content. Every file ships complete.
+- No pending-work markers, no placeholder content. Every file ships complete.
 - Documentation is imperative and concise.
 - Exception: `docs/research-report.md` is preserved legacy content, copied verbatim,
   and is exempt from these character rules.
