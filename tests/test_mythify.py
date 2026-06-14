@@ -248,6 +248,22 @@ class TestClassification(CliTestCase):
         self.assertEqual(payload["model_policy"]["session"]["control"], "host_selected")
         self.assertEqual(payload["model_policy"]["verifier"]["engine"], "local_command")
 
+    def test_classify_evaluate_and_assess_codebase_as_review(self):
+        examples = (
+            ("Evaluate the Mythify codebase and product", "evaluate"),
+            ("Assess the Mythify codebase and product quality", "assess"),
+        )
+        for prompt, signal in examples:
+            with self.subTest(prompt=prompt):
+                result = self.run_cli("classify", prompt, "--json")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                payload = json.loads(result.stdout)
+                self.assertEqual(payload["task_type"], "review")
+                self.assertEqual(payload["risk"], "low")
+                self.assertEqual(payload["ceremony"], "light")
+                self.assertEqual(payload["execution_profile"], "fast")
+                self.assertIn(signal, payload["signals"])
+
     def test_classify_recommends_fast_host_settings_for_direct_question(self):
         result = self.run_cli(
             "classify",

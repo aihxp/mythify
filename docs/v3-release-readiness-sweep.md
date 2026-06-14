@@ -9,7 +9,11 @@ safe.
 
 ## Result
 
-Read-only readiness reported `ready_for_release_review`.
+Read-only readiness reported `ready_for_release_review` at sweep time.
+
+This file is a historical sweep record, not a live release signal. Rerun
+`python3 scripts/mythify.py readiness --json` on the final commit before any
+tag or publish decision.
 
 Recorded release gates at the time of the sweep:
 
@@ -35,10 +39,16 @@ Counts from `python3 scripts/mythify.py readiness --json`:
 
 Project state at the read-only readiness check:
 
-- Branch: `codex/v3-release-readiness-sweep`
-- Git status: clean
+- Branch at sweep time: `codex/v3-release-readiness-sweep`
+- Git status at sweep time: clean
 - Roadmap active slice: `v3.0 release readiness sweep`
-- MCP package version: `2.5.0`
+- MCP package version at sweep time: `2.5.0`
+
+Current follow-up note:
+
+- On 2026-06-14, package metadata had advanced to `3.0.0` and the working
+  branch was `main`. Treat those as current state only after rerunning the
+  readiness command on the final commit.
 
 ## Executed Evidence
 
@@ -58,7 +68,8 @@ The sweep recorded these checks:
 
 ## Findings
 
-No release gate blockers were found in the recorded readiness view.
+No release gate blockers were found in the recorded readiness view at sweep
+time.
 
 The remaining open product items are intentionally waiting on external host
 proof:
@@ -75,4 +86,3 @@ deferred in the roadmap and are guarded by
 The next run should decide whether to prepare a release candidate tag. That run
 must rerun the release gate on the final commit and should not tag or publish
 without explicit user intent.
-

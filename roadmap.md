@@ -197,10 +197,14 @@ Guardrails:
 
 What remains:
 
-Nothing open right now.
+- [ ] Extract high-churn CLI and MCP handlers only when the next repeated drift
+  hotspot appears. Current follow-up keeps the v3 product drift bounded with
+  tests and docs instead of introducing a broad adapter refactor.
 
 Already shipped in this track:
 
+- [x] Audit follow-up aligned classifier wording, MCP server version metadata,
+  evidence-log security guidance, and historical readiness/audit docs.
 - [x] Surface manifest owns top-level CLI commands and MCP tool names/counts,
   with CI checks against runtime registrations, public docs, and CLI help.
 - [x] One-core architecture decision keeps CLI and MCP as native adapters while

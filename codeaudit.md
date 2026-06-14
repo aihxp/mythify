@@ -6,19 +6,38 @@ having watched the audit.
 
 ## Remediation status
 
-Updated: 2026-06-12. Status: all numbered findings are completed and verified.
+Updated: 2026-06-14. Status: all June 12 numbered findings are completed and
+verified. A June 14 follow-up remediation pass also closed current product
+drift found during a codebase and product evaluation.
+
+Current product surface as of the June 14 follow-up:
+
+- MCP package version: `3.0.0`.
+- MCP server version constant: `3.0.0`.
+- MCP tools: 36 total, 33 core tools plus 3 fanout tools.
+- Load-bearing file sizes: `scripts/mythify.py` 6495 LOC,
+  `mcp-server/src/index.js` 7413 LOC, and `mcp-server/src/fanout.js` 2311 LOC
+  after the follow-up patch.
+- Follow-up fixes: `evaluate` and `assess` codebase/product prompts classify
+  as review work in both CLI and MCP, security guidance names plain-text
+  verification and outcome evidence surfaces, readiness docs distinguish
+  historical sweep state from current release state, and this audit header no
+  longer presents the June 12 v2 snapshot as current.
 
 | Finding | Status | Evidence |
 | :--- | :--- | :--- |
 | [QUAL-001] Generated variants stale | Completed | `python3 scripts/build_variants.py && git diff --exit-code CLAUDE.md AGENTS.md .cursorrules` exited 0; stale 15-tool wording is absent from generated variants. |
 | [DOC-001] CHANGELOG lagging 2.4.0 | Completed | CHANGELOG now has 2.2.0, 2.3.0, and 2.4.0 sections, current compare links, and no stale 15-tool claim. |
 | [DOC-002] Release work uncommitted and without CI provenance | Completed | Release commit `5097767d3bcfaad1d094eedf147e6417c57cb1c7` is pushed to `origin/main`; CI run `27444101777` passed; tags `v2.2.0`, `v2.3.0`, and `v2.4.0` exist on `origin`. |
+| [FOLLOW-001] Evaluation wording classified as trivial | Completed in this patch | CLI and MCP classifier rules now include `evaluate`, `evaluation`, `assess`, and `assessment`; Python and Node tests cover the regression. |
+| [FOLLOW-002] Evidence-log security warning was incomplete | Completed in this patch | SECURITY.md now warns that `.mythify/` verification and outcome records store command strings plus stdout and stderr tails in plain text. |
+| [FOLLOW-003] v3 readiness and audit docs read as live when historical | Completed in this patch | `docs/v3-release-readiness-sweep.md` and this header now identify historical sweep state separately from current release signals. |
 
 Note: the 2.2.0 and 2.3.0 tags are backfilled annotated version markers on
 the same green release commit as 2.4.0 because the 2.2.0 through 2.4.0 changes
 landed together in one commit.
 
-## Snapshot
+## Historical Snapshot
 
 - Project: Mythify, a portability layer that gives any model Mythos-class
   operational discipline (planning loops, executed verification, persistent

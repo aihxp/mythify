@@ -4,6 +4,7 @@
 
 | Version | Supported |
 | :--- | :--- |
+| 3.x | Yes |
 | 2.x | Yes |
 | Anything earlier | No (unreleased prototypes) |
 
@@ -55,8 +56,10 @@ Hardening guidance for users:
   (`fanout_start`, `fanout_status`, `fanout_results`); they refuse with an
   explanation.
 - Never run the MCP server with elevated privileges.
-- Do not store secrets in memory entries or lessons. Everything under
-  `.mythify/` is plain text on disk.
+- Do not place secrets in commands, verifier output, memory entries, lessons,
+  outcome notes, or worker prompts. Everything under `.mythify/` is plain text
+  on disk, and verification or outcome records store command strings plus
+  stdout and stderr tails.
 
 A report is in scope when Mythify does something other than what this model
 describes: for example, executing commands while `MYTHIFY_DISABLE_RUN=1` is

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Mythify MCP server v2.5.0
+// Mythify MCP server v3.0.0
 // Exposes the Mythify state model (memory, plans, lessons, verifications,
 // reflections) as 33 core MCP tools over stdio, plus the 3 fanout tools for
 // parallel delegation (src/fanout.js), 36 tools in total. On-disk formats are
@@ -53,7 +53,7 @@ import {
   MEMORY_DEFAULT_CATEGORY,
 } from "./operation-registry.js";
 
-const VERSION = "2.5.0";
+const VERSION = "3.0.0";
 const TAIL_CHARS = 4000;
 const STEP_STATUSES = ["pending", "in_progress", "completed", "failed", "skipped"];
 const OUTCOME_STATUSES = ["active", "succeeded", "failed", "stopped"];
@@ -80,7 +80,13 @@ const CLASSIFICATION_RULES = [
   ["frontend_ui", ["ui", "frontend", "component", "css", "responsive", "browser", "page", "screen", "layout"]],
   ["benchmark", ["benchmark", "eval", "measure", "metric", "compare", "pass rate", "success rate"]],
   ["research", ["research", "investigate", "find online", "look up", "survey", "source", "latest"]],
-  ["review", ["review", "audit", "inspect", "critique", "findings", "risk"]],
+  [
+    "review",
+    [
+      "review", "audit", "inspect", "critique", "findings", "risk",
+      "evaluate", "evaluation", "assess", "assessment",
+    ],
+  ],
   ["debugging", ["debug", "diagnose", "trace", "reproduce", "root cause"]],
   ["bugfix", ["bug", "fix", "failing", "failure", "error", "exception", "broken", "crash", "regression"]],
   ["test_generation", ["test", "tests", "coverage", "unit", "integration", "regression test"]],

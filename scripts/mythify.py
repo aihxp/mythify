@@ -565,7 +565,10 @@ CLASSIFICATION_RULES = (
     ),
     (
         "review",
-        ("review", "audit", "inspect", "critique", "findings", "risk"),
+        (
+            "review", "audit", "inspect", "critique", "findings", "risk",
+            "evaluate", "evaluation", "assess", "assessment",
+        ),
     ),
     (
         "debugging",

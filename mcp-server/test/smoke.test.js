@@ -335,6 +335,18 @@ test("mythify MCP server smoke test", async (t) => {
         "may_exceed_session_with_reviewer_opt_in"
       );
 
+      const reviewText = textOf(
+        await client.callTool({
+          name: "classify_task",
+          arguments: { task: "Evaluate the Mythify codebase and product", format: "json" },
+        })
+      );
+      const reviewParsed = JSON.parse(reviewText.replace(/^\[OK\] /, ""));
+      assert.equal(reviewParsed.task_type, "review");
+      assert.equal(reviewParsed.ceremony, "light");
+      assert.equal(reviewParsed.execution_profile, "fast");
+      assert.ok(reviewParsed.signals.includes("evaluate"));
+
       const triagedText = textOf(
         await client.callTool({
           name: "classify_task",
@@ -1007,10 +1019,10 @@ test("MYTHIFY_REQUIRE_VERIFIED_STEP gate on plan_update_step", async (t) => {
   await client.connect(transport);
 
   try {
-    await t.test("server reports version 2.5.0 in serverInfo", () => {
+    await t.test("server reports version 3.0.0 in serverInfo", () => {
       const info = client.getServerVersion();
       assert.ok(info, "server info is available after connect");
-      assert.equal(info.version, "2.5.0", "serverInfo reports version 2.5.0");
+      assert.equal(info.version, "3.0.0", "serverInfo reports version 3.0.0");
     });
 
     await t.test("completed is blocked until a passing verify_run is recorded", async () => {

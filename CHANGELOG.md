@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No entries yet.
+### Fixed
+
+- CLI and MCP task classification now treat `evaluate` and `assess`
+  codebase/product prompts as review work instead of trivial direct work.
+- Security guidance now names verification logs and outcome iterations as
+  plain-text evidence surfaces that can include command strings plus output
+  tails.
+- Audit and readiness docs now distinguish historical snapshots from current
+  release signals.
 
 ## [3.0.0] - 2026-06-14
 
