@@ -3764,6 +3764,10 @@ def format_work_report(view):
             if detail:
                 line += ", {0}".format(compact_report_detail(detail))
             lines.append(line)
+    elif view.get("mark"):
+        lines.append(
+            "Cursor is ready. Future reports with --since last will show only new events."
+        )
     else:
         lines.append("No new Mythify events to report.")
     if view.get("mark"):

@@ -693,7 +693,9 @@ test("mythify MCP server smoke test", async (t) => {
         })
       );
       assert.match(marked, /Scope: mark cursor fresh-chat, 0 new events/);
+      assert.match(marked, /Cursor is ready\. Future reports with --since last will show only new events\./);
       assert.match(marked, /Cursor marked at latest event: fresh-chat/);
+      assert.doesNotMatch(marked, /No new Mythify events to report/);
 
       const markedSecond = textOf(
         await client.callTool({

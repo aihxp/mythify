@@ -1494,6 +1494,8 @@ function formatWorkReport(view) {
       }
       lines.push(line);
     }
+  } else if (view.mark) {
+    lines.push("Cursor is ready. Future reports with --since last will show only new events.");
   } else {
     lines.push("No new Mythify events to report.");
   }

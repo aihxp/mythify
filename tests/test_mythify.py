@@ -1859,7 +1859,9 @@ class TestStatusAndSummary(CliTestCase):
         marked = self.run_cli("report", "--cursor", "fresh-chat", "--mark")
         self.assertEqual(marked.returncode, 0, marked.stderr)
         self.assertIn("Scope: mark cursor fresh-chat, 0 new events", marked.stdout)
+        self.assertIn("Cursor is ready. Future reports with --since last will show only new events.", marked.stdout)
         self.assertIn("Cursor marked at latest event: fresh-chat", marked.stdout)
+        self.assertNotIn("No new Mythify events to report.", marked.stdout)
 
         marked_second = self.run_cli("report", "--since", "last", "--cursor", "fresh-chat", "--peek")
         self.assertEqual(marked_second.returncode, 0, marked_second.stderr)
