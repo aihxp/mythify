@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- v3.0 release-candidate decision record.
+  `docs/v3-release-candidate-decision.md` records that a v3.0
+  release-candidate tag should wait until package metadata, changelog anchors,
+  release docs, and final release gates all align on the intended version.
 - v3.0 release readiness sweep report.
   `docs/v3-release-readiness-sweep.md` records the read-only readiness result,
   executed gates, remaining external-proof waiting items, and the next safe

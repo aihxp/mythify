@@ -21,13 +21,14 @@ Status markers:
 
 ## Active Now
 
-- [>] v3.0 release candidate tag decision.
-  - Current goal: decide whether the next action is a release candidate tag,
-    a version bump, or another cleanup slice.
-  - Next step: rerun the release readiness view on the final pushed commit and
-    compare it to `docs/v3-release-readiness-sweep.md`.
-  - Guardrail: do not tag, publish, or claim release safety without explicit
-    user intent and an executed release gate on the final commit.
+- [>] release version alignment decision.
+  - Current goal: decide whether the next release artifact should stay on
+    `2.5.x`, move to `2.6.0`, or intentionally bump to `3.0.0`.
+  - Next step: inspect package metadata, changelog anchors, tag history, and
+    semantic-version impact before any release-candidate tag.
+  - Guardrail: do not tag or publish until package metadata, changelog anchors,
+    release docs, and executed release gates all point at the same intended
+    release version.
 
 ## Next Queue
 
@@ -296,6 +297,10 @@ Evidence should come from rerunning verifiers, not from model self-ratings.
 
 ### Recent Completed Slices
 
+- [x] 2026-06-14: record v3.0 release-candidate tag decision.
+  `docs/v3-release-candidate-decision.md` records that a v3.0
+  release-candidate tag should wait until release version metadata is aligned;
+  no tag or publish was performed.
 - [x] 2026-06-14: add v3.0 release readiness sweep report.
   `docs/v3-release-readiness-sweep.md` records the read-only readiness result,
   executed gates, remaining external-proof waiting items, and the next safe
@@ -604,7 +609,8 @@ Preserve:
 
 ### v3.1
 
-- [>] v3.0 release candidate tag decision.
+- [>] release version alignment decision.
+- [x] v3.0 release candidate tag decision.
 - [x] v3.0 release readiness sweep.
 - [x] Host apply or confirm API proof watchlist.
 - [~] Apply model or thinking changes when a host exposes a real capability.
@@ -614,6 +620,7 @@ Preserve:
 
 - `docs/host-model-switching-research.md`
 - `docs/host-apply-confirm-proof-watchlist.md`
+- `docs/v3-release-candidate-decision.md`
 - `docs/v3-release-readiness-sweep.md`
 - `docs/local-llm-and-new-host-research.md`
 - `docs/colab-cli-spike-plan.md`
