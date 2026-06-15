@@ -1,5 +1,5 @@
 <!-- Generated from protocol/PROTOCOL.md by scripts/build_variants.py. Edit the source, then rebuild. -->
-<!-- Mythify protocol-sha256: e3d36602705d18c4e112a5eb4eada7e4ff723730d0db7def9095789936b697e7 -->
+<!-- Mythify protocol-sha256: caa618c6d750744bb934ff0b6cf59244aaa555febed3a1929a87b1b86980b4f3 -->
 
 # The Mythify Protocol
 
@@ -50,6 +50,8 @@ Cycle PLAN, ACT, VERIFY, REFLECT, then CORRECT or ADVANCE, until the goal is met
 1. PLAN. Decompose the goal into steps, each with a success criterion.
    First classify non-trivial work:
    `python3 scripts/mythify.py classify "Ship feature X"`
+   When the next workflow shape is unclear, route it from durable state:
+   `python3 scripts/mythify.py route "Ship feature X"`
    Use `--triage auto` only when `model_triage` recommends or requires it.
    `model_policy` separates host session settings from spawned workers; pass
    `--session-model MODEL` when known, use `host-model switch MODEL` to persist
@@ -109,6 +111,7 @@ Reorient any time with `status`. Report the whole session with `summary`.
 | `dashboard [--recent N] [--json]` | Read-only workflow dashboard: active plan, current and next step, active outcome, evidence counts, recent verification records, and recent reflections. |
 | `history [--recent N] [--json]` | Read-only verification history: executed and attested records, verdicts, exit codes, duration, and plan or step context. |
 | `report [--since last\|start] [--format chat\|json] [--recent N] [--cursor NAME] [--peek] [--mark]` | Chat-ready live work report over durable plan, step, verification, and reflection events; advances a cursor unless `--peek` is set; `--mark` advances the cursor to the latest event without showing old events and cannot be combined with `--since`. |
+| `route TASK [--json] [--triage never\|auto\|always] [--platform P] [--effort E] [--speed S] [--session-model M] [--spawn-ceiling C] [--reviewer-strength R]` | Read-only workflow router: classify the task, inspect durable state, and choose direct, plan, research, review, outcome, campaign, failure recovery, handoff, or prompt-packet routing without mutating state. |
 | `background [--recent N] [--json]` | Read-only background task view: outcome loops, fanout jobs, task counts, current statuses, and next actions from durable state. |
 | `progress [--recent N] [--json]` | Read-only outcome loop progress: active and recent outcomes, iteration budget, verifier exit details, metric score when present, and next action from durable state. |
 | `readiness [--json]` | Read-only release readiness: recorded verification gates, project git state, roadmap state, and release-review status without rerunning gates or declaring the release safe. |
@@ -125,6 +128,7 @@ Reorient any time with `status`. Report the whole session with `summary`.
 | `campaign watch [NAME] [--interval N] [--max-iterations N] [--json]` | Poll a campaign and emit refreshed host prompts; use `--max-iterations 0` only for an explicit host-managed long-running watch. |
 | `campaign advance [NAME] --result TEXT` | Advance the current task through understand, design, build, judge, verify, and reflect. |
 | `campaign learn LESSON` | Record a learning that should improve later tasks. |
+| `prompt KIND [NAME] [--goal TEXT] [--verify COMMAND] [--json]` | Render a read-only workflow prompt packet for research, analysis, failure recovery, handoff, review, campaign, or next. |
 | `classify TASK [--json] [--triage never\|auto\|always] [--platform P] [--effort E] [--speed S] [--session-model M] [--spawn-ceiling C] [--reviewer-strength R]` | Identify task type, risk, ambiguity, ceremony, execution profile, verification strategy, fanout fit, fast model triage fit, and model policy. |
 | `host-model switch MODEL [--platform P] [--current-model M] [--thinking E] [--speed S] [--reason TEXT] [--json]` | Record a requested host chat model switch in `.mythify/host-model.json`, including host capability, switch result, host confirmation, and adapter proof scan fields; the host still owns the actual current chat model. |
 | `host-model status [--json]` | Show the recorded host model switch, host confirmation status, and adapter proof scan. |
@@ -156,7 +160,7 @@ Reorient any time with `status`. Report the whole session with `summary`.
 ## MCP note
 
 Clients using the Mythify MCP server instead of the CLI get the same contract
-through exactly 38 tools: `classify_task`, `host_model_switch`,
+through exactly 40 tools: `classify_task`, `host_model_switch`,
 `provider_probe`, `local_model_run`, `host_cli_probe`, `host_cli_run`,
 `execution_probe`, `execution_run`, `lifecycle_probe`, `outcome_start`, `outcome_check`,
 `outcome_status`,
@@ -165,7 +169,7 @@ through exactly 38 tools: `classify_task`, `host_model_switch`,
 `plan_add_step`, `plan_update_step`, `plan_status`, `workflow_status`,
 `verification_history`, `work_report`, `background_status`, `outcome_progress`,
 `release_readiness`, `fanout_timeline`, `phase_status`, `campaign_next_prompt`,
-`verify_run`, `verify_claim`, `reflect`, plus the parallel delegation tools `fanout_start`,
+`prompt_packet`, `workflow_route`, `verify_run`, `verify_claim`, `reflect`, plus the parallel delegation tools `fanout_start`,
 `fanout_status`, and `fanout_results`. Same
 state directory, same file formats, same evidence rules:
 `verify_run` and `outcome_check` execute and record; `verify_claim` only attests;
@@ -173,6 +177,14 @@ state directory, same file formats, same evidence rules:
 `campaign_next_prompt` and CLI `campaign prompt` render read-only host prompt
 material for the current campaign task and phase; they do not mutate state, run
 checks, advance tasks, or turn prompt output into verification evidence.
+`prompt_packet` and CLI `prompt` render the same material-only packet contract
+for research, analysis, failure recovery, handoff, review, campaign, and
+next-prompt routing without mutating state or recording evidence.
+`workflow_route` and CLI `route` are read-only quarterback surfaces: they
+classify the prompt, inspect active durable state and the latest executed
+verification, choose the next workflow route, return the suggested next command
+and prompt packet, and keep the initiating host chat as the executor unless the
+user explicitly hands work elsewhere.
 Outcome loops are host-supervised and stored in `.mythify/outcomes/`: make a
 bounded attempt, call `outcome_check`, then report success, retry, or stop.
 `host_model_switch` records intended host chat changes, host confirmation

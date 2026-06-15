@@ -370,6 +370,10 @@ def install_mythify(workspace):
         root / "protocol" / "classification-rules.json",
         workspace / "protocol" / "classification-rules.json",
     )
+    shutil.copy2(
+        root / "protocol" / "workflow-router.json",
+        workspace / "protocol" / "workflow-router.json",
+    )
     shutil.copy2(root / "scripts" / "mythify.py", workspace / "scripts" / "mythify.py")
     init = subprocess.run(
         [sys.executable, "scripts/mythify.py", "init"],

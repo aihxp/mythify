@@ -1,13 +1,13 @@
 # Release Process
 
-Current release target: `v3.5.0`.
+Current release target: `v3.6.0`.
 
 Current package metadata:
 
 - MCP package: `mythify-mcp`
-- Version: `3.5.0`
+- Version: `3.6.0`
 - Node runtime: `>=18`
-- Package artifact: `mcp-server/mythify-mcp-3.5.0.tgz`
+- Package artifact: `mcp-server/mythify-mcp-3.6.0.tgz`
 - Skill artifact: `dist/mythify.skill`
 
 ## Release Gate
@@ -42,11 +42,12 @@ python3 scripts/package_skill.py
 Expected artifacts:
 
 - `dist/mythify.skill`
-- `mcp-server/mythify-mcp-3.5.0.tgz`
+- `mcp-server/mythify-mcp-3.6.0.tgz`
 
 The npm tarball must include package-local copies of
 `mcp-server/protocol/classification-rules.json`,
-`mcp-server/protocol/operation-registry.json`, and
+`mcp-server/protocol/operation-registry.json`,
+`mcp-server/protocol/workflow-router.json`, and
 `mcp-server/protocol/surface-manifest.json` because the packaged MCP server
 loads these manifests at runtime.
 
@@ -68,11 +69,11 @@ prints the Codex MCP registration command for the selected project.
 Create the GitHub release only after the final commit is pushed and CI is green:
 
 ```bash
-gh release create v3.5.0 \
+gh release create v3.6.0 \
   dist/mythify.skill \
-  mcp-server/mythify-mcp-3.5.0.tgz \
-  --title "Mythify v3.5.0" \
-  --notes-file /tmp/mythify-v3-5-0-release-notes.md
+  mcp-server/mythify-mcp-3.6.0.tgz \
+  --title "Mythify v3.6.0" \
+  --notes-file /tmp/mythify-v3-6-0-release-notes.md
 ```
 
 The release workflow also builds and uploads the same assets on
@@ -83,7 +84,7 @@ identical or safely overwritten by the workflow.
 
 The current npm package name is unscoped: `mythify-mcp`. This repository
 currently produces a GitHub release package artifact
-(`mythify-mcp-3.5.0.tgz`) rather than publishing an npm package to the GitHub
+(`mythify-mcp-3.6.0.tgz`) rather than publishing an npm package to the GitHub
 Packages registry. The current product promise is therefore:
 
 - Source checkout plus `scripts/install_user.sh` for user-local installation.

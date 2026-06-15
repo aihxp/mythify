@@ -20,6 +20,7 @@ CLI = REPO_ROOT / "scripts" / "mythify.py"
 OPERATION_REGISTRY = REPO_ROOT / "protocol" / "operation-registry.json"
 SURFACE_MANIFEST = REPO_ROOT / "protocol" / "surface-manifest.json"
 CLASSIFICATION_RULES = REPO_ROOT / "protocol" / "classification-rules.json"
+WORKFLOW_ROUTER = REPO_ROOT / "protocol" / "workflow-router.json"
 
 NO_WORKSPACE_MESSAGE = (
     "[FAIL] No .mythify workspace found. Run: python3 scripts/mythify.py init"
@@ -148,6 +149,10 @@ class TestProtocolHandshake(CliTestCase):
         shutil.copy2(
             CLASSIFICATION_RULES,
             self.project / "protocol" / "classification-rules.json",
+        )
+        shutil.copy2(
+            WORKFLOW_ROUTER,
+            self.project / "protocol" / "workflow-router.json",
         )
         env = dict(os.environ)
         env.pop("MYTHIFY_DIR", None)
@@ -1489,6 +1494,222 @@ class TestCampaignWorkflow(CliTestCase):
         self.assertEqual(before["current_task_id"], after["current_task_id"])
         self.assertEqual(before["tasks"][0]["phase"], after["tasks"][0]["phase"])
         self.assertEqual(before["tasks"][0]["status"], after["tasks"][0]["status"])
+
+
+class TestPromptPackets(CliTestCase):
+    def test_prompt_packets_render_read_only_chat_workflows(self):
+        state = self.init_workspace()
+        result = self.run_cli(
+            "research",
+            "start",
+            "How should prompt packets guide implementation?",
+            "--name",
+            "packet-direction",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.run_cli(
+            "research",
+            "add-source",
+            "Trace notes",
+            "--note",
+            "Shows research to implementation transitions.",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.run_cli(
+            "research",
+            "add-claim",
+            "Prompt packets should be material for direction.",
+            "--evidence",
+            "Research records are not executable evidence.",
+            "--source",
+            "S1",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.run_cli(
+            "research",
+            "add-question",
+            "Which verifier should prove the implementation?",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.run_cli(
+            "research",
+            "close",
+            "--decision",
+            "Implement one shared prompt packet contract.",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+        steps = json.dumps([
+            {"title": "Design packet", "success_criteria": "packet shape is explicit"},
+            {"title": "Verify packet", "success_criteria": "packet tests pass"},
+        ])
+        result = self.run_cli("plan", "create", "Ship packet workflow", "--steps", steps)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.run_cli("step", "1", "in_progress")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+        tasks = json.dumps([
+            {
+                "title": "Build packet loop",
+                "success_criteria": "Host prompt is visible.",
+            }
+        ])
+        result = self.run_cli(
+            "campaign",
+            "start",
+            "One shot packet work",
+            "--name",
+            "packet-campaign",
+            "--tasks",
+            tasks,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+        before = self.state_snapshot(state)
+        cases = [
+            (
+                ("prompt", "research", "packet-direction", "--goal", "Ship packet workflow", "--json"),
+                "research",
+                "research",
+                "Research to implementation prompt packet",
+                "Decision: Implement one shared prompt packet contract.",
+            ),
+            (
+                ("prompt", "analysis", "--goal", "Ship packet workflow", "--json"),
+                "analysis",
+                "analysis",
+                "Analysis prompt packet",
+                "Produce or update a plan",
+            ),
+            (
+                ("prompt", "handoff", "--json"),
+                "handoff",
+                "handoff",
+                "Handoff prompt packet",
+                "Resume from this packet",
+            ),
+            (
+                ("prompt", "review", "--json"),
+                "review",
+                "review",
+                "Review prompt packet",
+                "Review changed files",
+            ),
+            (
+                ("prompt", "campaign", "--json"),
+                "campaign",
+                "campaign",
+                "Campaign prompt packet",
+                "Continue Mythify campaign: packet-campaign",
+            ),
+        ]
+        for args, kind, selected, title, expected in cases:
+            result = self.run_cli(*args)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["kind"], kind)
+            self.assertEqual(payload["selected_kind"], selected)
+            self.assertEqual(payload["title"], title)
+            self.assertIn(expected, payload["next_prompt"])
+            self.assertIn("not verification evidence", payload["guardrail"])
+        self.assertEqual(before, self.state_snapshot(state))
+
+        result = self.run_cli(
+            "verify",
+            "run",
+            shell_py("import sys; sys.exit(3)"),
+            "--claim",
+            "packet failure demo",
+        )
+        self.assertEqual(result.returncode, 2)
+        result = self.run_cli("prompt", "failure", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["kind"], "failure")
+        self.assertEqual(payload["context"]["failed_verification"]["exit_code"], 3)
+        self.assertIn("packet failure demo", payload["next_prompt"])
+
+        result = self.run_cli("prompt", "next", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["kind"], "next")
+        self.assertEqual(payload["selected_kind"], "failure")
+
+        result = self.run_cli(
+            "verify",
+            "run",
+            shell_py("import sys; sys.exit(0)"),
+            "--claim",
+            "packet failure recovered",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.run_cli("prompt", "next", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["kind"], "next")
+        self.assertNotEqual(payload["selected_kind"], "failure")
+
+
+class TestWorkflowRouter(CliTestCase):
+    def test_route_selects_workflow_without_mutating_state(self):
+        state = self.init_workspace()
+        before = self.state_snapshot(state)
+        cases = [
+            ("what does Mythify do?", "direct", "analysis"),
+            ("research latest agent routing patterns", "research", "research"),
+            ("audit this project for issues", "review", "review"),
+            ("address all issues in one go", "campaign", "campaign"),
+            ("keep fixing until tests pass and verify command is green", "outcome", "handoff"),
+            ("implement the router feature", "plan", "analysis"),
+        ]
+        for task, route, packet in cases:
+            result = self.run_cli("route", task, "--json")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["kind"], "workflow_route")
+            self.assertEqual(payload["route"], route)
+            self.assertEqual(payload["prompt_packet"]["kind"], packet)
+            self.assertIn("next_command", payload)
+            self.assertIn("verification_strategy", payload)
+            self.assertEqual(payload["chat_policy"]["executor"], "initiating_host")
+            self.assertFalse(payload["evidence"][-1]["mutates_state"])
+            self.assertIn("not verification evidence", payload["guardrail"])
+        self.assertEqual(before, self.state_snapshot(state))
+
+    def test_route_resumes_active_plan_and_prioritizes_failed_verification(self):
+        state = self.init_workspace()
+        steps = json.dumps([
+            {"title": "Build route", "success_criteria": "route is implemented"},
+        ])
+        result = self.run_cli("plan", "create", "Ship router", "--steps", steps)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+        before = self.state_snapshot(state)
+        result = self.run_cli("route", "continue", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["route"], "handoff")
+        self.assertEqual(payload["state"]["active_plan"]["id"], "ship-router")
+        self.assertEqual(payload["prompt_packet"]["kind"], "handoff")
+        self.assertEqual(before, self.state_snapshot(state))
+
+        result = self.run_cli(
+            "verify",
+            "run",
+            shell_py("import sys; sys.exit(5)"),
+            "--claim",
+            "router failure demo",
+        )
+        self.assertEqual(result.returncode, 2)
+
+        before = self.state_snapshot(state)
+        result = self.run_cli("route", "research a new direction", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["route"], "failure")
+        self.assertEqual(payload["state"]["latest_executed_verification"]["exit_code"], 5)
+        self.assertEqual(payload["prompt_packet"]["kind"], "failure")
+        self.assertEqual(before, self.state_snapshot(state))
 
 
 class TestPlanLifecycle(CliTestCase):

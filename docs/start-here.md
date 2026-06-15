@@ -18,6 +18,7 @@ From a Mythify checkout:
 ./scripts/install_user.sh --project /path/to/your/project
 cd /path/to/your/project
 mythify classify "Fix the failing parser test"
+mythify route "Fix the failing parser test"
 mythify plan create "Fix the failing parser test" --steps '[{"title":"Reproduce and fix","success_criteria":"parser tests pass"}]'
 mythify report --cursor chat --mark
 mythify step 1 in_progress
@@ -34,6 +35,11 @@ mythify summary
 ```
 
 That is the core product. Everything else is optional.
+
+Use `route` when you want Mythify to choose the workflow shape from the prompt
+and durable state. It may return direct, plan, research, review, outcome,
+campaign, failure recovery, handoff, or prompt-packet routing, but it does not
+execute the work for you.
 
 Use `report` while you work, not only at the end. It turns new Mythify events
 into short chat-ready updates, then advances a cursor so repeated calls do not

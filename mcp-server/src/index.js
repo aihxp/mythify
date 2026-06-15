@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Mythify MCP server v3.5.0
+// Mythify MCP server v3.6.0
 // Exposes the Mythify state model (memory, plans, lessons, verifications,
-// reflections) as 35 core MCP tools over stdio, plus the 3 fanout tools for
-// parallel delegation (src/fanout.js), 38 tools in total. On-disk formats are
+// reflections) as 37 core MCP tools over stdio, plus the 3 fanout tools for
+// parallel delegation (src/fanout.js), 40 tools in total. On-disk formats are
 // shared with the Python CLI (scripts/mythify.py); both implementations must
 // interoperate on the same .mythify state directory. Fanout is MCP-only; the
 // CLI deliberately does not implement it.
@@ -53,8 +53,9 @@ import {
   MEMORY_DEFAULT_CATEGORY,
 } from "./operation-registry.js";
 
-const VERSION = "3.5.0";
+const VERSION = "3.6.0";
 const CLASSIFICATION_RULES_PATH = new URL("../protocol/classification-rules.json", import.meta.url);
+const WORKFLOW_ROUTER_PATH = new URL("../protocol/workflow-router.json", import.meta.url);
 const TAIL_CHARS = 4000;
 const STEP_STATUSES = ["pending", "in_progress", "completed", "failed", "skipped"];
 const OUTCOME_STATUSES = ["active", "succeeded", "failed", "stopped"];
@@ -70,6 +71,43 @@ const CAMPAIGN_PHASE_GUIDANCE = {
 const CAMPAIGN_PROMPT_GUARDRAIL =
   "Prompt output is steering material for the host agent, not verification evidence. " +
   "The host must do the work, run checks when available, and advance the campaign with evidence.";
+const PROMPT_PACKET_KINDS = ["research", "analysis", "failure", "handoff", "review", "campaign", "next"];
+const PROMPT_PACKET_GUARDRAIL =
+  "Prompt packet output is steering material for the host agent, not verification evidence. " +
+  "The host must do the work, run checks when available, report issues in chat, and record evidence.";
+const WORKFLOW_ROUTE_GUARDRAIL =
+  "Workflow route output is steering material for the host agent, not verification evidence. " +
+  "The host must do the work, run checks when available, report issues in chat, and record evidence.";
+const ROUTE_FULL_SEND_TERMS = [
+  "one shot", "one-shot", "one go", "in one go", "all in one go",
+  "address all", "fix all", "do all", "do everything", "execute all",
+  "continuous run", "keep going", "keep going until done", "until no issues remain",
+  "yolo", "full send", "ship it", "run it through",
+];
+const ROUTE_PROMPT_TERMS = [
+  "prompt packet", "reprompt", "inject the next task", "next prompt",
+  "steer the chat", "steering prompt", "handoff packet",
+];
+const ROUTE_RESEARCH_TERMS = [
+  "research", "look up", "latest", "find sources", "source-backed",
+  "online", "internet", "web search",
+];
+const ROUTE_REVIEW_TERMS = [
+  "audit", "review", "assess", "evaluate", "find issues", "code review",
+  "risks", "risk sweep",
+];
+const ROUTE_RESUME_TERMS = [
+  "continue", "resume", "next", "keep going", "pick up", "carry on",
+  "what is next",
+];
+const ROUTE_OUTCOME_TERMS = [
+  "until", "success criteria", "when tests pass", "when it passes",
+  "verifier", "verify command", "outcome loop",
+];
+const ROUTE_VERIFY_TERMS = [
+  "verify", "test", "tests", "passes", "passing", "check", "build",
+  "lint",
+];
 const REPORT_SINCE_MODES = ["last", "start"];
 const REPORT_FORMATS = ["chat", "json"];
 const DEFAULT_REPORT_RECENT = 8;
@@ -101,7 +139,30 @@ function loadClassificationRules() {
   return rules;
 }
 
+function loadWorkflowRouter() {
+  const manifest = JSON.parse(fs.readFileSync(WORKFLOW_ROUTER_PATH, "utf8"));
+  const routes = manifest.routes || [];
+  const seen = new Set();
+  for (const entry of routes) {
+    const routeId = String(entry?.id || "").trim();
+    const promptPacket = String(entry?.prompt_packet || "").trim();
+    if (!routeId || seen.has(routeId) || !promptPacket) {
+      throw new Error("Invalid workflow router entry");
+    }
+    seen.add(routeId);
+  }
+  if (routes.length === 0) {
+    throw new Error("Workflow router manifest is empty");
+  }
+  return manifest;
+}
+
 const CLASSIFICATION_RULES = loadClassificationRules();
+const WORKFLOW_ROUTER = loadWorkflowRouter();
+const WORKFLOW_ROUTE_IDS = WORKFLOW_ROUTER.routes.map((route) => String(route.id));
+const WORKFLOW_ROUTE_PROMPTS = Object.fromEntries(
+  WORKFLOW_ROUTER.routes.map((route) => [String(route.id), String(route.prompt_packet || "next")])
+);
 
 const VERIFICATION_HINTS = {
   security: "Run security-focused tests plus the relevant normal suite; inspect permissions and secret handling.",
@@ -316,6 +377,58 @@ function loadCampaign(name) {
   return [slug, record];
 }
 
+function researchDir() {
+  return path.join(resolveStateDir(), "research");
+}
+
+function researchPath(slug) {
+  return path.join(researchDir(), `${slug}.json`);
+}
+
+function activeResearchPath() {
+  return path.join(researchDir(), "active");
+}
+
+function getActiveResearchSlug() {
+  let value = "";
+  try {
+    value = fs.readFileSync(activeResearchPath(), "utf8").trim();
+  } catch {
+    return null;
+  }
+  if (value && fs.existsSync(researchPath(value))) {
+    return value;
+  }
+  return null;
+}
+
+function findResearchSlug(name) {
+  const raw = String(name || "").trim();
+  if (raw) {
+    if (fs.existsSync(researchPath(raw))) {
+      return raw;
+    }
+    const candidate = slugify(raw);
+    if (candidate && fs.existsSync(researchPath(candidate))) {
+      return candidate;
+    }
+    return null;
+  }
+  return getActiveResearchSlug();
+}
+
+function loadResearch(name) {
+  const slug = findResearchSlug(name);
+  if (!slug) {
+    return [null, null];
+  }
+  const record = readJsonRecover(researchPath(slug), () => null);
+  if (!record || typeof record !== "object" || Array.isArray(record)) {
+    return [slug, null];
+  }
+  return [slug, record];
+}
+
 function currentCampaignTask(record) {
   const currentId = record?.current_task_id;
   for (const task of record?.tasks || []) {
@@ -439,6 +552,802 @@ function buildCampaignPromptPayload(slug, record) {
 
 function formatCampaignPromptPayload(payload) {
   return `[OK] Campaign prompt: ${payload.id}\n${payload.next_prompt || ""}`;
+}
+
+// ---------------------------------------------------------------------------
+// Prompt packets
+// ---------------------------------------------------------------------------
+
+function activePlanPacketContext() {
+  const slug = readActiveSlug();
+  if (!slug || !fs.existsSync(planPath(slug))) {
+    return null;
+  }
+  const plan = readJsonRecover(planPath(slug), () => null);
+  if (!plan || typeof plan !== "object" || Array.isArray(plan)) {
+    return null;
+  }
+  const steps = Array.isArray(plan.steps) ? plan.steps : [];
+  const completed = steps.filter((step) => step.status === "completed").length;
+  return {
+    slug,
+    goal: plan.goal || "",
+    progress: { completed, total: steps.length },
+    current_step: steps.find((step) => step.status === "in_progress") || null,
+    next_pending: steps.find((step) => step.status === "pending") || null,
+    steps,
+  };
+}
+
+function latestFailedVerification() {
+  const records = readJsonl(verificationsPath());
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    const record = records[index];
+    if (record.kind === "executed" && record.verified === false) {
+      return [index + 1, record];
+    }
+  }
+  return [null, null];
+}
+
+function latestExecutedVerification() {
+  const records = readJsonl(verificationsPath());
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    const record = records[index];
+    if (record.kind === "executed") {
+      return [index + 1, record];
+    }
+  }
+  return [null, null];
+}
+
+function latestFailureReflection() {
+  const records = readJsonl(reflectionsPath());
+  for (let index = records.length - 1; index >= 0; index -= 1) {
+    const record = records[index];
+    if (record.outcome === "failure") {
+      return [index + 1, record];
+    }
+  }
+  return [null, null];
+}
+
+function promptRecentEvidence(limit = 5) {
+  const rows = buildVerificationHistoryView(limit).records || [];
+  return rows.map((row) => ({
+    verdict: row.verdict,
+    label: verificationLabel(row),
+    exit_code: row.exit_code,
+    timestamp: row.timestamp || "",
+  }));
+}
+
+function promptPlanLines(planContext) {
+  if (!planContext) {
+    return ["Active plan: none"];
+  }
+  const lines = [
+    `Active plan: ${planContext.slug}`,
+    `Plan goal: ${planContext.goal || "not specified"}`,
+    `Plan progress: ${planContext.progress.completed}/${planContext.progress.total} steps completed`,
+  ];
+  const current = planContext.current_step;
+  const pending = planContext.next_pending;
+  if (current) {
+    lines.push(`Current step: ${current.id}. ${current.title || ""}`);
+    if (current.success_criteria) {
+      lines.push(`Current criteria: ${current.success_criteria}`);
+    }
+  } else if (pending) {
+    lines.push(`Next pending step: ${pending.id}. ${pending.title || ""}`);
+    if (pending.success_criteria) {
+      lines.push(`Next criteria: ${pending.success_criteria}`);
+    }
+  } else {
+    lines.push("Next pending step: none");
+  }
+  return lines;
+}
+
+function promptGitContext() {
+  const gitState = gitStatusSummary(process.cwd());
+  const lines = [
+    `Git branch: ${gitState.branch || "unknown"}`,
+    `Git status: ${gitState.status || "unknown"}`,
+    `Git detail: ${gitState.detail || ""}`,
+  ];
+  for (const changedPath of gitState.changed_paths || []) {
+    lines.push(`Changed path: ${changedPath}`);
+  }
+  return [gitState, lines];
+}
+
+function buildPromptPacket(kind, { name = "", goal = "", verifyCommand = "" } = {}) {
+  if (kind === "next") {
+    const selected = selectNextPromptPacketKind();
+    const payload = buildPromptPacket(selected, { name, goal, verifyCommand });
+    if (payload.error) {
+      return payload;
+    }
+    return {
+      ...payload,
+      kind: "next",
+      selected_kind: selected,
+      title: "Next workflow prompt packet",
+      next_prompt: `Selected next packet: ${selected}\n\n${payload.next_prompt || ""}`,
+    };
+  }
+  if (kind === "campaign") {
+    const [slug, record] = loadCampaign(name);
+    if (!record) {
+      return { error: "[FAIL] Campaign not found. Start one with: campaign start GOAL" };
+    }
+    const campaignPayload = buildCampaignPromptPayload(slug, record);
+    return {
+      kind: "campaign",
+      selected_kind: "campaign",
+      title: "Campaign prompt packet",
+      source: { type: "campaign", id: slug },
+      context: campaignPayload,
+      next_prompt: campaignPayload.next_prompt || "",
+      guardrail: PROMPT_PACKET_GUARDRAIL,
+    };
+  }
+  if (kind === "research") {
+    return buildResearchPromptPacket({ name, goal, verifyCommand });
+  }
+  if (kind === "analysis") {
+    return buildAnalysisPromptPacket({ goal, verifyCommand });
+  }
+  if (kind === "failure") {
+    return buildFailurePromptPacket({ verifyCommand });
+  }
+  if (kind === "handoff") {
+    return buildHandoffPromptPacket({ goal, verifyCommand });
+  }
+  if (kind === "review") {
+    return buildReviewPromptPacket({ goal, verifyCommand });
+  }
+  return { error: `[FAIL] Unknown prompt packet kind: ${kind}` };
+}
+
+function buildResearchPromptPacket({ name = "", goal = "", verifyCommand = "" } = {}) {
+  const [slug, record] = loadResearch(name);
+  if (!record) {
+    return { error: "[FAIL] Research not found. Start one with: research start QUESTION" };
+  }
+  const sources = Array.isArray(record.sources) ? record.sources : [];
+  const claims = Array.isArray(record.claims) ? record.claims : [];
+  const questions = Array.isArray(record.open_questions) ? record.open_questions : [];
+  const decision = record.decision || "";
+  const lines = [
+    `Research to implementation prompt packet: ${slug}`,
+    `Question: ${record.question || ""}`,
+    `Status: ${record.status || "active"}`,
+    `Sources: ${sources.length}; claims: ${claims.length}; open questions: ${questions.length}`,
+  ];
+  if (goal) {
+    lines.push(`Implementation goal: ${goal}`);
+  }
+  if (decision) {
+    lines.push(`Decision: ${decision}`);
+  }
+  if (claims.length > 0) {
+    lines.push("Key claims:");
+    for (const claim of claims.slice(-5)) {
+      const source = claim.source_id ? ` source=${claim.source_id}` : "";
+      lines.push(`- ${claim.id}: ${claim.claim || ""}${source}`);
+      lines.push(`  evidence: ${claim.evidence || ""}`);
+    }
+  }
+  if (questions.length > 0) {
+    lines.push("Open questions:");
+    for (const item of questions.slice(-5)) {
+      lines.push(`- ${item.id}: ${item.question || ""}`);
+    }
+  }
+  lines.push("");
+  lines.push("Instructions:");
+  lines.push("- Treat this research as material for direction, not proof of completion.");
+  lines.push("- If a decision exists, implement the smallest next step consistent with it.");
+  lines.push("- If open questions block implementation, answer those first and update the research record.");
+  lines.push("- Convert implementation work into a plan, campaign, or outcome loop before claiming done.");
+  if (verifyCommand) {
+    lines.push(`- Suggested verifier: ${verifyCommand}`);
+  }
+  lines.push(`Guardrail: ${PROMPT_PACKET_GUARDRAIL}`);
+  return {
+    kind: "research",
+    selected_kind: "research",
+    title: "Research to implementation prompt packet",
+    source: { type: "research", id: slug },
+    context: {
+      question: record.question || "",
+      status: record.status || "active",
+      decision,
+      sources: sources.slice(-5),
+      claims: claims.slice(-5),
+      open_questions: questions.slice(-5),
+      goal,
+      verify_command: verifyCommand,
+    },
+    next_prompt: lines.join("\n"),
+    guardrail: PROMPT_PACKET_GUARDRAIL,
+  };
+}
+
+function buildAnalysisPromptPacket({ goal = "", verifyCommand = "" } = {}) {
+  const planContext = activePlanPacketContext();
+  const recent = promptRecentEvidence(3);
+  const lines = [
+    "Analysis prompt packet",
+    `Goal: ${goal || planContext?.goal || "infer from current project context"}`,
+  ];
+  lines.push(...promptPlanLines(planContext));
+  if (recent.length > 0) {
+    lines.push("Recent evidence:");
+    for (const item of recent) {
+      const exitText = item.exit_code === undefined || item.exit_code === null ? "" : ` exit ${item.exit_code}`;
+      lines.push(`- ${item.verdict}: ${item.label}${exitText}`);
+    }
+  }
+  lines.push("");
+  lines.push("Instructions:");
+  lines.push("- Read the smallest useful project context before editing.");
+  lines.push("- Identify likely files, constraints, hidden risks, and the first reversible step.");
+  lines.push("- Produce or update a plan with checkable success criteria.");
+  lines.push("- Do not implement until the first step and verifier are explicit.");
+  if (verifyCommand) {
+    lines.push(`- Candidate verifier: ${verifyCommand}`);
+  }
+  lines.push(`Guardrail: ${PROMPT_PACKET_GUARDRAIL}`);
+  return {
+    kind: "analysis",
+    selected_kind: "analysis",
+    title: "Analysis prompt packet",
+    source: { type: "workflow_state", id: planContext?.slug || null },
+    context: {
+      goal,
+      active_plan: planContext,
+      recent_evidence: recent,
+      verify_command: verifyCommand,
+    },
+    next_prompt: lines.join("\n"),
+    guardrail: PROMPT_PACKET_GUARDRAIL,
+  };
+}
+
+function buildFailurePromptPacket({ verifyCommand = "" } = {}) {
+  const [index, record] = latestFailedVerification();
+  const [reflectionIndex, reflection] = latestFailureReflection();
+  const context = {
+    failed_verification_index: index,
+    failed_verification: record,
+    failure_reflection_index: reflectionIndex,
+    failure_reflection: reflection,
+    verify_command: verifyCommand,
+  };
+  const lines = ["Failure recovery prompt packet"];
+  if (record) {
+    lines.push(`Failed verification #${index}: ${record.claim || record.command || ""}`);
+    lines.push(`Command: ${record.command || ""}`);
+    lines.push(`Exit code: ${record.exit_code}`);
+    const stdoutTail = String(record.stdout_tail || "").trim();
+    const stderrTail = String(record.stderr_tail || "").trim();
+    if (stdoutTail) {
+      lines.push(`Stdout tail: ${compactReportDetail(stdoutTail)}`);
+    }
+    if (stderrTail) {
+      lines.push(`Stderr tail: ${compactReportDetail(stderrTail)}`);
+    }
+  } else {
+    lines.push("No failed executed verification was found.");
+  }
+  if (reflection) {
+    lines.push(`Latest failure reflection: ${reflection.action || ""}`);
+    if (reflection.root_cause) {
+      lines.push(`Recorded root cause: ${reflection.root_cause}`);
+    }
+    if (reflection.next) {
+      lines.push(`Recorded next action: ${reflection.next}`);
+    }
+  }
+  lines.push("");
+  lines.push("Instructions:");
+  lines.push("- Reproduce or inspect the failure before changing code.");
+  lines.push("- Fix the smallest likely root cause.");
+  lines.push("- Rerun the failed verifier, or the provided verifier if it is more specific.");
+  lines.push("- Report the failure, fix, and verification evidence in chat.");
+  if (verifyCommand) {
+    lines.push(`- Verifier to run: ${verifyCommand}`);
+  } else if (record?.command) {
+    lines.push(`- Verifier to rerun: ${record.command}`);
+  }
+  lines.push(`Guardrail: ${PROMPT_PACKET_GUARDRAIL}`);
+  return {
+    kind: "failure",
+    selected_kind: "failure",
+    title: "Failure recovery prompt packet",
+    source: { type: "verification", id: index },
+    context,
+    next_prompt: lines.join("\n"),
+    guardrail: PROMPT_PACKET_GUARDRAIL,
+  };
+}
+
+function buildHandoffPromptPacket({ goal = "", verifyCommand = "" } = {}) {
+  const planContext = activePlanPacketContext();
+  const [campaignSlug, campaignRecord] = loadCampaign("");
+  const [researchSlug, researchRecord] = loadResearch("");
+  const report = buildWorkReport({
+    since: "start",
+    recent: 5,
+    cursor: "handoff-prompt",
+    peek: true,
+    mark: false,
+  });
+  const lines = [
+    "Handoff prompt packet",
+    `Goal: ${goal || planContext?.goal || "continue current Mythify work"}`,
+  ];
+  lines.push(...promptPlanLines(planContext));
+  if (campaignRecord) {
+    lines.push(`Active campaign: ${campaignSlug}`);
+    lines.push(`Campaign next action: ${campaignNextAction(campaignRecord)}`);
+  }
+  if (researchRecord) {
+    lines.push(`Active research: ${researchSlug}`);
+    lines.push(`Research question: ${researchRecord.question || ""}`);
+  }
+  if ((report.attention_events || []).length > 0) {
+    lines.push("Attention items:");
+    for (const event of (report.attention_events || []).slice(-5)) {
+      lines.push(`- ${event.level}: ${event.summary}`);
+    }
+  }
+  if ((report.events || []).length > 0) {
+    lines.push("Recent events:");
+    for (const event of (report.events || []).slice(-5)) {
+      lines.push(`- ${event.summary}`);
+    }
+  }
+  lines.push("");
+  lines.push("Instructions:");
+  lines.push("- Resume from this packet without assuming hidden chat context.");
+  lines.push("- Re-read files before editing if the packet mentions uncertainty.");
+  lines.push("- Continue the current step or campaign phase, then verify before claiming completion.");
+  lines.push("- Surface any failed checks or warnings in chat.");
+  if (verifyCommand) {
+    lines.push(`- Suggested verifier: ${verifyCommand}`);
+  }
+  lines.push(`Guardrail: ${PROMPT_PACKET_GUARDRAIL}`);
+  return {
+    kind: "handoff",
+    selected_kind: "handoff",
+    title: "Handoff prompt packet",
+    source: { type: "workflow_state", id: planContext?.slug || null },
+    context: {
+      goal,
+      active_plan: planContext,
+      active_campaign: campaignRecord
+        ? { id: campaignSlug, next_action: campaignNextAction(campaignRecord) }
+        : null,
+      active_research: researchRecord
+        ? { id: researchSlug, question: researchRecord.question || "" }
+        : null,
+      recent_report: report,
+      verify_command: verifyCommand,
+    },
+    next_prompt: lines.join("\n"),
+    guardrail: PROMPT_PACKET_GUARDRAIL,
+  };
+}
+
+function buildReviewPromptPacket({ goal = "", verifyCommand = "" } = {}) {
+  const planContext = activePlanPacketContext();
+  const [gitState, gitLines] = promptGitContext();
+  const recent = promptRecentEvidence(5);
+  const lines = [
+    "Review prompt packet",
+    `Goal: ${goal || "review current changes and risks"}`,
+  ];
+  lines.push(...gitLines);
+  lines.push(...promptPlanLines(planContext));
+  if (recent.length > 0) {
+    lines.push("Recent evidence:");
+    for (const item of recent) {
+      const exitText = item.exit_code === undefined || item.exit_code === null ? "" : ` exit ${item.exit_code}`;
+      lines.push(`- ${item.verdict}: ${item.label}${exitText}`);
+    }
+  }
+  lines.push("");
+  lines.push("Instructions:");
+  lines.push("- Review changed files and relevant surrounding code.");
+  lines.push("- Lead with actionable findings, with file and line references when possible.");
+  lines.push("- Separate verified issues, warnings, open questions, and test gaps.");
+  lines.push("- If fixes are requested, address findings one by one and verify the result.");
+  if (verifyCommand) {
+    lines.push(`- Suggested verifier: ${verifyCommand}`);
+  }
+  lines.push(`Guardrail: ${PROMPT_PACKET_GUARDRAIL}`);
+  return {
+    kind: "review",
+    selected_kind: "review",
+    title: "Review prompt packet",
+    source: { type: "git", id: gitState.branch || null },
+    context: {
+      goal,
+      git: gitState,
+      active_plan: planContext,
+      recent_evidence: recent,
+      verify_command: verifyCommand,
+    },
+    next_prompt: lines.join("\n"),
+    guardrail: PROMPT_PACKET_GUARDRAIL,
+  };
+}
+
+function selectNextPromptPacketKind() {
+  const [, latest] = latestExecutedVerification();
+  if (latest && latest.verified === false) {
+    return "failure";
+  }
+  if (getActiveCampaignSlug()) {
+    return "campaign";
+  }
+  if (getActiveResearchSlug()) {
+    return "research";
+  }
+  if (readActiveSlug()) {
+    return "handoff";
+  }
+  return "analysis";
+}
+
+function formatPromptPacket(payload) {
+  const lines = [
+    `[OK] Prompt packet ${payload.kind || "unknown"}: ${payload.selected_kind || payload.kind || "unknown"}`,
+  ];
+  if (payload.source) {
+    lines.push(`Source: ${payload.source.type || ""} ${payload.source.id || ""}`);
+  }
+  lines.push("Next prompt:");
+  lines.push(payload.next_prompt || "");
+  lines.push(`Guardrail: ${payload.guardrail || PROMPT_PACKET_GUARDRAIL}`);
+  return lines.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Workflow router
+// ---------------------------------------------------------------------------
+
+function shellQuote(value) {
+  const text = String(value || "task").trim() || "task";
+  return `'${text.replaceAll("'", "'\"'\"'")}'`;
+}
+
+function workflowRouteState() {
+  const activePlanSlug = readActiveSlug();
+  let activePlan = null;
+  if (activePlanSlug && fs.existsSync(planPath(activePlanSlug))) {
+    activePlan = readJsonRecover(planPath(activePlanSlug), () => null);
+  }
+  const activeOutcomeSlug = readActiveOutcomeSlug();
+  let activeOutcome = null;
+  if (activeOutcomeSlug && fs.existsSync(outcomeGoalPath(activeOutcomeSlug))) {
+    activeOutcome = readJsonRecover(outcomeGoalPath(activeOutcomeSlug), () => null);
+  }
+  const [activeCampaignSlug, activeCampaign] = loadCampaign();
+  const [activeResearchSlug, activeResearch] = loadResearch();
+  const [latestIndex, latest] = latestExecutedVerification();
+  let latestView = null;
+  if (latest) {
+    latestView = {
+      index: latestIndex,
+      verified: latest.verified,
+      claim: latest.claim || "",
+      command: latest.command || "",
+      exit_code: latest.exit_code,
+      timestamp: latest.timestamp || "",
+    };
+  }
+  let planView = null;
+  if (activePlan) {
+    const steps = Array.isArray(activePlan.steps) ? activePlan.steps : [];
+    const completed = steps.filter((step) => step?.status === "completed").length;
+    const pending = steps.find((step) => step?.status === "pending") || null;
+    planView = {
+      id: activePlanSlug,
+      goal: activePlan.goal || "",
+      progress: { completed, total: steps.length },
+      next_pending: pending
+        ? {
+            id: pending.id,
+            title: pending.title || "",
+            success_criteria: pending.success_criteria || "",
+          }
+        : null,
+    };
+  }
+  let outcomeView = null;
+  if (activeOutcome) {
+    outcomeView = {
+      id: activeOutcomeSlug,
+      goal: activeOutcome.goal || "",
+      status: activeOutcome.status || "",
+      iteration_count: activeOutcome.iteration_count || 0,
+      max_iterations: activeOutcome.max_iterations || 0,
+    };
+  }
+  let campaignView = null;
+  if (activeCampaign) {
+    const [completed, total] = campaignProgress(activeCampaign);
+    campaignView = {
+      id: activeCampaignSlug,
+      goal: activeCampaign.goal || "",
+      status: activeCampaign.status || "",
+      phase: activeCampaign.phase || "",
+      progress: { completed, total },
+    };
+  }
+  let researchView = null;
+  if (activeResearch) {
+    researchView = {
+      id: activeResearchSlug,
+      question: activeResearch.question || "",
+      status: activeResearch.status || "",
+      claim_count: Array.isArray(activeResearch.claims) ? activeResearch.claims.length : 0,
+      source_count: Array.isArray(activeResearch.sources) ? activeResearch.sources.length : 0,
+    };
+  }
+  return {
+    active_plan: planView,
+    active_outcome: outcomeView,
+    active_campaign: campaignView,
+    active_research: researchView,
+    latest_executed_verification: latestView,
+  };
+}
+
+function routeHas(text, terms) {
+  return containsAny(text, terms).length > 0;
+}
+
+function routeCommandFor(route, task, stateView) {
+  const quotedTask = shellQuote(task);
+  const packet = WORKFLOW_ROUTE_PROMPTS[route] || "next";
+  if (route === "failure") {
+    return "python3 scripts/mythify.py prompt failure";
+  }
+  if (route === "campaign") {
+    if (stateView.active_campaign) {
+      return "python3 scripts/mythify.py campaign prompt";
+    }
+    return `python3 scripts/mythify.py campaign start ${quotedTask} --success ${shellQuote("done criteria are verified")}`;
+  }
+  if (route === "outcome") {
+    if (stateView.active_outcome) {
+      return "python3 scripts/mythify.py outcome status";
+    }
+    return (
+      `python3 scripts/mythify.py outcome start ${quotedTask} ` +
+      `--success ${shellQuote("DEFINE SUCCESS")} --verify ${shellQuote("DEFINE VERIFIER")}`
+    );
+  }
+  if (route === "research") {
+    if (stateView.active_research) {
+      return "python3 scripts/mythify.py prompt research";
+    }
+    return `python3 scripts/mythify.py research start ${quotedTask}`;
+  }
+  if (route === "review") {
+    return `python3 scripts/mythify.py prompt review --goal ${quotedTask}`;
+  }
+  if (route === "handoff") {
+    return `python3 scripts/mythify.py prompt handoff --goal ${quotedTask}`;
+  }
+  if (route === "plan") {
+    const steps = JSON.stringify([
+      {
+        title: "Understand and design",
+        success_criteria: "scope and verifier are explicit",
+      },
+      {
+        title: "Implement",
+        success_criteria: "requested behavior is present",
+      },
+      {
+        title: "Verify",
+        success_criteria: "nearest executable checks pass",
+      },
+    ]);
+    return `python3 scripts/mythify.py plan create ${quotedTask} --steps ${shellQuote(steps)}`;
+  }
+  if (route === "prompt") {
+    return `python3 scripts/mythify.py prompt ${packet}`;
+  }
+  return "Answer directly in the initiating chat; run verify run if an executable completion check exists.";
+}
+
+function routeStateWrites(route, stateView) {
+  if (route === "failure") {
+    return [
+      "record reflection after diagnosing the red check",
+      "record verify run after the recovery attempt",
+      "update the active step with evidence when fixed",
+    ];
+  }
+  if (route === "campaign") {
+    if (stateView.active_campaign) {
+      return [
+        "campaign advance after the host completes the current task with evidence",
+        "campaign learn when the next task should improve",
+      ];
+    }
+    return ["campaign start when the host accepts the route"];
+  }
+  if (route === "outcome") {
+    if (stateView.active_outcome) {
+      return ["outcome check after each bounded attempt"];
+    }
+    return ["outcome start with explicit success criteria and verifier"];
+  }
+  if (route === "research") {
+    if (stateView.active_research) {
+      return ["research add-source", "research add-claim", "research close"];
+    }
+    return ["research start before implementation"];
+  }
+  if (route === "review") {
+    return ["report findings in chat", "verify run supporting checks when fixes are made"];
+  }
+  if (route === "handoff") {
+    return ["step updates and verify run as the active plan advances"];
+  }
+  if (route === "plan") {
+    return ["plan create", "step updates", "verify run", "reflect on failures"];
+  }
+  return [];
+}
+
+function workflowRouteEvidence(route, stateView, classification) {
+  const evidence = [
+    {
+      type: "router_manifest",
+      version: WORKFLOW_ROUTER.version,
+      routes: WORKFLOW_ROUTE_IDS,
+    },
+    {
+      type: "classification",
+      task_type: classification.task_type,
+      risk: classification.risk,
+      execution_profile: classification.execution_profile,
+    },
+  ];
+  if (stateView.latest_executed_verification) {
+    evidence.push({ type: "latest_executed_verification", ...stateView.latest_executed_verification });
+  }
+  for (const key of ["active_plan", "active_outcome", "active_campaign", "active_research"]) {
+    if (stateView[key]) {
+      evidence.push({ type: key, ...stateView[key] });
+    }
+  }
+  evidence.push({ type: "route_decision", route, mutates_state: false });
+  return evidence;
+}
+
+function selectWorkflowRoute(task, stateView, classification) {
+  const text = String(task || "").toLowerCase().split(/\s+/).join(" ");
+  const latest = stateView.latest_executed_verification;
+  if (latest && latest.verified === false) {
+    return [
+      "failure",
+      "The latest executed verification is red, so recover that failure before advancing unrelated work.",
+    ];
+  }
+  if (routeHas(text, ROUTE_FULL_SEND_TERMS)) {
+    return [
+      "campaign",
+      "The prompt uses full-send language, so route to a durable campaign loop with evidence-gated advancement.",
+    ];
+  }
+  if (stateView.active_campaign && routeHas(text, ROUTE_RESUME_TERMS)) {
+    return ["campaign", "An active campaign exists and the prompt asks to continue."];
+  }
+  if (routeHas(text, ROUTE_PROMPT_TERMS)) {
+    return ["prompt", "The prompt asks for steering material rather than immediate execution."];
+  }
+  if (stateView.active_outcome && (routeHas(text, ROUTE_RESUME_TERMS) || routeHas(text, ROUTE_OUTCOME_TERMS))) {
+    return ["outcome", "An active outcome loop exists and the prompt asks to continue or check it."];
+  }
+  if (routeHas(text, ROUTE_OUTCOME_TERMS) && routeHas(text, ROUTE_VERIFY_TERMS)) {
+    return ["outcome", "The prompt names success or verification conditions, so use a bounded outcome loop."];
+  }
+  if (classification.task_type === "research" || routeHas(text, ROUTE_RESEARCH_TERMS)) {
+    return ["research", "The task depends on external, uncertain, or source-backed information."];
+  }
+  if (classification.task_type === "review" || routeHas(text, ROUTE_REVIEW_TERMS)) {
+    return ["review", "The task asks for audit, review, evaluation, or issue finding."];
+  }
+  if (stateView.active_research && routeHas(text, ROUTE_RESUME_TERMS)) {
+    return ["research", "An active research record exists and the prompt asks to continue."];
+  }
+  if (stateView.active_plan && routeHas(text, ROUTE_RESUME_TERMS)) {
+    return ["handoff", "An active plan exists and the prompt asks to continue from durable state."];
+  }
+  if (classification.execution_profile === "direct") {
+    return ["direct", "Classification says this is a simple question or single reversible action."];
+  }
+  return ["plan", "Classification says this is multi-step work that should be planned and verified."];
+}
+
+function buildWorkflowRoute(task, classification) {
+  const stateView = workflowRouteState();
+  let [route, reason] = selectWorkflowRoute(task, stateView, classification);
+  if (!WORKFLOW_ROUTE_IDS.includes(route)) {
+    route = "plan";
+    reason = "Router returned an unknown route, so Mythify fell back to a verifiable plan.";
+  }
+  const packetKind = WORKFLOW_ROUTE_PROMPTS[route] || "next";
+  return {
+    kind: "workflow_route",
+    route,
+    reason,
+    input: String(task || ""),
+    classification,
+    state: stateView,
+    next_command: routeCommandFor(route, task, stateView),
+    prompt_packet: {
+      kind: packetKind,
+      command: `python3 scripts/mythify.py prompt ${packetKind}`,
+    },
+    verification_strategy: classification.verification || "",
+    chat_policy: {
+      executor: "initiating_host",
+      surface: "chat",
+      report_issues: true,
+      progress_command: "python3 scripts/mythify.py report --since last --cursor chat --format chat",
+      host_boundary: "Run the next step in the chat or host that initiated Mythify unless the user explicitly hands it elsewhere.",
+    },
+    pause_rules: [
+      "destructive or irreversible actions",
+      "real scope changes",
+      "missing credentials, secrets, or billing acknowledgements",
+      "decisions only the user can make",
+    ],
+    state_writes: routeStateWrites(route, stateView),
+    evidence: workflowRouteEvidence(route, stateView, classification),
+    guardrail: WORKFLOW_ROUTE_GUARDRAIL,
+  };
+}
+
+function formatWorkflowRoute(payload) {
+  const lines = [
+    `[OK] Workflow route: ${payload.route || "unknown"}`,
+    `Reason: ${payload.reason || ""}`,
+    `Next command: ${payload.next_command || ""}`,
+    `Prompt packet: ${payload.prompt_packet?.kind || ""} (${payload.prompt_packet?.command || ""})`,
+    `Verification strategy: ${payload.verification_strategy || ""}`,
+  ];
+  const policy = payload.chat_policy || {};
+  lines.push(
+    `Chat policy: executor=${policy.executor || "initiating_host"}; ` +
+      `surface=${policy.surface || "chat"}; report_issues=${String(policy.report_issues !== false)}`
+  );
+  if (payload.state_writes?.length > 0) {
+    lines.push("Expected state writes:");
+    for (const item of payload.state_writes) {
+      lines.push(`- ${item}`);
+    }
+  }
+  if (payload.pause_rules?.length > 0) {
+    lines.push("Pause for:");
+    for (const item of payload.pause_rules) {
+      lines.push(`- ${item}`);
+    }
+  }
+  lines.push(`Guardrail: ${payload.guardrail || WORKFLOW_ROUTE_GUARDRAIL}`);
+  return lines.join("\n");
 }
 
 function hostModelPath() {
@@ -7078,6 +7987,140 @@ server.registerTool(
       return `[OK] ${JSON.stringify(payload, null, 2)}`;
     }
     return formatCampaignPromptPayload(payload);
+  })
+);
+
+server.registerTool(
+  "prompt_packet",
+  {
+    title: "Render workflow prompt packet",
+    description:
+      "Render a chat-ready prompt packet for research, analysis, failure recovery, handoff, review, campaign, or the next useful workflow move. " +
+      "Use this when a host wants Mythify guidance inside the chat without mutating state, running checks, or treating prompt material as verification evidence.",
+    inputSchema: {
+      kind: z
+        .enum(PROMPT_PACKET_KINDS)
+        .default("next")
+        .describe("Packet kind: research, analysis, failure, handoff, review, campaign, or next."),
+      name: z.string().optional().describe("Research or campaign name. Defaults to the active record."),
+      goal: z.string().optional().describe("Optional host goal to include in the packet."),
+      verify_command: z.string().optional().describe("Optional verifier command to include in the packet."),
+      format: z.enum(["text", "json"]).optional().describe("Return text or JSON. Defaults to text."),
+    },
+  },
+  guarded(({ kind, name, goal, verify_command, format }) => {
+    const payload = buildPromptPacket(kind || "next", {
+      name: name || "",
+      goal: goal || "",
+      verifyCommand: verify_command || "",
+    });
+    if (payload.error) {
+      return payload.error;
+    }
+    if (format === "json") {
+      return `[OK] ${JSON.stringify(payload, null, 2)}`;
+    }
+    return formatPromptPacket(payload);
+  })
+);
+
+server.registerTool(
+  "workflow_route",
+  {
+    title: "Choose workflow route",
+    description:
+      "Read-only workflow quarterback. Classify a prompt, inspect durable Mythify state, and choose direct, plan, research, review, outcome, campaign, failure recovery, handoff, or prompt packet routing. " +
+      "Use this when the host wants Mythify to steer the next chat-native workflow move without mutating state or treating route output as verification evidence.",
+    inputSchema: {
+      task: z.string().describe("The user request or problem statement to route."),
+      format: z.enum(["text", "json"]).optional().describe("Return text or JSON. Defaults to text."),
+      triage: z
+        .enum(TRIAGE_MODES)
+        .optional()
+        .describe("Run a fast model triage pass: never by default, auto when the gate recommends it, or always."),
+      triage_engine: z
+        .enum(TRIAGE_ENGINES)
+        .optional()
+        .describe("Fast triage engine. Defaults to MYTHIFY_TRIAGE_ENGINE or local auto-detection."),
+      triage_model: z
+        .string()
+        .optional()
+        .describe("Fast triage model. Defaults to MYTHIFY_TRIAGE_MODEL or the engine default."),
+      triage_timeout_seconds: z
+        .number()
+        .positive()
+        .optional()
+        .describe("Fast triage timeout in seconds. Defaults to 120."),
+      platform: z
+        .enum(PLATFORMS)
+        .optional()
+        .describe("Host platform for model policy. Defaults to auto."),
+      effort: z
+        .enum(EFFORT_LEVELS)
+        .optional()
+        .describe("Overall effort preference for spawned model roles."),
+      speed: z
+        .enum(SPEED_LEVELS)
+        .optional()
+        .describe("Overall speed preference for spawned model roles."),
+      session_model: z
+        .string()
+        .optional()
+        .describe("Current host session model for spawn ceiling policy. Defaults to MYTHIFY_SESSION_MODEL."),
+      spawn_ceiling: z
+        .enum(SPAWN_CEILINGS)
+        .optional()
+        .describe("Maximum spawned model tier relative to the session model."),
+      reviewer_strength: z
+        .enum(REVIEWER_STRENGTH_MODES)
+        .optional()
+        .describe("Reviewer model strength relative to the session."),
+    },
+  },
+  guarded(({
+    task,
+    format,
+    triage,
+    triage_engine,
+    triage_model,
+    triage_timeout_seconds,
+    platform,
+    effort,
+    speed,
+    session_model,
+    spawn_ceiling,
+    reviewer_strength,
+  }) => {
+    const classification = classifyTaskText(task);
+    classification.model_policy = buildModelPolicy(classification, {
+      triage_engine: triage_engine || "",
+      triage_model: triage_model || "",
+      triage_timeout_seconds,
+      platform: platform || "auto",
+      effort: effort || "auto",
+      speed: speed || "auto",
+      session_model: session_model || "",
+      spawn_ceiling: spawn_ceiling || "auto",
+      reviewer_strength: reviewer_strength || "auto",
+    });
+    if ((triage || "never") !== "never") {
+      classification.model_triage_run = runModelTriage(task, classification, {
+        triage: triage || "never",
+        triage_engine: triage_engine || "",
+        triage_model: triage_model || "",
+        triage_timeout_seconds,
+        platform: platform || "auto",
+        effort: effort || "auto",
+        speed: speed || "auto",
+        session_model: session_model || "",
+        spawn_ceiling: spawn_ceiling || "auto",
+      });
+    }
+    const payload = buildWorkflowRoute(task, classification);
+    if (format === "json") {
+      return `[OK] ${JSON.stringify(payload, null, 2)}`;
+    }
+    return formatWorkflowRoute(payload);
   })
 );
 

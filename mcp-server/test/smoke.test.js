@@ -22,6 +22,12 @@ const CLASSIFICATION_RULES = JSON.parse(
 const ROOT_CLASSIFICATION_RULES = JSON.parse(
   fs.readFileSync(new URL("../../protocol/classification-rules.json", import.meta.url), "utf8")
 );
+const WORKFLOW_ROUTER = JSON.parse(
+  fs.readFileSync(new URL("../protocol/workflow-router.json", import.meta.url), "utf8")
+);
+const ROOT_WORKFLOW_ROUTER = JSON.parse(
+  fs.readFileSync(new URL("../../protocol/workflow-router.json", import.meta.url), "utf8")
+);
 const OPERATION_REGISTRY = JSON.parse(
   fs.readFileSync(new URL("../protocol/operation-registry.json", import.meta.url), "utf8")
 );
@@ -120,6 +126,7 @@ test("mythify MCP server smoke test", async (t) => {
 
     await t.test("packaged manifests mirror the root manifests", () => {
       assert.deepEqual(CLASSIFICATION_RULES, ROOT_CLASSIFICATION_RULES);
+      assert.deepEqual(WORKFLOW_ROUTER, ROOT_WORKFLOW_ROUTER);
       assert.deepEqual(OPERATION_REGISTRY, ROOT_OPERATION_REGISTRY);
       assert.deepEqual(SURFACE_MANIFEST, ROOT_SURFACE_MANIFEST);
     });
@@ -502,6 +509,34 @@ test("mythify MCP server smoke test", async (t) => {
       assert.equal(classified.model_policy.session.model_tier, "frontier");
     });
 
+    await t.test("workflow_route selects routes without mutating state", async () => {
+      const before = snapshotStateDir(stateDir);
+      const cases = [
+        ["what does Mythify do?", "direct", "analysis"],
+        ["research latest agent routing patterns", "research", "research"],
+        ["audit this project for issues", "review", "review"],
+        ["address all issues in one go", "campaign", "campaign"],
+        ["keep fixing until tests pass and verify command is green", "outcome", "handoff"],
+        ["implement the router feature", "plan", "analysis"],
+      ];
+      for (const [task, route, packet] of cases) {
+        const routedText = textOf(
+          await client.callTool({
+            name: "workflow_route",
+            arguments: { task, format: "json" },
+          })
+        );
+        const payload = JSON.parse(routedText.replace(/^\[OK\] /, ""));
+        assert.equal(payload.kind, "workflow_route");
+        assert.equal(payload.route, route);
+        assert.equal(payload.prompt_packet.kind, packet);
+        assert.equal(payload.chat_policy.executor, "initiating_host");
+        assert.equal(payload.evidence.at(-1).mutates_state, false);
+        assert.match(payload.guardrail, /not verification evidence/);
+      }
+      assert.deepEqual(snapshotStateDir(stateDir), before, "workflow_route leaves state unchanged");
+    });
+
     await t.test("memory_store then memory_recall round-trips a value", async () => {
       const stored = textOf(
         await client.callTool({
@@ -598,6 +633,21 @@ test("mythify MCP server smoke test", async (t) => {
       assert.ok(failed.startsWith("[FAIL]"), `failing run reports [FAIL]: ${failed}`);
       assert.match(failed, /UNVERIFIED/, "failing run is UNVERIFIED");
       assert.match(failed, /exit 3/, "failing run reports the exit code");
+    });
+
+    await t.test("workflow_route prioritizes failed verification recovery", async () => {
+      const before = snapshotStateDir(stateDir);
+      const routedText = textOf(
+        await client.callTool({
+          name: "workflow_route",
+          arguments: { task: "research a new direction", format: "json" },
+        })
+      );
+      const payload = JSON.parse(routedText.replace(/^\[OK\] /, ""));
+      assert.equal(payload.route, "failure");
+      assert.equal(payload.prompt_packet.kind, "failure");
+      assert.equal(payload.state.latest_executed_verification.exit_code, 3);
+      assert.deepEqual(snapshotStateDir(stateDir), before, "workflow_route failure path leaves state unchanged");
     });
 
     await t.test("workflow_status shows read-only dashboard state", async () => {
@@ -826,6 +876,111 @@ test("mythify MCP server smoke test", async (t) => {
       assert.equal(parsed.current_task.title, "Build the first slice");
       assert.equal(parsed.recent_learnings[0], "task 1: Keep prompt output visible in chat. [apply next]");
       assert.deepEqual(snapshotStateDir(stateDir), before, "campaign_next_prompt leaves state unchanged");
+    });
+
+    await t.test("prompt_packet returns workflow prompts without mutation", async () => {
+      const researchDir = path.join(stateDir, "research");
+      fs.mkdirSync(researchDir, { recursive: true });
+      const research = {
+        id: "packet-direction",
+        question: "How should prompt packets guide implementation?",
+        status: "closed",
+        sources: [
+          {
+            id: "S1",
+            title: "Trace notes",
+            url: "",
+            note: "Shows research to implementation transitions.",
+            credibility: "medium",
+            created: "2026-06-15T00:00:00Z",
+          },
+        ],
+        claims: [
+          {
+            id: "C1",
+            claim: "Prompt packets should be material for direction.",
+            evidence: "Research records are not executable evidence.",
+            source_id: "S1",
+            confidence: "medium",
+            created: "2026-06-15T00:00:00Z",
+          },
+        ],
+        open_questions: [
+          {
+            id: "Q1",
+            question: "Which verifier should prove the implementation?",
+            created: "2026-06-15T00:00:00Z",
+          },
+        ],
+        decision: "Implement one shared prompt packet contract.",
+        created: "2026-06-15T00:00:00Z",
+        updated: "2026-06-15T00:00:00Z",
+      };
+      fs.writeFileSync(
+        path.join(researchDir, "packet-direction.json"),
+        JSON.stringify(research, null, 2),
+        "utf8"
+      );
+      fs.writeFileSync(path.join(researchDir, "active"), "packet-direction\n", "utf8");
+      const before = snapshotStateDir(stateDir);
+
+      const researchText = textOf(
+        await client.callTool({
+          name: "prompt_packet",
+          arguments: { kind: "research", name: "packet-direction" },
+        })
+      );
+      assert.ok(researchText.startsWith("[OK] Prompt packet research: research"), `prompt_packet reports [OK]: ${researchText}`);
+      assert.match(researchText, /Decision: Implement one shared prompt packet contract\./);
+      assert.match(researchText, /not verification evidence/);
+
+      const failureJson = textOf(
+        await client.callTool({
+          name: "prompt_packet",
+          arguments: { kind: "failure", format: "json" },
+        })
+      );
+      const failure = JSON.parse(failureJson.replace(/^\[OK\] /, ""));
+      assert.equal(failure.kind, "failure");
+      assert.equal(failure.context.failed_verification.exit_code, 3);
+      assert.match(failure.next_prompt, /Failure recovery prompt packet/);
+
+      const nextJson = textOf(
+        await client.callTool({
+          name: "prompt_packet",
+          arguments: { kind: "next", format: "json" },
+        })
+      );
+      const next = JSON.parse(nextJson.replace(/^\[OK\] /, ""));
+      assert.equal(next.kind, "next");
+      assert.equal(next.selected_kind, "failure");
+
+      const handoffText = textOf(
+        await client.callTool({
+          name: "prompt_packet",
+          arguments: { kind: "handoff" },
+        })
+      );
+      assert.match(handoffText, /Handoff prompt packet/);
+      assert.match(handoffText, /Resume from this packet/);
+
+      const reviewText = textOf(
+        await client.callTool({
+          name: "prompt_packet",
+          arguments: { kind: "review" },
+        })
+      );
+      assert.match(reviewText, /Review prompt packet/);
+      assert.match(reviewText, /Review changed files/);
+
+      const campaignText = textOf(
+        await client.callTool({
+          name: "prompt_packet",
+          arguments: { kind: "campaign", name: "project-shot" },
+        })
+      );
+      assert.match(campaignText, /Continue Mythify campaign: project-shot/);
+      assert.deepEqual(snapshotStateDir(stateDir), before, "prompt_packet leaves state unchanged");
     });
 
     await t.test("outcome tools track success and bounded failure", async () => {

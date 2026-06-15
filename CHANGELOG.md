@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-06-15
+
+### Added
+
+- CLI `prompt` now renders read-only workflow prompt packets for research to
+  implementation, analysis to plan, failure recovery, handoff, review,
+  campaign, and next-prompt routing.
+- MCP `prompt_packet` exposes the same material-only packet contract for
+  chat-native hosts without mutating state or recording verification evidence.
+- CLI `route` and MCP `workflow_route` now choose the next workflow path from
+  task text, durable state, and the latest executed verification, returning
+  direct, plan, research, review, outcome, campaign, failure recovery, handoff,
+  or prompt-packet routing without mutating state.
+- Shared `protocol/workflow-router.json` records route metadata, prompt-packet
+  mapping, and output fields for CLI and MCP parity.
+
 ## [3.5.0] - 2026-06-15
 
 ### Added
@@ -549,7 +565,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.5.0...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.0...HEAD
+[3.6.0]: https://github.com/aihxp/mythify/compare/v3.5.0...v3.6.0
 [3.5.0]: https://github.com/aihxp/mythify/compare/v3.4.0...v3.5.0
 [3.4.0]: https://github.com/aihxp/mythify/compare/v3.3.0...v3.4.0
 [3.3.0]: https://github.com/aihxp/mythify/compare/v3.2.3...v3.3.0

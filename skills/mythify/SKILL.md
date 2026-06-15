@@ -44,6 +44,18 @@ when the host is explicitly managing a long-running background watcher. Both
 commands are read-only prompt surfaces: the host still performs edits, runs
 checks, reports issues in chat, and advances the campaign with evidence.
 
+Use `mythify route "TASK"` when the next workflow shape is unclear or when the
+user asks for one shot, in one go, address all, continuous run, yolo, review,
+research, or similar steering. The router is read-only: it classifies the task,
+inspects durable state, chooses the next route, and keeps execution in the
+initiating host chat unless the user explicitly hands work elsewhere.
+
+Use `mythify prompt next` when the host needs Mythify to choose the next useful
+chat prompt from durable state. Use the specific packet kinds when the direction
+is known: `prompt research`, `prompt analysis`, `prompt failure`,
+`prompt handoff`, `prompt review`, or `prompt campaign`. Prompt packets are
+read-only steering material, not verification evidence.
+
 If the user says yolo or full send, keep the same safety boundaries: do not run
 destructive or irreversible actions without explicit permission, and do not
 claim completion without executed verification when a check exists.
@@ -141,6 +153,7 @@ much to build.
 | `protocol check [PATH ...] [--json]` | Verify copied protocol files match this CLI. |
 | `status` | Orientation: active plan, next step, counts. |
 | `classify TASK [--json] [--triage never\|auto\|always]` | Identify task type, risk, execution profile, verification strategy, fanout fit, model policy, and task-based host recommendation. |
+| `route TASK [--json] [--triage never\|auto\|always]` | Choose direct, plan, research, review, outcome, campaign, failure recovery, handoff, or prompt routing from task text and durable state without mutating state. |
 | `plan create GOAL [--steps JSON] [--name NAME]` | Create a plan, set it active. |
 | `plan add-step TITLE [--criteria TEXT] [--plan NAME]` | Append a step. |
 | `plan list` | List plans with progress. |
@@ -165,6 +178,7 @@ much to build.
 | `campaign watch [NAME] [--interval N] [--max-iterations N]` | Poll a campaign and emit refreshed host prompts. |
 | `campaign advance [NAME] --result TEXT` | Advance the current task through the loop. |
 | `campaign learn LESSON` | Record learning for later campaign tasks. |
+| `prompt KIND [NAME] [--goal TEXT] [--verify COMMAND] [--json]` | Render a read-only workflow prompt packet. |
 | `outcome start GOAL --success TEXT --verify COMMAND [--metric COMMAND]` | Start a supervised outcome loop with verifier, optional metric, and budget. |
 | `outcome check [NAME]` | Run the verifier and return success, retry, or budget exhaustion. |
 | `outcome status [NAME]` | Show the active or named outcome loop. |
@@ -185,7 +199,9 @@ Clients wired to the Mythify MCP server instead of the CLI should use the
 equivalent tools, especially `work_report` for chat narration,
 `workflow_status` for orientation, `verification_history` for evidence,
 `plan_create`, `plan_add_step`, `plan_update_step`, `verify_run`,
-`verify_claim`, `reflect`, and `campaign_next_prompt` for campaign reprompts.
+`verify_claim`, `reflect`, `campaign_next_prompt` for campaign reprompts, and
+`workflow_route` for the route packet, plus `prompt_packet` for research,
+analysis, failure, handoff, review, campaign, or next-prompt packets.
 Same state directory, same file formats, full
 interop with the CLI.
 

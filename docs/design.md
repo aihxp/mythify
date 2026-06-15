@@ -41,6 +41,7 @@ mythify/
 |   |-- PROTOCOL.md              canonical protocol source
 |   |-- classification-rules.json deterministic classifier keywords
 |   |-- operation-registry.json  shared operation metadata
+|   |-- workflow-router.json     shared workflow route metadata
 |   `-- surface-manifest.json    shared public surface metadata
 |-- scripts/
 |   |-- mythify.py               zero-dependency CLI orchestrator
@@ -61,6 +62,7 @@ mythify/
 |   |-- src/surface-manifest.js
 |   |-- protocol/classification-rules.json package copy of classifier keywords
 |   |-- protocol/operation-registry.json package copy of operation metadata
+|   |-- protocol/workflow-router.json package copy of route metadata
 |   |-- protocol/surface-manifest.json package copy of public surface metadata
 |   |-- test/capability-registry.test.js
 |   |-- test/execution-probe.test.js
@@ -114,8 +116,9 @@ Evidence for the decision:
 - The shared registries are working where the duplicated facts are narrow:
   `protocol/operation-registry.json` owns memory operation metadata, and
   `protocol/classification-rules.json` owns deterministic classifier keyword
-  metadata. `mcp-server/src/capability-registry.js` owns host, provider,
-  execution, and lifecycle capability metadata.
+  metadata. `protocol/workflow-router.json` owns route ids, prompt mapping,
+  and output field metadata. `mcp-server/src/capability-registry.js` owns host,
+  provider, execution, and lifecycle capability metadata.
 - Drift is still easy to create in prose and copied surface metadata. The
   dashboard slice raised the MCP tool contract to 30 tools, while the README
   component summary still said 29 until this decision pass.
@@ -235,7 +238,7 @@ runtime registrations.
 Current scope:
 
 - Top-level CLI command names and command count.
-- MCP core tool names, fanout tool names, and the 35 core plus 3 fanout count
+- MCP core tool names, fanout tool names, and the 37 core plus 3 fanout count
   split.
 
 Rules:
@@ -269,11 +272,30 @@ Rules:
 - Python and Node tests must cover any newly added terms that affect public
   classification behavior.
 - `mcp-server/protocol/classification-rules.json`,
-  `mcp-server/protocol/operation-registry.json`, and
+  `mcp-server/protocol/operation-registry.json`,
+  `mcp-server/protocol/workflow-router.json`, and
   `mcp-server/protocol/surface-manifest.json` are package-local mirrors so the
   npm tarball can run without access to repository-root files. Run
-  `node scripts/check_classification_rules_manifest.mjs` and
-  `node scripts/check_surface_manifest.mjs` to verify the mirrors.
+  `node scripts/check_classification_rules_manifest.mjs`, the MCP smoke suite,
+  and `node scripts/check_surface_manifest.mjs` to verify the mirrors.
+
+## Workflow router manifest
+
+Shared workflow route metadata lives in `protocol/workflow-router.json`. The
+Python CLI `route` command and Node MCP `workflow_route` tool both load this
+manifest at startup.
+
+Rules:
+
+- The manifest owns route ids, route priority metadata, prompt-packet mapping,
+  and the public output field list.
+- The manifest is not an execution engine. It does not run checks, mutate state,
+  spawn workers, or complete tasks.
+- Route behavior remains native in the CLI and MCP adapters: read active state,
+  inspect the latest executed verification, classify the task, and return a
+  structured route packet.
+- Route output is material for the initiating host chat. It keeps the host as
+  executor unless the user explicitly hands work elsewhere.
 
 ## Background task view
 
@@ -731,6 +753,8 @@ datetime, pathlib, tempfile). Subcommand grammar:
 | `dashboard [--recent N] [--json]` | Read-only workflow dashboard: active plan, current and next step, active outcome, memory and lesson counts, verification totals, recent verification records, and recent reflections. It does not mutate state or report model confidence. | 0; 1 if no workspace |
 | `history [--recent N] [--json]` | Read-only verification history: executed and attested records, verdicts, commands, exit codes, duration, and plan or step context from durable state. It does not mutate state, rerun checks, or upgrade attested claims. | 0; 1 if no workspace |
 | `report [--since last\|start] [--format chat\|json] [--recent N] [--cursor NAME] [--peek] [--mark]` | Chat-ready live work report over durable plan, step, verification, and reflection events, with an `Attention` section for failed checks, failed steps, failure reflections, and attested warnings. By default it advances a cursor so repeated calls show only new events; `--peek` leaves the cursor unchanged; `--mark` advances the cursor to the latest event without showing old events and cannot be combined with `--since`. | 0; 1 if no workspace, invalid recent value, or incompatible flags |
+| `route TASK [--json] [--triage never\|auto\|always] [--platform P] [--effort E] [--speed S] [--session-model M] [--spawn-ceiling C] [--reviewer-strength R]` | Read-only workflow router. It classifies the task, inspects durable state and the latest executed verification, then returns a route, reason, next command, prompt packet, verification strategy, chat policy, pause rules, expected state writes, and evidence. It must not mutate state or move execution out of the initiating host unless the user explicitly asks. | 0; 1 if no workspace |
+| `prompt KIND [NAME] [--goal TEXT] [--verify COMMAND] [--json]` | Render a read-only workflow prompt packet. Kinds are `research`, `analysis`, `failure`, `handoff`, `review`, `campaign`, and `next`; packet output is steering material for the host, not verification evidence. `next` selects failure recovery only when the latest executed check is red, then campaign, research, handoff, or analysis based on active state. | 0; 1 if no workspace or named state is missing |
 | `background [--recent N] [--json]` | Read-only background task view: outcome loops, fanout jobs, task counts, current statuses, and next actions from durable state. It does not mutate state or report model confidence as progress. | 0; 1 if no workspace |
 | `progress [--recent N] [--json]` | Read-only outcome loop progress: active and recent outcomes, iteration budget, verifier exit details, metric score when present, and next action from durable state. It does not mutate state, run checks, stop loops, or treat notes as verification. | 0; 1 if no workspace |
 | `readiness [--json]` | Read-only release readiness: recorded verification gates, project git state, roadmap state, and release-review status without rerunning gates or declaring the release safe. | 0; 1 if no workspace |
@@ -771,14 +795,14 @@ Implementation notes:
 ## MCP server: mcp-server/
 
 Node 18+, ESM (`"type": "module"`). Dependencies: `@modelcontextprotocol/sdk`
-(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.3.0`,
+(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.0`,
 scripts `{"start": "node src/index.js", "test": "node --test test/*.test.js"}`
 (the glob form, because modern Node treats a bare directory argument to --test as
 a literal file and fails), engines node >= 18. Use the registration API that the
 installed SDK version supports (prefer `registerTool`); verify against the
 installed package, not from memory.
 
-Exactly 38 tools: the 35 core tools below plus the 3 fanout tools defined in the
+Exactly 40 tools: the 37 core tools below plus the 3 fanout tools defined in the
 "Fanout: parallel delegation" section. Tool descriptions must state what the tool
 does AND when to use it, since descriptions drive tool selection.
 
@@ -802,6 +826,8 @@ does AND when to use it, since descriptions drive tool selection.
 | `fanout_timeline` | `{recent?: number, format?: enum(text, json)}` | Show a read-only timeline of fanout job creation, task starts, task finishes, duration, status, errors, and output metadata. It must not mutate state and must not treat worker output as verification evidence. |
 | `phase_status` | `{recent?: number, format?: enum(text, json)}` | Show a read-only Understand, Design, Build, Judge, Verify phase view of active plan steps and durable evidence counts. It must not mutate state and must not report model confidence as progress. |
 | `campaign_next_prompt` | `{name?: string, format?: enum(text, json)}` | Render a chat-ready next prompt for the active or named campaign's current task and phase. It must not mutate state, run checks, advance a phase, or treat prompt output as verification evidence. Hosts may display or inject the returned prompt, then the host agent does the work and advances the campaign with evidence. |
+| `prompt_packet` | `{kind?: enum(research, analysis, failure, handoff, review, campaign, next), name?: string, goal?: string, verify_command?: string, format?: enum(text, json)}` | Render a chat-ready prompt packet for research to implementation, analysis to plan, failure recovery, handoff, review, campaign, or the next useful workflow move. It must not mutate state, run checks, advance work, or treat prompt output as verification evidence. Hosts may display or inject the returned prompt, then the host agent does the work and records evidence. |
+| `workflow_route` | `{task: string, format?: enum(text, json), triage?: enum(never, auto, always), triage_engine?: enum(claude-cli, codex-cli, cursor-agent, command), triage_model?: string, triage_timeout_seconds?: number, platform?: enum(auto, unknown, codex-desktop, codex-cli, claude-desktop, claude-code, cursor-desktop, cursor-agent), effort?: enum(auto, low, medium, high), speed?: enum(auto, standard, fast), session_model?: string, spawn_ceiling?: enum(auto, lower_only, same_or_lower, allow_stronger), reviewer_strength?: enum(auto, same_or_lower, allow_stronger)}` | Choose the next workflow route from prompt text and durable state. It returns `route`, `reason`, `next_command`, `prompt_packet`, `verification_strategy`, `chat_policy`, `pause_rules`, `state_writes`, and `evidence`. It must not mutate state, run checks, advance work, or move execution out of the initiating host unless the user explicitly asks. |
 | `outcome_start` | `{goal: string, success: string, verify_command: string, metric_command?: string, max_iterations?: number, allowed_paths?: string[], visibility?: enum(auto, quiet, summary, verbose, threaded), name?: string, format?: enum(text, json)}` | Start a supervised outcome loop and set it active. The host agent acts between checks; Mythify records the verifier, metric, budget, and visibility policy. |
 | `outcome_check` | `{name?: string, notes?: string, timeout_seconds?: number, format?: enum(text, json)}` | Run the verifier and optional metric for the active or named outcome, append an iteration, append executed verification evidence, and return success, retry, or budget-exhausted guidance. If `MYTHIFY_DISABLE_RUN=1`, refuse and record nothing. |
 | `outcome_status` | `{name?: string, format?: enum(text, json)}` | Show active or named outcome status, verifier, metric, iteration budget, and next action. |
@@ -1078,6 +1104,61 @@ implementation work is complete. When research turns into code or docs, the
 host must move through a plan, outcome, or campaign and record executable
 verification where available.
 
+## Prompt packet workflow
+
+`prompt` is a CLI read-only surface for chat-native reprompting:
+
+- `prompt research [NAME] [--goal TEXT] [--verify COMMAND] [--json]`
+- `prompt analysis [--goal TEXT] [--verify COMMAND] [--json]`
+- `prompt failure [--goal TEXT] [--verify COMMAND] [--json]`
+- `prompt handoff [--goal TEXT] [--verify COMMAND] [--json]`
+- `prompt review [--goal TEXT] [--verify COMMAND] [--json]`
+- `prompt campaign [NAME] [--goal TEXT] [--verify COMMAND] [--json]`
+- `prompt next [--goal TEXT] [--verify COMMAND] [--json]`
+
+Each packet returns:
+
+- `kind`: the requested kind.
+- `selected_kind`: the packet type actually rendered.
+- `title`: human-readable packet label.
+- `source`: the durable state source, such as research, campaign, verification,
+  workflow state, or git state.
+- `context`: structured context for hosts that want JSON.
+- `next_prompt`: the chat-ready prompt to display or inject.
+- `guardrail`: material-only warning.
+
+`prompt next` chooses the packet from durable state. It routes to failure
+recovery only when the latest executed verification is red, then to an active
+campaign, active research, active plan handoff, and finally analysis. MCP
+clients use `prompt_packet` for the same contract. Both surfaces must be
+read-only and must not convert prompt text into verification evidence.
+
+## Workflow router
+
+`route` is the CLI decision-tree surface for choosing the next workflow shape
+without performing it:
+
+- `route TASK [--json]`
+- MCP clients use `workflow_route` with the same contract.
+
+The router combines deterministic classification, the active durable state, the
+latest executed verification, and `protocol/workflow-router.json`. It returns a
+route packet with the route id, reason, suggested next command, prompt packet
+kind, verification strategy, chat policy, pause rules, expected state writes,
+and evidence. It is read-only: the host chat still executes edits, runs checks,
+reports issues, and records evidence.
+
+Priority order favors recovery and durable loops:
+
+1. latest executed verification is red: `failure`;
+2. full-send language such as "one shot", "in one go", "address all", or
+   "yolo": `campaign`;
+3. active campaign or outcome with continue language: `campaign` or `outcome`;
+4. explicit research or review language: `research` or `review`;
+5. active plan continuation: `handoff`;
+6. direct low-risk prompts: `direct`;
+7. otherwise: `plan`.
+
 ## Campaign workflow
 
 `campaign` is a CLI state surface for long-running "one-shot a project" work:
@@ -1123,14 +1204,16 @@ than a hidden executor.
 mutating state. `campaign watch` repeats that read-only render on an interval so
 a host-managed background loop can pick up the next prompt after an external
 advance. MCP clients use the read-only `campaign_next_prompt` tool for the same
-contract.
+contract, `workflow_route` when they need Mythify to choose the next workflow
+path, or `prompt_packet` when they need the shared packet contract across
+research, analysis, failure recovery, handoff, review, campaign, and next.
 
 ### Smoke test: mcp-server/test/smoke.test.js
 
 Uses `node:test` and the SDK `Client` with `StdioClientTransport`, spawning the
 server with `MYTHIFY_DIR` and `HOME` pointed at fresh temp directories. Assertions:
 
-1. `tools/list` returns exactly the manifest tool names (set equality), the 35
+1. `tools/list` returns exactly the manifest tool names (set equality), the 36
    core tools plus `fanout_start`, `fanout_status`, `fanout_results`.
 2. `classify_task` returns a benchmark classification in text form with
    execution profile `full`, a question classification in JSON form with
@@ -1260,7 +1343,8 @@ Sections, in order:
    then show the minimal plan, verify, step, summary loop.
 5. Quick start A: drop-in (copy `CLAUDE.md` or `AGENTS.md`, `scripts/mythify.py`,
    `protocol/operation-registry.json`, and
-   `protocol/classification-rules.json` into a project, run
+   `protocol/classification-rules.json`, and `protocol/workflow-router.json`
+   into a project, run
    `python3 scripts/mythify.py protocol check FILE`, then `init`).
 6. Quick start B: MCP server (npm install inside `mcp-server/`, then the example
    client config; note `MYTHIFY_DIR` and `MYTHIFY_DISABLE_RUN`).
@@ -1796,7 +1880,7 @@ step (`step ID in_progress`) sets the lower bound, the VERIFY step
 
 ## Versioning
 
-This is Mythify v3.3.0. Fanout was added in 2.1.0; 2.2.0 added local
+This is Mythify v3.6.0. Fanout was added in 2.1.0; 2.2.0 added local
 subscription-backed `codex-cli` and `cursor-agent` engines; 2.3.0 added
 task classification; 2.4.0 added optional fast model triage after
 classification, execution profiles, platform-aware model policy,
@@ -1813,6 +1897,11 @@ installation and live work reports; 3.2.0 and 3.2.1 refine report mark mode;
 3.2.2 rejects mark-plus-since report calls that would otherwise hide expected
 events; 3.2.3 releases the follow-up documentation hygiene fixes from the
 continuous audit loop; 3.3.0 adds chat-visible report attention summaries for
-failures and warnings plus packaged skill guidance for chat-first Mythify use.
-The CLI prints no version banner; the MCP server reports 3.3.0 through its
+failures and warnings plus packaged skill guidance for chat-first Mythify use;
+3.4.0 adds trace analysis and playbook generation; 3.5.0 adds research records,
+campaigns, and campaign reprompt surfaces; 3.6.0 adds workflow prompt packets
+for research, analysis, failure recovery, handoff, review, campaign, and
+next-prompt routing, plus read-only workflow route surfaces for CLI and MCP
+hosts.
+The CLI prints no version banner; the MCP server reports 3.6.0 through its
 server info.

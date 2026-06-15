@@ -3,8 +3,8 @@
 Mythify exposes the same MCP tool surface to Codex Desktop, Claude Desktop,
 and Cursor Desktop. The important idea is simple: run one local stdio MCP
 server, point it at a project `.mythify/` directory with `MYTHIFY_DIR`, then
-let each desktop client call tools such as `classify_task`, `plan_create`,
-`verify_run`, `fanout_start`, and `fanout_results`.
+let each desktop client call tools such as `classify_task`, `workflow_route`,
+`plan_create`, `verify_run`, `fanout_start`, and `fanout_results`.
 
 ## Shared Setup
 
