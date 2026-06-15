@@ -11,6 +11,11 @@ behind a durable answer to four questions:
 You do not need to learn every command first. Start with the reduced surface:
 `route`, `report`, `verify run`, and `status`.
 
+If your host supports local skills, the checkout installer also installs
+`mythify-work`, `mythify-route`, and `mythify-verify`. Use `$mythify-work` when
+you want the Godpowers-style experience where the plan, failed checks,
+verifiers, and next actions are narrated inside the chat.
+
 ## One Happy Path
 
 From a Mythify checkout:
@@ -35,6 +40,15 @@ mythify summary
 ```
 
 That is the core product. Everything else is optional.
+
+In chat, the same flow is shorter:
+
+```text
+$mythify-work Fix the failing parser test
+```
+
+The skill tells the host agent to run the same durable loop while surfacing
+`report --since last --cursor chat --format chat` after steps and verifiers.
 
 Use `route` when you want Mythify to choose the workflow shape from the prompt
 and durable state. It may return direct, plan, research, review, outcome,

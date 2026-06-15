@@ -1557,7 +1557,7 @@ test("MYTHIFY_REQUIRE_VERIFIED_STEP=0 allows legacy prose completion", async () 
       MYTHIFY_REQUIRE_VERIFIED_STEP: "0",
     },
   });
-  const client = new Client({ name: "mythify-legacy-gate-test", version: "3.6.2" });
+  const client = new Client({ name: "mythify-legacy-gate-test", version: "3.6.3" });
   await client.connect(transport);
 
   try {

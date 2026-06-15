@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.3] - 2026-06-15
+
+### Added
+
+- Codex-style `mythify-work`, `mythify-route`, and `mythify-verify` skills now
+  provide Godpowers-style in-chat front doors with visible report cadence.
+- `scripts/install_user.sh` now installs Mythify chat skills by default and can
+  install an optional `mythify-chat-report-hook.sh` helper for host hook
+  systems.
+
 ## [3.6.2] - 2026-06-15
 
 ### Changed
@@ -591,7 +601,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.2...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.3...HEAD
+[3.6.3]: https://github.com/aihxp/mythify/compare/v3.6.2...v3.6.3
 [3.6.2]: https://github.com/aihxp/mythify/compare/v3.6.1...v3.6.2
 [3.6.1]: https://github.com/aihxp/mythify/compare/v3.6.0...v3.6.1
 [3.6.0]: https://github.com/aihxp/mythify/compare/v3.5.0...v3.6.0

@@ -830,7 +830,7 @@ Implementation notes:
 ## MCP server: mcp-server/
 
 Node 18+, ESM (`"type": "module"`). Dependencies: `@modelcontextprotocol/sdk`
-(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.2`,
+(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.3`,
 scripts `{"start": "node src/index.js", "test": "node --test test/*.test.js"}`
 (the glob form, because modern Node treats a bare directory argument to --test as
 a literal file and fails), engines node >= 18. Use the registration API that the
@@ -1338,9 +1338,10 @@ followed by the protocol hash metadata header, a blank line, and the protocol bo
 verbatim. Idempotent. Zero dependencies. Exit 0 on success with an `[OK]` line
 listing the files written.
 
-## Skill: skills/mythify/
+## Skill surfaces
 
-Manus-style skill package. `SKILL.md` under 120 lines with YAML frontmatter:
+`skills/mythify/` is the Manus-style skill package. `SKILL.md` starts with YAML
+frontmatter:
 
 ```yaml
 ---
@@ -1359,11 +1360,36 @@ References, each under 100 lines, v2 semantics throughout:
 - `references/meta-prompts.md`: the injectable behavioral constraints (act over ask,
   lead with outcome, grounding, bounded autonomy, anti-overengineering, persistence).
 
+Codex-style chat front doors live beside the package skill:
+
+- `skills/mythify-work/`: visible multi-step work loop. It keeps execution in
+  the initiating chat, marks the report cursor, and surfaces a report after
+  steps and verifiers.
+- `skills/mythify-route/`: visible router. It shows the route decision, reason,
+  and next action before mutating state.
+- `skills/mythify-verify/`: visible verifier. It turns a claim into executed
+  evidence, reports the verdict, and completes the active step when applicable.
+
+These focused skills exist because chat experience is an execution-model
+problem, not a Node-versus-Python problem. Godpowers-style visibility comes
+from in-band Markdown skills and report cadence. The CLI and MCP server remain
+the evidence ledger behind that chat surface.
+
 ### scripts/package_skill.py
 
 Zips `skills/mythify/` contents so SKILL.md sits at the zip root with `references/`
 beside it. Output: `dist/mythify.skill`. Stdlib `zipfile` only. Prints the entry
 list and `[OK]` on success.
+
+### scripts/install_user.sh
+
+Installs user-local launchers and, by default, copies `skills/mythify*`
+directories into `$CODEX_HOME/skills` or `$HOME/.codex/skills`. `--skip-skills`
+disables that copy, `--skills-root PATH` overrides the destination, and
+`--install-chat-hook` installs `scripts/mythify_chat_report_hook.sh` as
+`mythify-chat-report-hook.sh` under `$CODEX_HOME/hooks` or `$HOME/.codex/hooks`.
+The hook helper only prints `report --since last --cursor chat --format chat`
+output. It does not mutate host config.
 
 ## README.md
 
@@ -1918,7 +1944,7 @@ step (`step ID in_progress`) sets the lower bound, the VERIFY step
 
 ## Versioning
 
-This is Mythify v3.6.2. Fanout was added in 2.1.0; 2.2.0 added local
+This is Mythify v3.6.3. Fanout was added in 2.1.0; 2.2.0 added local
 subscription-backed `codex-cli` and `cursor-agent` engines; 2.3.0 added
 task classification; 2.4.0 added optional fast model triage after
 classification, execution profiles, platform-aware model policy,
@@ -1943,6 +1969,8 @@ next-prompt routing, plus read-only workflow route surfaces for CLI and MCP
 hosts; 3.6.1 makes the router the default front door in CLI help, docs, skill
 instructions, and MCP descriptions while keeping primitive commands available;
 3.6.2 makes strict step evidence the default and divides non-core surfaces into
-workflow, advanced, and labs tiers backed by the checked surface manifest.
-The CLI prints no version banner; the MCP server reports 3.6.2 through its
+workflow, advanced, and labs tiers backed by the checked surface manifest;
+3.6.3 adds Codex-style chat front-door skills and installer support for a
+Godpowers-style visible Mythify experience.
+The CLI prints no version banner; the MCP server reports 3.6.3 through its
 server info.

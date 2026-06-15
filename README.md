@@ -44,6 +44,17 @@ without replaying old project history. Do not combine `--mark` with `--since`:
 mark first, then use `--since last` for later updates. The rest of the CLI and
 MCP surface exists for larger workflows.
 
+For a Godpowers-style chat feel, use the installed focused skills instead of
+manually driving the CLI:
+
+- `$mythify-work`: run a visible step-by-step work loop with reports after
+  steps and verifiers.
+- `$mythify-route`: show the workflow decision and next action in chat.
+- `$mythify-verify`: prove a claim and surface the verdict in chat.
+
+`scripts/install_user.sh` installs these Codex-style skill directories under
+`$CODEX_HOME/skills` or `$HOME/.codex/skills` by default.
+
 ## Recommended Surface
 
 Most users and chat hosts should enter through the small front door:
@@ -76,10 +87,11 @@ capability gap.
 | :--- | :--- | :--- |
 | Protocol variants | `CLAUDE.md`, `AGENTS.md`, `.cursorrules` | Drop-in rules files, generated from `protocol/PROTOCOL.md` by `scripts/build_variants.py`. |
 | CLI | `scripts/mythify.py` | Zero-dependency Python 3.9+ orchestrator for plans, research, campaigns, memory, lessons, outcome loops, verification, and reflection. |
-| User installer | `scripts/install_user.sh` | User-local launcher installer for the CLI and packaged MCP server from a checkout. |
+| User installer | `scripts/install_user.sh` | User-local launcher installer for the CLI, packaged MCP server, Codex-style chat skills, and optional chat report hook helper from a checkout. |
 | Shared manifests | `protocol/operation-registry.json`, `protocol/classification-rules.json`, `protocol/workflow-router.json`, `protocol/surface-manifest.json` | Shared facts used by the CLI, MCP server, tests, and docs to prevent drift. |
 | MCP server | `mcp-server/` | Node 18+ server exposing the same state directory through 40 MCP tools, including task classification, workflow routing, host model switch state, provider probes, local model runs, host CLI probes, bounded host CLI worker runs, execution probes and runs, lifecycle probes, outcome loops, workflow status, verification history, work reports, background task status, outcome progress, release readiness, fanout worker timeline, phase status, prompt packets, campaign next prompts, and parallel delegation (fanout). |
-| Skill | `skills/mythify/` | Manus-style skill package; `scripts/package_skill.py` builds `dist/mythify.skill`. |
+| Skill package | `skills/mythify/` | Manus-style skill package; `scripts/package_skill.py` builds `dist/mythify.skill`. |
+| Chat skills | `skills/mythify-work/`, `skills/mythify-route/`, `skills/mythify-verify/` | Codex-style in-chat front doors that make Mythify feel like a native skill instead of a hidden CLI ledger. |
 
 All components read and write the same per-project `.mythify/` state directory, so
 they interoperate: a plan created by the CLI is visible to the MCP server and vice
@@ -182,6 +194,25 @@ After importing the skill, ask for it directly with prompts such as
 `Use $mythify to audit this codebase`. The skill tells the agent to keep
 Mythify commands or MCP tools behind the scenes while bringing progress,
 findings, and evidence back into the chat.
+
+For Codex-style local skills, use the checkout installer:
+
+```bash
+./scripts/install_user.sh --project /path/to/your/project
+```
+
+It copies `mythify`, `mythify-work`, `mythify-route`, and `mythify-verify`
+under `$CODEX_HOME/skills` or `$HOME/.codex/skills` by default. To install the
+optional hook helper that runs a chat report from host hook systems:
+
+```bash
+./scripts/install_user.sh --install-chat-hook --project /path/to/your/project
+```
+
+The hook helper is installed as `mythify-chat-report-hook.sh` under
+`$CODEX_HOME/hooks` or `$HOME/.codex/hooks`. It does not modify host config by
+itself; wire it into a host hook only when that host exposes a supported hook
+surface.
 
 ## How it works
 

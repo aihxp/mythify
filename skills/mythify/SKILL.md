@@ -30,6 +30,14 @@ primitive:
    completion claims.
 4. `mythify status` or MCP `workflow_status` to reorient.
 
+For the most chat-native experience, prefer the installed focused skills when
+available:
+
+- `mythify-work` for visible multi-step execution with reports after steps and
+  verifiers.
+- `mythify-route` for a visible workflow decision before execution.
+- `mythify-verify` for proving a claim and surfacing the verdict in chat.
+
 Use lower-level commands only after the router selects that path, or when the
 user explicitly asks for a primitive such as `plan`, `outcome`, `campaign`,
 `research`, `prompt`, `memory`, `lesson`, or fanout.
@@ -92,6 +100,9 @@ not as a hidden log system. When this skill triggers:
 3. After meaningful phases, failures, audit sweeps, and before the final
    response, run `report --since last --cursor chat --format chat` or MCP
    `work_report`.
+   When the optional chat report hook is installed, this report cadence can be
+   host-triggered after tool calls, but still bring important report output
+   into the transcript yourself.
 4. Bring the report into the conversation. Lead with `Attention` items:
    failed checks, failed steps, failure reflections, and attested warnings.
    If there are none, say no new issues were reported in that window.

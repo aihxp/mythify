@@ -3,15 +3,19 @@ set -eu
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/install_user.sh [--prefix PATH] [--project PATH] [--skip-mcp]
+Usage: scripts/install_user.sh [--prefix PATH] [--project PATH] [--skip-mcp] [--skip-skills] [--skills-root PATH] [--install-chat-hook] [--hook-root PATH]
 
 Installs user-local Mythify launchers from this checkout.
 
 Options:
-  --prefix PATH   Install launchers under PATH/bin. Default: $HOME/.local
-  --project PATH  Initialize Mythify state for that project and print MCP setup.
-  --skip-mcp      Install only the mythify CLI wrapper.
-  --help          Show this help.
+  --prefix PATH        Install launchers under PATH/bin. Default: $HOME/.local
+  --project PATH       Initialize Mythify state for that project and print MCP setup.
+  --skip-mcp           Install only the mythify CLI wrapper.
+  --skip-skills        Do not install Codex-style Mythify chat skills.
+  --skills-root PATH   Install chat skills under PATH. Default: $CODEX_HOME/skills or $HOME/.codex/skills
+  --install-chat-hook  Install the optional report hook helper script.
+  --hook-root PATH     Install hook helpers under PATH. Default: $CODEX_HOME/hooks or $HOME/.codex/hooks
+  --help               Show this help.
 USAGE
 }
 
@@ -35,6 +39,11 @@ trap cleanup_pack_dir EXIT
 prefix="${PREFIX:-$HOME/.local}"
 project=""
 skip_mcp=0
+skip_skills=0
+install_chat_hook=0
+codex_home="${CODEX_HOME:-$HOME/.codex}"
+skills_root="${MYTHIFY_SKILLS_ROOT:-$codex_home/skills}"
+hook_root="${MYTHIFY_HOOK_ROOT:-$codex_home/hooks}"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -51,6 +60,24 @@ while [ "$#" -gt 0 ]; do
     --skip-mcp)
       skip_mcp=1
       shift
+      ;;
+    --skip-skills)
+      skip_skills=1
+      shift
+      ;;
+    --skills-root)
+      [ "$#" -ge 2 ] || fail "--skills-root requires a path"
+      skills_root="$2"
+      shift 2
+      ;;
+    --install-chat-hook)
+      install_chat_hook=1
+      shift
+      ;;
+    --hook-root)
+      [ "$#" -ge 2 ] || fail "--hook-root requires a path"
+      hook_root="$2"
+      shift 2
       ;;
     --help|-h)
       usage
@@ -83,6 +110,27 @@ EOF
 chmod 755 "$bin_dir/mythify"
 
 printf '%s\n' "[OK] Installed mythify CLI: $bin_dir/mythify"
+
+if [ "$skip_skills" -eq 0 ]; then
+  [ -d "$repo_root/skills" ] || fail "Missing skills directory"
+  mkdir -p "$skills_root"
+  for skill_dir in "$repo_root"/skills/mythify*; do
+    [ -d "$skill_dir" ] || continue
+    skill_name=$(basename "$skill_dir")
+    destination="$skills_root/$skill_name"
+    rm -rf "$destination"
+    cp -R "$skill_dir" "$destination"
+    printf '%s\n' "[OK] Installed Mythify chat skill: $destination"
+  done
+fi
+
+if [ "$install_chat_hook" -eq 1 ]; then
+  [ -f "$repo_root/scripts/mythify_chat_report_hook.sh" ] || fail "Missing scripts/mythify_chat_report_hook.sh"
+  mkdir -p "$hook_root"
+  cp "$repo_root/scripts/mythify_chat_report_hook.sh" "$hook_root/mythify-chat-report-hook.sh"
+  chmod 755 "$hook_root/mythify-chat-report-hook.sh"
+  printf '%s\n' "[OK] Installed chat report hook helper: $hook_root/mythify-chat-report-hook.sh"
+fi
 
 if [ "$skip_mcp" -eq 0 ]; then
   require_command node

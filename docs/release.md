@@ -1,13 +1,13 @@
 # Release Process
 
-Current release target: `v3.6.2`.
+Current release target: `v3.6.3`.
 
 Current package metadata:
 
 - MCP package: `mythify-mcp`
-- Version: `3.6.2`
+- Version: `3.6.3`
 - Node runtime: `>=18`
-- Package artifact: `mcp-server/mythify-mcp-3.6.2.tgz`
+- Package artifact: `mcp-server/mythify-mcp-3.6.3.tgz`
 - Skill artifact: `dist/mythify.skill`
 
 ## Release Gate
@@ -42,7 +42,7 @@ python3 scripts/package_skill.py
 Expected artifacts:
 
 - `dist/mythify.skill`
-- `mcp-server/mythify-mcp-3.6.2.tgz`
+- `mcp-server/mythify-mcp-3.6.3.tgz`
 
 The npm tarball must include package-local copies of
 `mcp-server/protocol/classification-rules.json`,
@@ -62,18 +62,25 @@ The supported user install path is a local checkout plus:
 The script installs `mythify` and `mythify-mcp` launchers under
 `$HOME/.local/bin` by default, installs the packaged MCP server under
 `$XDG_DATA_HOME/mythify/VERSION` or `$HOME/.local/share/mythify/VERSION`, and
-prints the Codex MCP registration command for the selected project.
+copies Codex-style Mythify chat skills under `$CODEX_HOME/skills` or
+`$HOME/.codex/skills`. It also prints the Codex MCP registration command for
+the selected project.
+
+Use `--skip-skills` to skip local skill installation, `--skills-root PATH` to
+choose a different skill root, and `--install-chat-hook` to install the
+optional `mythify-chat-report-hook.sh` helper under `$CODEX_HOME/hooks` or
+`$HOME/.codex/hooks`.
 
 ## Publish
 
 Create the GitHub release only after the final commit is pushed and CI is green:
 
 ```bash
-gh release create v3.6.2 \
+gh release create v3.6.3 \
   dist/mythify.skill \
-  mcp-server/mythify-mcp-3.6.2.tgz \
-  --title "Mythify v3.6.2" \
-  --notes-file /tmp/mythify-v3-6-2-release-notes.md
+  mcp-server/mythify-mcp-3.6.3.tgz \
+  --title "Mythify v3.6.3" \
+  --notes-file /tmp/mythify-v3-6-3-release-notes.md
 ```
 
 The release workflow also builds and uploads the same assets on
@@ -84,7 +91,7 @@ identical or safely overwritten by the workflow.
 
 The current npm package name is unscoped: `mythify-mcp`. This repository
 currently produces a GitHub release package artifact
-(`mythify-mcp-3.6.2.tgz`) rather than publishing an npm package to the GitHub
+(`mythify-mcp-3.6.3.tgz`) rather than publishing an npm package to the GitHub
 Packages registry. The current product promise is therefore:
 
 - Source checkout plus `scripts/install_user.sh` for user-local installation.
