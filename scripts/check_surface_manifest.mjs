@@ -47,6 +47,29 @@ function requireArrayEqual(label, actual, expected) {
   }
 }
 
+function tierValues(label, tiers) {
+  if (!tiers || typeof tiers !== "object") {
+    fail(label + " missing tiers");
+    return [];
+  }
+  const values = [];
+  for (const [tier, names] of Object.entries(tiers)) {
+    if (!Array.isArray(names)) {
+      fail(label + " tier " + tier + " must be an array");
+      continue;
+    }
+    requireUnique(label + " tier " + tier, names);
+    values.push(...names);
+  }
+  return values;
+}
+
+function requireTierPartition(label, tiers, allNames) {
+  const values = tierValues(label, tiers);
+  requireUnique(label + " tiers", values);
+  requireArrayEqual(label + " tier partition", values, allNames);
+}
+
 function requireIncludes(relativePath, needle) {
   const text = readText(relativePath);
   if (!text.includes(needle)) {
@@ -84,6 +107,8 @@ function main() {
   requireEqual("MCP core tool count", coreTools.length, mcp.core_tool_count);
   requireEqual("MCP fanout tool count", fanoutTools.length, mcp.fanout_tool_count);
   requireEqual("MCP total tool count", allTools.length, mcp.total_tools);
+  requireTierPartition("CLI", cli.tiers, cli.commands);
+  requireTierPartition("MCP", mcp.tiers, allTools);
 
   requireArrayEqual(
     "MCP core runtime registrations",

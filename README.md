@@ -58,9 +58,12 @@ Most users and chat hosts should enter through the small front door:
 The deeper commands stay available for automation and explicit workflows:
 
 - Workflow primitives: `plan`, `outcome`, `campaign`, `research`, and `prompt`.
-- Advanced/admin surfaces: dashboards, history, background, readiness,
-  timeline, phase, trace, host-model, memory, lessons, logs, fanout, probes,
-  lifecycle, reflection, and protocol checks.
+- Advanced surfaces: memory, lessons, readiness, history, background,
+  progress, dashboard, timeline, phase, trace, logs, reflection, summary,
+  protocol checks, and fanout.
+- Labs surfaces: host-model state, provider probes, local model runs, host CLI
+  workers, execution substrate probes/runs, and lifecycle probes. These stay
+  available, but they are not part of the default product path.
 
 The patterns are distilled from the research in
 [docs/research-report.md](docs/research-report.md), which carries its own
@@ -153,10 +156,11 @@ Environment variables:
 - `MYTHIFY_DISABLE_RUN=1` makes execution refuse: both the CLI `verify run` command
   and the MCP `verify_run` tool execute nothing and record nothing (the CLI exits 2,
   the unverified code). Use this in environments where shell execution is not allowed.
-- `MYTHIFY_REQUIRE_VERIFIED_STEP=1` is an opt-in gate: marking a step `completed`
-  (CLI `step` or MCP `plan_update_step`) then requires a recorded passing `verify run`
-  since the step started, not just a non-empty result. Default off keeps the existing
-  behavior.
+- `MYTHIFY_REQUIRE_VERIFIED_STEP=0` is the legacy opt-out for strict evidence
+  mode. By default, marking a step `completed` (CLI `step` or MCP
+  `plan_update_step`) requires a recorded passing `verify run` since the step
+  started, not just a non-empty result. Values `0`, `false`, `no`, and `off`
+  disable the gate for compatibility.
 - New verification records include active step context when a step is
   `in_progress`: `plan`, `step_id`, `step_title`, and `step_status`. Null
   context and older records remain compatible with existing readers.
@@ -303,9 +307,9 @@ maintenance, not verification evidence.
 ## CLI command reference
 
 This table documents the full CLI primitive surface. The default user-facing
-path is `route`, `report`, `verify run`, and `status`; use the remaining
-commands after the router selects a workflow or when automation explicitly needs
-that primitive.
+path is `route`, `report`, `verify run`, and `status`; use workflow primitives
+after the router selects them, advanced surfaces for explicit operations, and
+labs surfaces only when experimenting with host/runtime adapters.
 
 | Command | Behavior | Exit code |
 | :--- | :--- | :--- |
@@ -356,7 +360,7 @@ that primitive.
 | `plan show [NAME]` | Full detail of the named or active plan. | 0; 1 if not found |
 | `plan switch NAME` | Set the active plan pointer. | 0; 1 if not found |
 | `plan archive [NAME]` | Move plan file to `plans/archive/`; clear the active pointer if it pointed there. On filename conflict in archive, append a timestamp. | 0; 1 if plan not found |
-| `step ID STATUS [RESULT] [--plan NAME]` | Update step status. STATUS must be one of the five enum values, otherwise `[FAIL]`, exit 1. `completed` and `failed` REQUIRE the RESULT argument (evidence or failure description); without it print `[FAIL] Evidence required: pass a RESULT describing what proves this status.` and exit 1. After updating, print the next pending step. | 0 |
+| `step ID STATUS [RESULT] [--plan NAME]` | Update step status. STATUS must be one of the five enum values, otherwise `[FAIL]`, exit 1. `completed` and `failed` REQUIRE the RESULT argument (evidence or failure description); without it print `[FAIL] Evidence required: pass a RESULT describing what proves this status.` and exit 1. By default, `completed` also requires a recorded passing executed verification since the step started; set `MYTHIFY_REQUIRE_VERIFIED_STEP=0` for legacy prose-only completion. After updating, print the next pending step. | 0 |
 | `memory set KEY VALUE [--category C]` | Category one of fact, decision, discovery, state; default fact. | 0 |
 | `memory get [QUERY] [--category C]` | Case-insensitive substring match over keys and values; optional category filter. | 0 |
 | `memory clear [KEY] [--all]` | KEY removes one entry. `--all` clears everything. Neither: `[FAIL]` explaining the guard, exit 1. | 0 |
@@ -408,7 +412,7 @@ tools are primitives the route can point to, or explicit tools for automation.
 | `lesson_recall` | `{tag?: string, scope: enum(project, global, all) = "all"}` | List lessons, labeled by scope. |
 | `plan_create` | `{goal: string, name?: string, steps?: [{title: string, success_criteria?: string}]}` | Ids auto-assigned 1-based. Sets active plan. |
 | `plan_add_step` | `{title: string, success_criteria?: string, plan?: string}` | Append to named or active plan. |
-| `plan_update_step` | `{step_id: number, status: enum(pending, in_progress, completed, failed, skipped), result?: string, plan?: string}` | Enforce the evidence rule: `completed` or `failed` without `result` returns `[FAIL] Evidence required ...` and does NOT modify the plan. On success, include the next pending step in the response. |
+| `plan_update_step` | `{step_id: number, status: enum(pending, in_progress, completed, failed, skipped), result?: string, plan?: string}` | Enforce the evidence rule: `completed` or `failed` without `result` returns `[FAIL] Evidence required ...` and does NOT modify the plan. By default, `completed` also requires a recorded passing executed verification since the step started; set `MYTHIFY_REQUIRE_VERIFIED_STEP=0` for legacy prose-only completion. On success, include the next pending step in the response. |
 | `plan_status` | `{plan?: string}` | Goal, progress count, step list with icons. |
 | `verify_run` | `{command: string, claim?: string, timeout_seconds?: number = 300}` | Execute through the shell, record an executed verification, return the verdict with output tails. If env `MYTHIFY_DISABLE_RUN=1`, refuse with an explanation and record nothing. |
 | `verify_claim` | `{claim: string, evidence: string}` | Record an attested entry, return the `[WARN] ATTESTED` line. |
@@ -1140,7 +1144,7 @@ The MCP npm package also carries package-local runtime manifest mirrors under
 manifests before release.
 
 `protocol/surface-manifest.json` owns duplicated public surface metadata such
-as top-level CLI commands and MCP tool names. Run
+as top-level CLI commands, MCP tool names, and surface tiers. Run
 `node scripts/check_surface_manifest.mjs` to compare the manifest with runtime
 registrations, public docs, and CLI help output.
 

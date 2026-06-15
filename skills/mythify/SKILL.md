@@ -34,6 +34,11 @@ Use lower-level commands only after the router selects that path, or when the
 user explicitly asks for a primitive such as `plan`, `outcome`, `campaign`,
 `research`, `prompt`, `memory`, `lesson`, or fanout.
 
+Strict step evidence is the default. A `completed` step needs a non-empty
+RESULT and a passing executed `verify run` since the step started. Use
+`MYTHIFY_REQUIRE_VERIFIED_STEP=0` only when the user explicitly wants legacy
+prose-only completion.
+
 ## Chat trigger phrases
 
 Treat these user phrases as Mythify triggers even when the user does not type
@@ -134,6 +139,10 @@ a curl, a file check). Use `verify claim CLAIM EVIDENCE` only when nothing
 executable exists; it is recorded as `[WARN] ATTESTED` and never counts as
 verified.
 
+For plan steps, `completed` requires a passing executed `verify run` by default
+as well as a RESULT string. Set `MYTHIFY_REQUIRE_VERIFIED_STEP=0` only for
+explicit legacy prose-only completion.
+
 Read `references/self-verification.md` before claiming any task or step
 complete, when choosing between `verify run` and `verify claim`, or when a
 verification fails and you need to interpret the verdict.
@@ -178,7 +187,7 @@ Most turns should start with `route`, not the full table below.
 | `plan show [NAME]` | Full detail of a plan. |
 | `plan switch NAME` | Set the active plan. |
 | `plan archive [NAME]` | Move a plan to the archive. |
-| `step ID STATUS [RESULT] [--plan NAME]` | Update a step. completed and failed require RESULT. |
+| `step ID STATUS [RESULT] [--plan NAME]` | Update a step. completed and failed require RESULT; completed requires a passing verify run by default. |
 | `memory set KEY VALUE [--category C]` | Store an entry (fact, decision, discovery, state). |
 | `memory get [QUERY] [--category C]` | Substring search over keys and values. |
 | `memory clear [KEY] [--all]` | Remove one entry, or everything with `--all`. |
@@ -222,6 +231,10 @@ an explicit user request: `plan_create`, `plan_add_step`, `plan_update_step`,
 research, analysis, failure, handoff, review, campaign, or next-prompt packets.
 Same state directory, same file formats, full
 interop with the CLI.
+
+Treat host-model state, provider probes, local model runs, host CLI workers,
+execution substrate tools, and lifecycle probes as labs surfaces. They are
+available when explicitly useful, but they are not the default Mythify path.
 
 `classify_task` returns `model_policy.session.recommendation` so hosts can map
 the prompt to chat settings before work begins. Direct low-risk prompts use a

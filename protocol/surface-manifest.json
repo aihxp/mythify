@@ -3,6 +3,43 @@
   "surfaces": {
     "cli": {
       "command_count": 27,
+      "tiers": {
+        "front_door": [
+          "route",
+          "report",
+          "verify",
+          "status"
+        ],
+        "workflow": [
+          "plan",
+          "step",
+          "outcome",
+          "campaign",
+          "research",
+          "prompt"
+        ],
+        "advanced": [
+          "init",
+          "protocol",
+          "dashboard",
+          "history",
+          "background",
+          "progress",
+          "readiness",
+          "timeline",
+          "phase",
+          "trace",
+          "classify",
+          "memory",
+          "lesson",
+          "logs",
+          "reflect",
+          "summary"
+        ],
+        "labs": [
+          "host-model"
+        ]
+      },
       "commands": [
         "init",
         "protocol",
@@ -37,6 +74,56 @@
       "core_tool_count": 37,
       "fanout_tool_count": 3,
       "total_tools": 40,
+      "tiers": {
+        "front_door": [
+          "workflow_route",
+          "work_report",
+          "verify_run",
+          "workflow_status"
+        ],
+        "workflow": [
+          "plan_create",
+          "plan_add_step",
+          "plan_update_step",
+          "plan_status",
+          "outcome_start",
+          "outcome_check",
+          "outcome_status",
+          "outcome_results",
+          "outcome_stop",
+          "campaign_next_prompt",
+          "prompt_packet"
+        ],
+        "advanced": [
+          "classify_task",
+          "verification_history",
+          "background_status",
+          "outcome_progress",
+          "release_readiness",
+          "fanout_timeline",
+          "phase_status",
+          "memory_store",
+          "memory_recall",
+          "memory_clear",
+          "lesson_record",
+          "lesson_recall",
+          "verify_claim",
+          "reflect",
+          "fanout_start",
+          "fanout_status",
+          "fanout_results"
+        ],
+        "labs": [
+          "host_model_switch",
+          "provider_probe",
+          "local_model_run",
+          "host_cli_probe",
+          "host_cli_run",
+          "execution_probe",
+          "execution_run",
+          "lifecycle_probe"
+        ]
+      },
       "core_tools": [
         "classify_task",
         "host_model_switch",

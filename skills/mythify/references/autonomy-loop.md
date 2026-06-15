@@ -89,8 +89,11 @@ Five statuses, with display icons:
 The evidence rule: `completed` and `failed` REQUIRE the RESULT argument.
 Without it the CLI prints
 `[FAIL] Evidence required: pass a RESULT describing what proves this status.`
-and exits 1, leaving the plan unmodified. RESULT should cite proof: the
-verify command that passed, the file created, the observed output.
+and exits 1, leaving the plan unmodified. By default, `completed` also
+requires a passing `verify run` since the step started. RESULT should cite
+proof: the verify command that passed, the file created, the observed output.
+Set `MYTHIFY_REQUIRE_VERIFIED_STEP=0` only for explicit legacy prose-only
+completion.
 
 ## Managing plans
 

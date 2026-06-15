@@ -240,6 +240,8 @@ Current scope:
 - Top-level CLI command names and command count.
 - MCP core tool names, fanout tool names, and the 37 core plus 3 fanout count
   split.
+- Front door, workflow, advanced, and labs tier membership for the CLI and MCP
+  surfaces.
 
 Rules:
 
@@ -247,9 +249,9 @@ Rules:
   command parsers, schemas, or behavior.
 - `mcp-server/src/surface-manifest.js` exposes the manifest to Node tests.
 - Python tests may read the JSON file directly.
-- `scripts/check_surface_manifest.mjs` verifies manifest counts, runtime MCP
-  registrations, public doc count phrases, documented tool names, and CLI
-  `--help` output.
+- `scripts/check_surface_manifest.mjs` verifies manifest counts, tier
+  partitions, runtime MCP registrations, public doc count phrases, documented
+  tool names, and CLI `--help` output.
 - CI hygiene runs the check so README, design, protocol notes, tests, and
   runtime registrations cannot quietly disagree about public surface metadata.
 - Add a new surface only after drift has been observed and the check can prove
@@ -313,16 +315,22 @@ Workflow primitives:
 - `plan_create`, `plan_add_step`, `plan_update_step`, `outcome_start`,
   `outcome_check`, `campaign_next_prompt`, and `prompt_packet` in MCP.
 
-Advanced/admin surfaces:
+Advanced surfaces:
 
 - Dashboards, history, background, readiness, timeline, phase, trace,
-  host-model state, memory, lessons, logs, fanout, probes, lifecycle adapters,
-  reflections, summaries, and protocol checks.
+  memory, lessons, logs, fanout, reflections, summaries, and protocol checks.
+
+Labs surfaces:
+
+- Host-model state, provider probes, local model runs, host CLI workers,
+  execution substrate probes/runs, and lifecycle probes. These surfaces are
+  explicit, material-only, and adapter-facing. They should not be presented as
+  the default product path until they can perform and confirm host actions.
 
 Public help, docs, skills, and MCP tool descriptions should present the default
-front door first. Primitive commands stay available, but broad or ambiguous
-prompts should route through `route` or `workflow_route` before selecting a
-lower-level tool.
+front door first, then workflow primitives, then advanced surfaces, then labs.
+Primitive commands stay available, but broad or ambiguous prompts should route
+through `route` or `workflow_route` before selecting a lower-level tool.
 
 ## Background task view
 
@@ -798,7 +806,7 @@ datetime, pathlib, tempfile). Subcommand grammar:
 | `plan show [NAME]` | Full detail of the named or active plan. | 0; 1 if not found |
 | `plan switch NAME` | Set the active plan pointer. | 0; 1 if not found |
 | `plan archive [NAME]` | Move plan file to `plans/archive/`; clear the active pointer if it pointed there. On filename conflict in archive, append a timestamp. | 0; 1 if plan not found |
-| `step ID STATUS [RESULT] [--plan NAME]` | Update step status. STATUS must be one of the five enum values, otherwise `[FAIL]`, exit 1. `completed` and `failed` REQUIRE the RESULT argument (evidence or failure description); without it print `[FAIL] Evidence required: pass a RESULT describing what proves this status.` and exit 1. When `MYTHIFY_REQUIRE_VERIFIED_STEP=1`, `completed` ALSO requires a recorded passing executed verification (see "Verified-step gate" below), otherwise print `[FAIL] Verified evidence required: MYTHIFY_REQUIRE_VERIFIED_STEP=1 but no passing 'verify run' was recorded since this step started. Run 'verify run' with a passing check first.` and exit 1 without modifying the plan. After updating, print the next pending step. | 0 |
+| `step ID STATUS [RESULT] [--plan NAME]` | Update step status. STATUS must be one of the five enum values, otherwise `[FAIL]`, exit 1. `completed` and `failed` REQUIRE the RESULT argument (evidence or failure description); without it print `[FAIL] Evidence required: pass a RESULT describing what proves this status.` and exit 1. By default, `completed` ALSO requires a recorded passing executed verification (see "Verified-step gate" below), otherwise print `[FAIL] Verified evidence required: strict evidence mode is enabled by default, but no passing 'verify run' was recorded since this step started. Run 'verify run' with a passing check first, or set MYTHIFY_REQUIRE_VERIFIED_STEP=0 to use legacy prose-only completion.` and exit 1 without modifying the plan. Set `MYTHIFY_REQUIRE_VERIFIED_STEP=0` to opt out. After updating, print the next pending step. | 0 |
 | `memory set KEY VALUE [--category C]` | Category one of fact, decision, discovery, state; default fact. | 0 |
 | `memory get [QUERY] [--category C]` | Case-insensitive substring match over keys and values; optional category filter. | 0 |
 | `memory clear [KEY] [--all]` | KEY removes one entry. `--all` clears everything. Neither: `[FAIL]` explaining the guard, exit 1. | 0 |
@@ -822,7 +830,7 @@ Implementation notes:
 ## MCP server: mcp-server/
 
 Node 18+, ESM (`"type": "module"`). Dependencies: `@modelcontextprotocol/sdk`
-(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.1`,
+(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.2`,
 scripts `{"start": "node src/index.js", "test": "node --test test/*.test.js"}`
 (the glob form, because modern Node treats a bare directory argument to --test as
 a literal file and fails), engines node >= 18. Use the registration API that the
@@ -867,7 +875,7 @@ does AND when to use it, since descriptions drive tool selection.
 | `lesson_recall` | `{tag?: string, scope: enum(project, global, all) = "all"}` | List lessons, labeled by scope. |
 | `plan_create` | `{goal: string, name?: string, steps?: [{title: string, success_criteria?: string}]}` | Ids auto-assigned 1-based. Sets active plan. |
 | `plan_add_step` | `{title: string, success_criteria?: string, plan?: string}` | Append to named or active plan. |
-| `plan_update_step` | `{step_id: number, status: enum(pending, in_progress, completed, failed, skipped), result?: string, plan?: string}` | Enforce the evidence rule: `completed` or `failed` without `result` returns `[FAIL] Evidence required ...` and does NOT modify the plan. When `MYTHIFY_REQUIRE_VERIFIED_STEP=1`, `completed` also requires a recorded passing executed verification (see "Verified-step gate") and otherwise returns the same `[FAIL] Verified evidence required ...` text the CLI uses, without modifying the plan. On success, include the next pending step in the response. |
+| `plan_update_step` | `{step_id: number, status: enum(pending, in_progress, completed, failed, skipped), result?: string, plan?: string}` | Enforce the evidence rule: `completed` or `failed` without `result` returns `[FAIL] Evidence required ...` and does NOT modify the plan. By default, `completed` also requires a recorded passing executed verification (see "Verified-step gate") and otherwise returns the same `[FAIL] Verified evidence required ...` text the CLI uses, without modifying the plan. Set `MYTHIFY_REQUIRE_VERIFIED_STEP=0` to opt out. On success, include the next pending step in the response. |
 | `plan_status` | `{plan?: string}` | Goal, progress count, step list with icons. |
 | `verify_run` | `{command: string, claim?: string, timeout_seconds?: number = 300}` | Execute through the shell, record an executed verification, return the verdict with output tails. If env `MYTHIFY_DISABLE_RUN=1`, refuse with an explanation and record nothing. |
 | `verify_claim` | `{claim: string, evidence: string}` | Record an attested entry, return the `[WARN] ATTESTED` line. |
@@ -1553,7 +1561,7 @@ new files, removed files, and unrelated file rewrites are all caught.
 Representative refusal paths:
 
 - CLI: `step completed` without RESULT, `step completed` blocked by
-  `MYTHIFY_REQUIRE_VERIFIED_STEP=1`, `memory clear` with no target, and
+  strict step evidence, `memory clear` with no target, and
   `verify run` with `MYTHIFY_DISABLE_RUN=1`.
 - MCP: `plan_update_step` without `result`, `memory_clear` with no target, and
   `verify_run` with `MYTHIFY_DISABLE_RUN=1`.
@@ -1871,13 +1879,13 @@ the format contract field by field; stub `claude-cli`, `codex-cli`, and
 `cursor-agent` workers prove argv, prompt delivery, environment guards, and
 auth remediation behavior without network access.
 
-## Verified-step gate (opt-in)
+## Verified-step gate
 
-`MYTHIFY_REQUIRE_VERIFIED_STEP` is unset by default, which preserves the
-existing behavior exactly: a non-empty RESULT string is sufficient to mark a
-step `completed`. When it is set to `1`, marking a step `completed`
-additionally requires evidence of a passing executed verification, so that a
-"completed" step is backed by a real exit code rather than only a prose claim.
+Strict step evidence is enabled by default. Marking a step `completed` requires
+both a non-empty RESULT string and evidence of a passing executed verification,
+so that a "completed" step is backed by a real exit code rather than only a
+prose claim. `MYTHIFY_REQUIRE_VERIFIED_STEP=0` is the legacy opt-out; values
+`0`, `false`, `no`, and `off` disable the gate for compatibility.
 
 The rule, identical in the CLI `step` command and the MCP `plan_update_step`
 tool:
@@ -1900,7 +1908,7 @@ tool:
   which is correct because the format is fixed-width and lexicographically
   ordered.
 - On failure the plan is NOT modified and the command prints
-  `[FAIL] Verified evidence required: MYTHIFY_REQUIRE_VERIFIED_STEP=1 but no passing 'verify run' was recorded since this step started. Run 'verify run' with a passing check first.`
+  `[FAIL] Verified evidence required: strict evidence mode is enabled by default, but no passing 'verify run' was recorded since this step started. Run 'verify run' with a passing check first, or set MYTHIFY_REQUIRE_VERIFIED_STEP=0 to use legacy prose-only completion.`
   The CLI exits 1; the MCP tool returns that text.
 
 This is the honest-evidence upgrade: with the gate on, the autonomy loop's ACT
@@ -1910,13 +1918,13 @@ step (`step ID in_progress`) sets the lower bound, the VERIFY step
 
 ## Versioning
 
-This is Mythify v3.6.1. Fanout was added in 2.1.0; 2.2.0 added local
+This is Mythify v3.6.2. Fanout was added in 2.1.0; 2.2.0 added local
 subscription-backed `codex-cli` and `cursor-agent` engines; 2.3.0 added
 task classification; 2.4.0 added optional fast model triage after
 classification, execution profiles, platform-aware model policy,
 initiating-model awareness, spawn ceiling checks, and additive fanout model and
 effort metadata; 2.5.0 makes the CLI `verify run` honor `MYTHIFY_DISABLE_RUN`
-for parity with the MCP server, and adds the opt-in `MYTHIFY_REQUIRE_VERIFIED_STEP`
+for parity with the MCP server, and adds the `MYTHIFY_REQUIRE_VERIFIED_STEP`
 gate to both the CLI `step` command and the MCP `plan_update_step` tool; 3.0.0
 aligns the model-runtime orchestration surface, local model lane, host CLI
 worker lane, hosted provider fanout guardrails, execution substrate lane, agent
@@ -1933,6 +1941,8 @@ campaigns, and campaign reprompt surfaces; 3.6.0 adds workflow prompt packets
 for research, analysis, failure recovery, handoff, review, campaign, and
 next-prompt routing, plus read-only workflow route surfaces for CLI and MCP
 hosts; 3.6.1 makes the router the default front door in CLI help, docs, skill
-instructions, and MCP descriptions while keeping primitive commands available.
-The CLI prints no version banner; the MCP server reports 3.6.1 through its
+instructions, and MCP descriptions while keeping primitive commands available;
+3.6.2 makes strict step evidence the default and divides non-core surfaces into
+workflow, advanced, and labs tiers backed by the checked surface manifest.
+The CLI prints no version banner; the MCP server reports 3.6.2 through its
 server info.

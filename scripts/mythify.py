@@ -31,7 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
 CLASSIFICATION_RULES_PATH = REPO_ROOT / "protocol" / "classification-rules.json"
 WORKFLOW_ROUTER_PATH = REPO_ROOT / "protocol" / "workflow-router.json"
-PROTOCOL_SOURCE_SHA256 = "d165b5af571f945f96c9f0f088beb57c6a1b34dd669bf618382eb9d2375d4dbb"
+PROTOCOL_SOURCE_SHA256 = "00537ffff2a26e265d61d76c288a5e4f5d426e5c69b745d8a89d1c01fe32736b"
 PROTOCOL_HASH_PREFIX = "<!-- Mythify protocol-sha256: "
 PROTOCOL_COPY_CANDIDATES = ("CLAUDE.md", "AGENTS.md", ".cursorrules")
 NO_WORKSPACE_MESSAGE = (
@@ -41,9 +41,10 @@ EVIDENCE_MESSAGE = (
     "[FAIL] Evidence required: pass a RESULT describing what proves this status."
 )
 VERIFIED_EVIDENCE_MESSAGE = (
-    "[FAIL] Verified evidence required: MYTHIFY_REQUIRE_VERIFIED_STEP=1 but no "
-    "passing 'verify run' was recorded since this step started. Run 'verify run' "
-    "with a passing check first."
+    "[FAIL] Verified evidence required: strict evidence mode is enabled by "
+    "default, but no passing 'verify run' was recorded since this step started. "
+    "Run 'verify run' with a passing check first, or set "
+    "MYTHIFY_REQUIRE_VERIFIED_STEP=0 to use legacy prose-only completion."
 )
 VERIFY_RUN_DISABLED_MESSAGE = (
     "[FAIL] verify run is disabled: MYTHIFY_DISABLE_RUN=1 is set. No command was "
@@ -53,6 +54,7 @@ VERIFY_RUN_DISABLED_MESSAGE = (
 STEP_STATUSES = ("pending", "in_progress", "completed", "failed", "skipped")
 OUTCOME_STATUSES = ("active", "succeeded", "failed", "stopped")
 REPORT_SINCE_MODES = ("last", "start")
+FALSE_ENV_VALUES = ("0", "false", "no", "off")
 REPORT_FORMATS = ("chat", "json")
 DEFAULT_REPORT_RECENT = 8
 DEFAULT_REPORT_ATTENTION = 5
@@ -1386,6 +1388,11 @@ def verification_record_matches_step(record, slug, step_id):
     if not has_bound_context:
         return True
     return record.get("plan") == slug and record.get("step_id") == step_id
+
+
+def strict_step_evidence_enabled():
+    raw = os.environ.get("MYTHIFY_REQUIRE_VERIFIED_STEP", "")
+    return raw.strip().lower() not in FALSE_ENV_VALUES
 
 
 def format_step_line(step, indent="  "):
@@ -8315,9 +8322,7 @@ def cmd_step(args, state):
     ):
         fail(EVIDENCE_MESSAGE)
         return 1
-    if args.status == "completed" and os.environ.get(
-        "MYTHIFY_REQUIRE_VERIFIED_STEP"
-    ) == "1":
+    if args.status == "completed" and strict_step_evidence_enabled():
         lower_bound = step.get("updated_at") or plan.get("created", "")
         records = read_jsonl(state / "verifications.jsonl")
         satisfied = any(
@@ -8963,7 +8968,7 @@ def build_parser():
         prog="mythify.py",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Mythify v3.6.1: evidence protocol for AI coding agents. Route broad "
+            "Mythify v3.6.2: evidence protocol for AI coding agents. Route broad "
             "work first, keep state in .mythify, and verify completion claims "
             "with executed commands."
         ),
@@ -8977,9 +8982,17 @@ def build_parser():
             "Workflow primitives:\n"
             "  plan, outcome, campaign, research, prompt\n"
             "\n"
-            "Advanced/admin surfaces:\n"
+            "Advanced surfaces:\n"
             "  dashboard, history, background, progress, readiness, timeline, phase, trace,\n"
-            "  classify, host-model, memory, lesson, logs, reflect, summary, protocol\n"
+            "  classify, memory, lesson, logs, reflect, summary, protocol, fanout through MCP\n"
+            "\n"
+            "Labs surfaces:\n"
+            "  host-model, provider probes, local model runs, host CLI workers,\n"
+            "  execution probes/runs, lifecycle probes\n"
+            "\n"
+            "Strict evidence mode:\n"
+            "  completed steps require a passing verify run by default\n"
+            "  set MYTHIFY_REQUIRE_VERIFIED_STEP=0 only for legacy prose-only completion\n"
         ),
     )
     parser.set_defaults(needs_state=True)
@@ -10038,11 +10051,14 @@ def build_parser():
 
     p = sub.add_parser(
         "step",
-        help="Update a step's status; completed and failed require RESULT evidence.",
+        help="Update a step's status; completed requires RESULT plus passing verify run.",
         description=(
             "Update step ID to STATUS (pending, in_progress, completed, failed, "
             "skipped). completed and failed require the RESULT argument: evidence "
-            "or a failure description. Prints the next pending step afterward."
+            "or a failure description. By default, completed also requires a "
+            "passing verify run since the step started. Set "
+            "MYTHIFY_REQUIRE_VERIFIED_STEP=0 only for legacy prose-only "
+            "completion. Prints the next pending step afterward."
         ),
     )
     p.add_argument("id", help="Step id (1-based integer).")

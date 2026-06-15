@@ -223,6 +223,16 @@ class TestCliMcpInterop(unittest.TestCase):
         self.assertEqual(plan.returncode, 0, plan.stderr)
         in_progress = self.run_cli("step", "1", "in_progress")
         self.assertEqual(in_progress.returncode, 0, in_progress.stderr)
+        cli_verified = self.run_cli(
+            "verify",
+            "run",
+            shell_py("raise SystemExit(0)"),
+            "--claim",
+            "cli step A verified",
+        )
+        self.assertEqual(cli_verified.returncode, 0, cli_verified.stderr)
+        completed = self.run_cli("step", "1", "completed", "cli step A verified")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
         memory = self.run_cli("memory", "set", "color", "blue")
         self.assertEqual(memory.returncode, 0, memory.stderr)
         lesson = self.run_cli(
@@ -318,17 +328,16 @@ class TestCliMcpInterop(unittest.TestCase):
             )
             self.assertIn("[OK]", added_step)
 
-            completed_step = self.call_tool(
+            started_step = self.call_tool(
                 client,
                 "plan_update_step",
                 {
-                    "step_id": 2,
-                    "status": "completed",
-                    "result": "completed by MCP",
+                    "step_id": 3,
+                    "status": "in_progress",
                     "plan": "interop-goal",
                 },
             )
-            self.assertIn("[OK]", completed_step)
+            self.assertIn("[OK]", started_step)
 
             verified = self.call_tool(
                 client,
@@ -339,6 +348,18 @@ class TestCliMcpInterop(unittest.TestCase):
                 },
             )
             self.assertIn("[OK]", verified)
+
+            completed_step = self.call_tool(
+                client,
+                "plan_update_step",
+                {
+                    "step_id": 3,
+                    "status": "completed",
+                    "result": "completed by MCP after verify_run",
+                    "plan": "interop-goal",
+                },
+            )
+            self.assertIn("[OK]", completed_step)
 
             attested = self.call_tool(
                 client,

@@ -29,9 +29,10 @@ EVIDENCE_MESSAGE = (
     "[FAIL] Evidence required: pass a RESULT describing what proves this status."
 )
 VERIFIED_EVIDENCE_MESSAGE = (
-    "[FAIL] Verified evidence required: MYTHIFY_REQUIRE_VERIFIED_STEP=1 but no "
-    "passing 'verify run' was recorded since this step started. Run 'verify run' "
-    "with a passing check first."
+    "[FAIL] Verified evidence required: strict evidence mode is enabled by "
+    "default, but no passing 'verify run' was recorded since this step started. "
+    "Run 'verify run' with a passing check first, or set "
+    "MYTHIFY_REQUIRE_VERIFIED_STEP=0 to use legacy prose-only completion."
 )
 VERIFY_RUN_DISABLED_MESSAGE = (
     "[FAIL] verify run is disabled: MYTHIFY_DISABLE_RUN=1 is set. No command was "
@@ -57,6 +58,7 @@ class CliTestCase(unittest.TestCase):
     def run_cli(self, *args, cwd=None, env_extra=None):
         env = dict(os.environ)
         env.pop("MYTHIFY_DIR", None)
+        env.pop("MYTHIFY_REQUIRE_VERIFIED_STEP", None)
         env["HOME"] = str(self.home)
         if env_extra:
             env.update(env_extra)
@@ -126,7 +128,9 @@ class TestInit(CliTestCase):
         self.assertIn("Recommended front door:", result.stdout)
         self.assertIn('mythify route "TASK"', result.stdout)
         self.assertIn("Workflow primitives:", result.stdout)
-        self.assertIn("Advanced/admin surfaces:", result.stdout)
+        self.assertIn("Advanced surfaces:", result.stdout)
+        self.assertIn("Labs surfaces:", result.stdout)
+        self.assertIn("Strict evidence mode:", result.stdout)
 
 
 class TestProtocolHandshake(CliTestCase):
@@ -1944,6 +1948,13 @@ class TestStepUpdates(CliTestCase):
 
     def test_completed_with_result_persists_and_prints_next_pending(self):
         state, plan_file = self.make_plan()
+        in_progress = self.run_cli("step", "1", "in_progress")
+        self.assertEqual(in_progress.returncode, 0, in_progress.stderr)
+        verified = self.run_cli(
+            "verify", "run", shell_py("raise SystemExit(0)"),
+            "--claim", "first step verified",
+        )
+        self.assertEqual(verified.returncode, 0, verified.stderr)
         result = self.run_cli("step", "1", "completed", "all tests passed")
         self.assertEqual(result.returncode, 0, result.stderr)
         plan = self.read_json(plan_file)
@@ -1955,26 +1966,44 @@ class TestStepUpdates(CliTestCase):
 
     def test_no_pending_steps_message_after_last_completion(self):
         self.make_plan()
+        self.assertEqual(self.run_cli("step", "1", "in_progress").returncode, 0)
+        self.assertEqual(
+            self.run_cli(
+                "verify", "run", shell_py("raise SystemExit(0)"),
+                "--claim", "step one verified",
+            ).returncode,
+            0,
+        )
         self.run_cli("step", "1", "completed", "done one")
+        self.assertEqual(self.run_cli("step", "2", "in_progress").returncode, 0)
+        self.assertEqual(
+            self.run_cli(
+                "verify", "run", shell_py("raise SystemExit(0)"),
+                "--claim", "step two verified",
+            ).returncode,
+            0,
+        )
         result = self.run_cli("step", "2", "completed", "done two")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("No pending steps remain.", result.stdout)
 
-    def test_gate_unset_plain_result_still_completes(self):
-        # Backward compatibility: with the gate unset, a non-empty RESULT alone
-        # marks the step completed, exactly as before.
+    def test_gate_opt_out_plain_result_still_completes(self):
+        # Legacy compatibility: with the gate explicitly disabled, a non-empty
+        # RESULT alone marks the step completed, exactly as before.
         state, plan_file = self.make_plan()
-        result = self.run_cli("step", "1", "completed", "all tests passed")
+        result = self.run_cli(
+            "step", "1", "completed", "all tests passed",
+            env_extra={"MYTHIFY_REQUIRE_VERIFIED_STEP": "0"},
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
         plan = self.read_json(plan_file)
         self.assertEqual(plan["steps"][0]["status"], "completed")
 
-    def test_gate_on_without_verification_refused_and_plan_unmodified(self):
+    def test_default_gate_without_verification_refused_and_plan_unmodified(self):
         state, plan_file = self.make_plan()
         before = plan_file.read_text(encoding="utf-8")
         result = self.run_cli(
             "step", "1", "completed", "I promise it works",
-            env_extra={"MYTHIFY_REQUIRE_VERIFIED_STEP": "1"},
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn(VERIFIED_EVIDENCE_MESSAGE, result.stderr)
@@ -1996,7 +2025,6 @@ class TestStepUpdates(CliTestCase):
         # COMPLETE: the gate is satisfied, so completion advances.
         result = self.run_cli(
             "step", "1", "completed", "verified green",
-            env_extra={"MYTHIFY_REQUIRE_VERIFIED_STEP": "1"},
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         plan = self.read_json(plan_file)
@@ -2020,7 +2048,6 @@ class TestStepUpdates(CliTestCase):
 
         result = self.run_cli(
             "step", "2", "completed", "step two should not borrow step one evidence",
-            env_extra={"MYTHIFY_REQUIRE_VERIFIED_STEP": "1"},
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn(VERIFIED_EVIDENCE_MESSAGE, result.stderr)
@@ -2040,7 +2067,6 @@ class TestStepUpdates(CliTestCase):
         before = plan_file.read_text(encoding="utf-8")
         result = self.run_cli(
             "step", "1", "completed", "claims green",
-            env_extra={"MYTHIFY_REQUIRE_VERIFIED_STEP": "1"},
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn(VERIFIED_EVIDENCE_MESSAGE, result.stderr)
@@ -2048,12 +2074,9 @@ class TestStepUpdates(CliTestCase):
 
     def test_gate_on_does_not_block_failed_status(self):
         # The gate applies only to completed. Recording a failure is always
-        # allowed, even with the gate on and no passing verification.
+        # allowed, even with strict mode on and no passing verification.
         state, plan_file = self.make_plan()
-        result = self.run_cli(
-            "step", "1", "failed", "ran out of time",
-            env_extra={"MYTHIFY_REQUIRE_VERIFIED_STEP": "1"},
-        )
+        result = self.run_cli("step", "1", "failed", "ran out of time")
         self.assertEqual(result.returncode, 0, result.stderr)
         plan = self.read_json(plan_file)
         self.assertEqual(plan["steps"][0]["status"], "failed")
@@ -2561,6 +2584,8 @@ class TestStatusAndSummary(CliTestCase):
             {"title": "Raise walls", "success_criteria": "walls up"},
         ])
         self.run_cli("plan", "create", "Build house", "--steps", steps)
+        self.run_cli("step", "1", "in_progress")
+        self.run_cli("verify", "run", shell_py("raise SystemExit(0)"), "--claim", "slab inspected")
         self.run_cli("step", "1", "completed", "slab inspected")
         self.run_cli("memory", "set", "site", "lot 7")
         self.run_cli("lesson", "add", "Order early", "Lumber lead times are long")
@@ -2586,7 +2611,7 @@ class TestStatusAndSummary(CliTestCase):
         self.assertIn("Next pending: 2. Raise walls (criteria: walls up)", result.stdout)
         self.assertIn(
             "Counts: memory 1, lessons 1 project + 0 global, "
-            "verifications 3, reflections 1",
+            "verifications 4, reflections 1",
             result.stdout,
         )
 
@@ -2599,7 +2624,7 @@ class TestStatusAndSummary(CliTestCase):
         self.assertIn("Memory entries: 1", result.stdout)
         self.assertIn("Lessons: 1 project, 0 global", result.stdout)
         self.assertIn(
-            "Verifications: 2 executed (1 passed, 1 failed), 1 attested",
+            "Verifications: 3 executed (2 passed, 1 failed), 1 attested",
             result.stdout,
         )
         self.assertIn("Reflections: 1", result.stdout)
@@ -2611,7 +2636,7 @@ class TestStatusAndSummary(CliTestCase):
         self.assertIn("[OK] Workflow dashboard", result.stdout)
         self.assertIn("Active plan: build-house (1/2 completed)", result.stdout)
         self.assertIn("Next pending: 2. Raise walls (criteria: walls up)", result.stdout)
-        self.assertIn("Evidence: 2 executed (1 passed, 1 failed), 1 attested", result.stdout)
+        self.assertIn("Evidence: 3 executed (2 passed, 1 failed), 1 attested", result.stdout)
         self.assertIn("Recent verification:", result.stdout)
         self.assertIn("Recent reflection:", result.stdout)
 
@@ -2619,7 +2644,7 @@ class TestStatusAndSummary(CliTestCase):
         self.assertEqual(json_result.returncode, 0, json_result.stderr)
         payload = json.loads(json_result.stdout)
         self.assertEqual(payload["active_plan"]["slug"], "build-house")
-        self.assertEqual(payload["verification_summary"]["executed_passed"], 1)
+        self.assertEqual(payload["verification_summary"]["executed_passed"], 2)
         self.assertEqual(len(payload["verification_summary"]["recent"]), 1)
         self.assertEqual(payload["reflection_summary"]["recent"][0]["next"], "frame walls")
 
@@ -2631,7 +2656,7 @@ class TestStatusAndSummary(CliTestCase):
         result = self.run_cli("history", "--recent", "3")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("[OK] Verification history", result.stdout)
-        self.assertIn("Evidence: 2 executed (1 passed, 1 failed), 1 attested, 3 total", result.stdout)
+        self.assertIn("Evidence: 3 executed (2 passed, 1 failed), 1 attested, 4 total", result.stdout)
         self.assertIn("attested: permits filed", result.stdout)
         self.assertIn("failed:", result.stdout)
         self.assertIn("passed:", result.stdout)
@@ -2641,7 +2666,7 @@ class TestStatusAndSummary(CliTestCase):
         json_result = self.run_cli("history", "--json", "--recent", "3")
         self.assertEqual(json_result.returncode, 0, json_result.stderr)
         payload = json.loads(json_result.stdout)
-        self.assertEqual(payload["counts"]["executed_passed"], 1)
+        self.assertEqual(payload["counts"]["executed_passed"], 2)
         self.assertEqual(payload["counts"]["executed_failed"], 1)
         self.assertEqual(payload["counts"]["attested"], 1)
         self.assertEqual([row["verdict"] for row in payload["records"]], ["attested", "failed", "passed"])
@@ -2965,6 +2990,13 @@ class TestStatusAndSummary(CliTestCase):
         ])
         created = self.run_cli("plan", "create", "Ship phase view", "--steps", steps)
         self.assertEqual(created.returncode, 0, created.stderr)
+        in_progress_first = self.run_cli("step", "1", "in_progress")
+        self.assertEqual(in_progress_first.returncode, 0, in_progress_first.stderr)
+        verified_first = self.run_cli(
+            "verify", "run", shell_py("raise SystemExit(0)"),
+            "--claim", "phase inputs mapped",
+        )
+        self.assertEqual(verified_first.returncode, 0, verified_first.stderr)
         completed = self.run_cli("step", "1", "completed", "inputs mapped")
         self.assertEqual(completed.returncode, 0, completed.stderr)
         in_progress = self.run_cli("step", "2", "in_progress")
@@ -3004,7 +3036,7 @@ class TestStatusAndSummary(CliTestCase):
         self.assertEqual(phases["understand"]["status"], "completed")
         self.assertEqual(phases["design"]["status"], "in_progress")
         self.assertEqual(phases["verify"]["step_counts"]["pending"], 1)
-        self.assertEqual(payload["counts"]["verifications"], 1)
+        self.assertEqual(payload["counts"]["verifications"], 2)
 
 
 class TestCorruptRecovery(CliTestCase):

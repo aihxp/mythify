@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.2] - 2026-06-15
+
+### Changed
+
+- Strict step evidence is now the default for CLI `step completed` and MCP
+  `plan_update_step`: a completed step requires both a RESULT and a passing
+  executed `verify run` since the step started. Set
+  `MYTHIFY_REQUIRE_VERIFIED_STEP=0` for legacy prose-only completion.
+- Public guidance now separates the surface into core front door, workflow
+  primitives, advanced surfaces, and labs surfaces so host/runtime experiments
+  are not presented as the default Mythify path.
+- Surface tier membership now lives in the checked surface manifest, so the
+  reduced front door and labs demotion cannot drift from runtime/package
+  metadata.
+
 ## [3.6.1] - 2026-06-15
 
 ### Changed
@@ -576,7 +591,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.1...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.2...HEAD
+[3.6.2]: https://github.com/aihxp/mythify/compare/v3.6.1...v3.6.2
 [3.6.1]: https://github.com/aihxp/mythify/compare/v3.6.0...v3.6.1
 [3.6.0]: https://github.com/aihxp/mythify/compare/v3.5.0...v3.6.0
 [3.5.0]: https://github.com/aihxp/mythify/compare/v3.4.0...v3.5.0

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Mythify MCP server v3.6.1
+// Mythify MCP server v3.6.2
 // Exposes the Mythify state model (memory, plans, lessons, verifications,
 // reflections) as 37 core MCP tools over stdio, plus the 3 fanout tools for
 // parallel delegation (src/fanout.js), 40 tools in total. On-disk formats are
@@ -53,12 +53,13 @@ import {
   MEMORY_DEFAULT_CATEGORY,
 } from "./operation-registry.js";
 
-const VERSION = "3.6.1";
+const VERSION = "3.6.2";
 const CLASSIFICATION_RULES_PATH = new URL("../protocol/classification-rules.json", import.meta.url);
 const WORKFLOW_ROUTER_PATH = new URL("../protocol/workflow-router.json", import.meta.url);
 const TAIL_CHARS = 4000;
 const STEP_STATUSES = ["pending", "in_progress", "completed", "failed", "skipped"];
 const OUTCOME_STATUSES = ["active", "succeeded", "failed", "stopped"];
+const FALSE_ENV_VALUES = new Set(["0", "false", "no", "off"]);
 const CAMPAIGN_PHASES = ["understand", "design", "build", "judge", "verify", "reflect"];
 const CAMPAIGN_PHASE_GUIDANCE = {
   understand: "Read context, restate the task, and identify constraints.",
@@ -1852,6 +1853,11 @@ function verificationRecordMatchesStep(record, slug, stepId) {
     return true;
   }
   return record.plan === slug && record.step_id === stepId;
+}
+
+function strictStepEvidenceEnabled() {
+  const raw = String(process.env.MYTHIFY_REQUIRE_VERIFIED_STEP || "").trim().toLowerCase();
+  return !FALSE_ENV_VALUES.has(raw);
 }
 
 function savePlan(slug, plan) {
@@ -8424,6 +8430,7 @@ server.registerTool(
     description:
       "Set a step's status (pending, in_progress, completed, failed, skipped) on the named or active plan. " +
       "Marking a step completed or failed REQUIRES a result describing the evidence; without it the plan is left unmodified. " +
+      "By default, completed also requires a passing verify_run since the step started; set MYTHIFY_REQUIRE_VERIFIED_STEP=0 only for legacy prose-only completion. " +
       "Use this as you start, finish, fail, or skip each step of the active plan.",
     inputSchema: {
       step_id: z.number().int().describe("The 1-based id of the step to update."),
@@ -8455,7 +8462,7 @@ server.registerTool(
     if (!step) {
       return `[FAIL] No step with id ${step_id} in plan "${slug}".`;
     }
-    if (status === "completed" && process.env.MYTHIFY_REQUIRE_VERIFIED_STEP === "1") {
+    if (status === "completed" && strictStepEvidenceEnabled()) {
       const lowerBound =
         typeof step.updated_at === "string" && step.updated_at !== ""
           ? step.updated_at
@@ -8472,8 +8479,9 @@ server.registerTool(
       );
       if (!hasPassingRun) {
         return (
-          "[FAIL] Verified evidence required: MYTHIFY_REQUIRE_VERIFIED_STEP=1 but no passing 'verify run' " +
-          "was recorded since this step started. Run 'verify run' with a passing check first."
+          "[FAIL] Verified evidence required: strict evidence mode is enabled by default, but no passing 'verify run' " +
+          "was recorded since this step started. Run 'verify run' with a passing check first, or set " +
+          "MYTHIFY_REQUIRE_VERIFIED_STEP=0 to use legacy prose-only completion."
         );
       }
     }

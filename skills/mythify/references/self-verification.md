@@ -53,9 +53,12 @@ looks correct" is an attestation, not a verification.
 ## The evidence rule for steps
 
 Marking a plan step `completed` or `failed` requires a RESULT argument
-describing the proof. Pair it with verification: run `verify run` first, then
-cite it in the RESULT. A step closed without a passing execution behind it is
-a claim, not a fact.
+describing the proof. Marking a step `completed` also requires a passing
+executed `verify run` by default. Pair completion with verification: run
+`verify run` first, then cite it in the RESULT. A step closed without a passing
+execution behind it is a claim, not a fact. Set
+`MYTHIFY_REQUIRE_VERIFIED_STEP=0` only for explicit legacy prose-only
+completion.
 
 ## Examples
 

@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { MEMORY_CLEAR_MCP_REFUSAL } from "../src/operation-registry.js";
-import { MCP_TOOL_COUNT, MCP_TOOL_NAMES } from "../src/surface-manifest.js";
+import { CLI_TIERS, MCP_TIERS, MCP_TOOL_COUNT, MCP_TOOL_NAMES } from "../src/surface-manifest.js";
 
 const SERVER_PATH = fileURLToPath(new URL("../src/index.js", import.meta.url));
 const CLASSIFICATION_RULES = JSON.parse(
@@ -109,6 +109,7 @@ test("mythify MCP server smoke test", async (t) => {
       HOME: homeDir,
       MYTHIFY_TRIAGE_ENGINE: "command",
       MYTHIFY_TRIAGE_COMMAND: `${process.execPath} ${triageStub}`,
+      MYTHIFY_REQUIRE_VERIFIED_STEP: "",
       MYTHIFY_ROLE_READER_PROVIDER: "host",
       MYTHIFY_ROLE_REVIEWER_PROVIDER: "surprise-cloud",
     },
@@ -126,6 +127,14 @@ test("mythify MCP server smoke test", async (t) => {
       assert.match(toolMap.get("workflow_route").description, /recommended first tool/);
       assert.match(toolMap.get("plan_create").description, /workflow_route first/);
       assert.match(toolMap.get("fanout_start").description, /workflow_route first/);
+      assert.deepEqual(CLI_TIERS.front_door, ["route", "report", "verify", "status"]);
+      assert.deepEqual(MCP_TIERS.front_door, [
+        "workflow_route",
+        "work_report",
+        "verify_run",
+        "workflow_status",
+      ]);
+      assert.ok(MCP_TIERS.labs.includes("host_model_switch"));
     });
 
     await t.test("packaged manifests mirror the root manifests", () => {
@@ -597,6 +606,35 @@ test("mythify MCP server smoke test", async (t) => {
         "refused update leaves the step pending"
       );
 
+      const strictRefused = textOf(
+        await client.callTool({
+          name: "plan_update_step",
+          arguments: {
+            step_id: 1,
+            status: "completed",
+            result: "command exited 0 as required",
+          },
+        })
+      );
+      assert.ok(strictRefused.startsWith("[FAIL]"), `strict completion refuses: ${strictRefused}`);
+      assert.match(strictRefused, /Verified evidence required/);
+
+      const inProgress = textOf(
+        await client.callTool({
+          name: "plan_update_step",
+          arguments: { step_id: 1, status: "in_progress" },
+        })
+      );
+      assert.ok(inProgress.startsWith("[OK]"), `in_progress succeeds: ${inProgress}`);
+
+      const verified = textOf(
+        await client.callTool({
+          name: "verify_run",
+          arguments: { command: 'node -e "process.exit(0)"', claim: "smoke step verified" },
+        })
+      );
+      assert.ok(verified.startsWith("[OK]"), `verify_run succeeds: ${verified}`);
+
       const accepted = textOf(
         await client.callTool({
           name: "plan_update_step",
@@ -688,7 +726,7 @@ test("mythify MCP server smoke test", async (t) => {
         })
       );
       assert.ok(text.startsWith("[OK] Verification history"), `verification_history reports [OK]: ${text}`);
-      assert.match(text, /Evidence: 2 executed \(1 passed, 1 failed\), 0 attested, 2 total/);
+      assert.match(text, /Evidence: 3 executed \(2 passed, 1 failed\), 0 attested, 3 total/);
       assert.match(text, /passed: node can exit zero/);
       assert.match(text, /failed: node -e "process.exit\(3\)"/);
       assert.deepEqual(snapshotStateDir(stateDir), before, "verification_history leaves state unchanged");
@@ -700,7 +738,7 @@ test("mythify MCP server smoke test", async (t) => {
         })
       );
       const parsed = JSON.parse(jsonText.replace(/^\[OK\] /, ""));
-      assert.equal(parsed.counts.executed_passed, 1);
+      assert.equal(parsed.counts.executed_passed, 2);
       assert.equal(parsed.counts.executed_failed, 1);
       assert.deepEqual(
         parsed.records.map((record) => record.verdict),
@@ -1336,7 +1374,7 @@ test("mythify MCP server smoke test", async (t) => {
   }
 });
 
-test("MYTHIFY_REQUIRE_VERIFIED_STEP gate on plan_update_step", async (t) => {
+test("strict evidence gate on plan_update_step", async (t) => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-gate-state-"));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-gate-home-"));
 
@@ -1347,7 +1385,7 @@ test("MYTHIFY_REQUIRE_VERIFIED_STEP gate on plan_update_step", async (t) => {
       ...process.env,
       MYTHIFY_DIR: stateDir,
       HOME: homeDir,
-      MYTHIFY_REQUIRE_VERIFIED_STEP: "1",
+      MYTHIFY_REQUIRE_VERIFIED_STEP: "",
     },
   });
   const client = new Client({ name: "mythify-gate-test", version: "2.5.0" });
@@ -1395,7 +1433,7 @@ test("MYTHIFY_REQUIRE_VERIFIED_STEP gate on plan_update_step", async (t) => {
       assert.match(refused, /Verified evidence required/, "refusal explains the verified-step gate");
       assert.match(
         refused,
-        /MYTHIFY_REQUIRE_VERIFIED_STEP=1 but no passing 'verify run' was recorded/,
+        /strict evidence mode is enabled by default, but no passing 'verify run' was recorded/,
         "refusal uses the exact spec text"
       );
 
@@ -1498,6 +1536,58 @@ test("MYTHIFY_REQUIRE_VERIFIED_STEP gate on plan_update_step", async (t) => {
       );
       assert.equal(planAfterRefusal.steps[1].status, "pending");
     });
+  } finally {
+    await client.close();
+    fs.rmSync(stateDir, { recursive: true, force: true });
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  }
+});
+
+test("MYTHIFY_REQUIRE_VERIFIED_STEP=0 allows legacy prose completion", async () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-legacy-gate-state-"));
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-legacy-gate-home-"));
+
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [SERVER_PATH],
+    env: {
+      ...process.env,
+      MYTHIFY_DIR: stateDir,
+      HOME: homeDir,
+      MYTHIFY_REQUIRE_VERIFIED_STEP: "0",
+    },
+  });
+  const client = new Client({ name: "mythify-legacy-gate-test", version: "3.6.2" });
+  await client.connect(transport);
+
+  try {
+    const created = textOf(
+      await client.callTool({
+        name: "plan_create",
+        arguments: {
+          goal: "Legacy gate goal",
+          steps: [{ title: "Legacy step", success_criteria: "prose result accepted" }],
+        },
+      })
+    );
+    assert.ok(created.startsWith("[OK]"), `plan_create reports [OK]: ${created}`);
+
+    const accepted = textOf(
+      await client.callTool({
+        name: "plan_update_step",
+        arguments: {
+          step_id: 1,
+          status: "completed",
+          result: "legacy prose-only completion",
+        },
+      })
+    );
+    assert.ok(accepted.startsWith("[OK]"), `legacy completion succeeds: ${accepted}`);
+
+    const plan = JSON.parse(
+      fs.readFileSync(path.join(stateDir, "plans", "legacy-gate-goal.json"), "utf8")
+    );
+    assert.equal(plan.steps[0].status, "completed");
   } finally {
     await client.close();
     fs.rmSync(stateDir, { recursive: true, force: true });
