@@ -45,10 +45,12 @@ Match protocol overhead to task size. Trivial work pays zero protocol tax.
 Cycle PLAN, ACT, VERIFY, REFLECT, then CORRECT or ADVANCE, until the goal is met.
 
 1. PLAN. Decompose the goal into steps, each with a success criterion.
-   First classify non-trivial work:
-   `python3 scripts/mythify.py classify "Ship feature X"`
-   When the next workflow shape is unclear, route it from durable state:
+   For broad, ambiguous, multi-step, review, research, one-shot, in-one-go,
+   recovery, or continuation prompts, route first from durable state:
    `python3 scripts/mythify.py route "Ship feature X"`
+   Use direct `classify` only when you need classification or model policy
+   without workflow routing:
+   `python3 scripts/mythify.py classify "Ship feature X"`
    Use `--triage auto` only when `model_triage` recommends or requires it.
    `model_policy` separates host session settings from spawned workers; pass
    `--session-model MODEL` when known, use `host-model switch MODEL` to persist

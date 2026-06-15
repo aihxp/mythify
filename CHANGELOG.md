@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.1] - 2026-06-15
+
+### Changed
+
+- CLI help, docs, protocol guidance, and skill instructions now present
+  `route`, `report`, `verify run`, and `status` as the default front door while
+  keeping workflow primitives and advanced/admin commands available.
+- MCP tool descriptions now steer broad or ambiguous prompts to
+  `workflow_route` before lower-level primitives such as plans, outcome loops,
+  prompt packets, campaign prompts, or fanout jobs.
+
 ## [3.6.0] - 2026-06-15
 
 ### Added
@@ -565,7 +576,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.0...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.1...HEAD
+[3.6.1]: https://github.com/aihxp/mythify/compare/v3.6.0...v3.6.1
 [3.6.0]: https://github.com/aihxp/mythify/compare/v3.5.0...v3.6.0
 [3.5.0]: https://github.com/aihxp/mythify/compare/v3.4.0...v3.5.0
 [3.4.0]: https://github.com/aihxp/mythify/compare/v3.3.0...v3.4.0

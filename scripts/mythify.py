@@ -31,7 +31,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
 CLASSIFICATION_RULES_PATH = REPO_ROOT / "protocol" / "classification-rules.json"
 WORKFLOW_ROUTER_PATH = REPO_ROOT / "protocol" / "workflow-router.json"
-PROTOCOL_SOURCE_SHA256 = "caa618c6d750744bb934ff0b6cf59244aaa555febed3a1929a87b1b86980b4f3"
+PROTOCOL_SOURCE_SHA256 = "d165b5af571f945f96c9f0f088beb57c6a1b34dd669bf618382eb9d2375d4dbb"
 PROTOCOL_HASH_PREFIX = "<!-- Mythify protocol-sha256: "
 PROTOCOL_COPY_CANDIDATES = ("CLAUDE.md", "AGENTS.md", ".cursorrules")
 NO_WORKSPACE_MESSAGE = (
@@ -8961,10 +8961,25 @@ def cmd_summary(args, state):
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="mythify.py",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Mythify v2: plans with verified steps, executed verification, "
-            "persistent memory, lessons, and structured reflections. State lives "
-            "in the nearest .mythify directory or in MYTHIFY_DIR."
+            "Mythify v3.6.1: evidence protocol for AI coding agents. Route broad "
+            "work first, keep state in .mythify, and verify completion claims "
+            "with executed commands."
+        ),
+        epilog=(
+            "Recommended front door:\n"
+            "  mythify route \"TASK\"        choose direct, plan, research, review, outcome, campaign, failure, handoff, or prompt routing\n"
+            "  mythify report ...          show chat-ready progress and issue reports\n"
+            "  mythify verify run ...      record executed proof before a completion claim\n"
+            "  mythify status              reorient from durable state\n"
+            "\n"
+            "Workflow primitives:\n"
+            "  plan, outcome, campaign, research, prompt\n"
+            "\n"
+            "Advanced/admin surfaces:\n"
+            "  dashboard, history, background, progress, readiness, timeline, phase, trace,\n"
+            "  classify, host-model, memory, lesson, logs, reflect, summary, protocol\n"
         ),
     )
     parser.set_defaults(needs_state=True)

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Mythify MCP server v3.6.0
+// Mythify MCP server v3.6.1
 // Exposes the Mythify state model (memory, plans, lessons, verifications,
 // reflections) as 37 core MCP tools over stdio, plus the 3 fanout tools for
 // parallel delegation (src/fanout.js), 40 tools in total. On-disk formats are
@@ -53,7 +53,7 @@ import {
   MEMORY_DEFAULT_CATEGORY,
 } from "./operation-registry.js";
 
-const VERSION = "3.6.0";
+const VERSION = "3.6.1";
 const CLASSIFICATION_RULES_PATH = new URL("../protocol/classification-rules.json", import.meta.url);
 const WORKFLOW_ROUTER_PATH = new URL("../protocol/workflow-router.json", import.meta.url);
 const TAIL_CHARS = 4000;
@@ -7141,6 +7141,11 @@ function guarded(handler) {
 
 const server = new McpServer({ name: "mythify-mcp", version: VERSION });
 
+const MCP_FRONT_DOOR_NOTE =
+  " For broad or ambiguous user prompts, call workflow_route first; use this tool directly only after workflow_route selects this workflow or the user explicitly asks for this primitive.";
+const MCP_WORKFLOW_ROUTE_NOTE =
+  " This is the recommended first tool for broad, ambiguous, multi-step, review, research, one-shot, in-one-go, or recovery prompts.";
+
 // ---------------------------------------------------------------------------
 // Classification tool
 // ---------------------------------------------------------------------------
@@ -7150,8 +7155,8 @@ server.registerTool(
   {
     title: "Classify a task before planning",
     description:
-      "Classify a user request before planning or acting. Returns task type, risk, recommended Mythify ceremony level, execution profile, verification strategy, and whether fanout is useful. " +
-      "Use this at the start of non-trivial work so the agent can choose the right amount of planning, verification, reflection, memory, and delegation.",
+      "Classify a user request when you only need task type, risk, recommended Mythify ceremony level, execution profile, verification strategy, or fanout fit. " +
+      "For broad or ambiguous user prompts, call workflow_route first so Mythify can choose the full workflow path before this lower-level classification primitive is used.",
     inputSchema: {
       task: z.string().describe("The user request or problem statement to classify."),
       format: z
@@ -7971,7 +7976,8 @@ server.registerTool(
     title: "Render campaign next prompt",
     description:
       "Render a chat-ready next prompt for the active or named campaign's current task and phase. " +
-      "Use this when a host wants Mythify campaign guidance inside the chat without mutating state, running checks, or treating prompt material as verification evidence.",
+      "Use this when a host wants Mythify campaign guidance inside the chat without mutating state, running checks, or treating prompt material as verification evidence." +
+      MCP_FRONT_DOOR_NOTE,
     inputSchema: {
       name: z.string().optional().describe("Campaign name. Defaults to the active campaign."),
       format: z.enum(["text", "json"]).optional().describe("Return text or JSON. Defaults to text."),
@@ -7996,7 +8002,8 @@ server.registerTool(
     title: "Render workflow prompt packet",
     description:
       "Render a chat-ready prompt packet for research, analysis, failure recovery, handoff, review, campaign, or the next useful workflow move. " +
-      "Use this when a host wants Mythify guidance inside the chat without mutating state, running checks, or treating prompt material as verification evidence.",
+      "Use this when a host wants Mythify guidance inside the chat without mutating state, running checks, or treating prompt material as verification evidence." +
+      MCP_FRONT_DOOR_NOTE,
     inputSchema: {
       kind: z
         .enum(PROMPT_PACKET_KINDS)
@@ -8030,7 +8037,8 @@ server.registerTool(
     title: "Choose workflow route",
     description:
       "Read-only workflow quarterback. Classify a prompt, inspect durable Mythify state, and choose direct, plan, research, review, outcome, campaign, failure recovery, handoff, or prompt packet routing. " +
-      "Use this when the host wants Mythify to steer the next chat-native workflow move without mutating state or treating route output as verification evidence.",
+      "Use this when the host wants Mythify to steer the next chat-native workflow move without mutating state or treating route output as verification evidence." +
+      MCP_WORKFLOW_ROUTE_NOTE,
     inputSchema: {
       task: z.string().describe("The user request or problem statement to route."),
       format: z.enum(["text", "json"]).optional().describe("Return text or JSON. Defaults to text."),
@@ -8321,7 +8329,8 @@ server.registerTool(
     title: "Create a plan",
     description:
       "Create a new plan with a goal and optional initial steps, and set it as the active plan. " +
-      "Use this at the start of any multi-step task so progress is tracked outside the context window; trivial single-edit tasks do not need a plan.",
+      "Use this at the start of any multi-step task so progress is tracked outside the context window; trivial single-edit tasks do not need a plan." +
+      MCP_FRONT_DOOR_NOTE,
     inputSchema: {
       goal: z.string().describe("What the plan accomplishes; shown in plan_status."),
       name: z.string().optional().describe("Optional plan name; slugified for the filename. Defaults to a slug of the goal."),
@@ -8532,7 +8541,8 @@ server.registerTool(
     title: "Start an outcome loop",
     description:
       "Start a supervised outcome loop: define the desired outcome, the success criteria, the verifier command, and the iteration budget. " +
-      "The host agent performs bounded attempts between outcome_check calls; Mythify records evidence and decides whether to retry, stop, or report success.",
+      "The host agent performs bounded attempts between outcome_check calls; Mythify records evidence and decides whether to retry, stop, or report success." +
+      MCP_FRONT_DOOR_NOTE,
     inputSchema: {
       goal: z.string().describe("Outcome goal."),
       success: z.string().describe("Human-readable success criteria."),

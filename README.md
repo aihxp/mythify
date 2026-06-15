@@ -10,7 +10,7 @@ when the work needs it, persist state outside the chat, verify claims with real
 commands, and leave an audit trail of what passed, what failed, and what remains.
 
 The shortest path is in [docs/start-here.md](docs/start-here.md). Start there if
-you want to use Mythify before learning the full command surface.
+you want to use Mythify before learning the full primitive surface.
 
 ## Start Here
 
@@ -19,7 +19,7 @@ From a local clone, install user-local launchers and initialize a project:
 ```bash
 ./scripts/install_user.sh --project /path/to/your/project
 cd /path/to/your/project
-mythify classify "Fix the failing parser test"
+mythify route "Fix the failing parser test"
 mythify plan create "Fix the failing parser test" --steps '[{"title":"Reproduce and fix","success_criteria":"parser tests pass"}]'
 mythify report --cursor chat --mark
 mythify step 1 in_progress
@@ -43,6 +43,24 @@ section, and advances a cursor so the next report only shows fresh work. Use
 without replaying old project history. Do not combine `--mark` with `--since`:
 mark first, then use `--since last` for later updates. The rest of the CLI and
 MCP surface exists for larger workflows.
+
+## Recommended Surface
+
+Most users and chat hosts should enter through the small front door:
+
+| Need | CLI | MCP |
+| :--- | :--- | :--- |
+| Decide what to do next | `mythify route "TASK"` | `workflow_route` |
+| Show progress and issues | `mythify report --since last --cursor chat --format chat` | `work_report` |
+| Prove a claim | `mythify verify run "COMMAND" --claim "CLAIM"` | `verify_run` |
+| Reorient | `mythify status` | `workflow_status` |
+
+The deeper commands stay available for automation and explicit workflows:
+
+- Workflow primitives: `plan`, `outcome`, `campaign`, `research`, and `prompt`.
+- Advanced/admin surfaces: dashboards, history, background, readiness,
+  timeline, phase, trace, host-model, memory, lessons, logs, fanout, probes,
+  lifecycle, reflection, and protocol checks.
 
 The patterns are distilled from the research in
 [docs/research-report.md](docs/research-report.md), which carries its own
@@ -284,6 +302,11 @@ maintenance, not verification evidence.
 
 ## CLI command reference
 
+This table documents the full CLI primitive surface. The default user-facing
+path is `route`, `report`, `verify run`, and `status`; use the remaining
+commands after the router selects a workflow or when automation explicitly needs
+that primitive.
+
 | Command | Behavior | Exit code |
 | :--- | :--- | :--- |
 | `init` | Create `./.mythify` with subdirectories and empty memory.json. If already inside a workspace, print `[WARN]` and exit 0. | 0 |
@@ -346,6 +369,10 @@ maintenance, not verification evidence.
 | `summary` | Full session report: plans and progress, memory count, project and global lesson counts, verification stats (executed passed, executed failed, attested count), reflection count. | 0 |
 
 ## MCP tool reference
+
+For broad, ambiguous, multi-step, review, research, one-shot, in-one-go, or
+recovery prompts, MCP hosts should call `workflow_route` first. The remaining
+tools are primitives the route can point to, or explicit tools for automation.
 
 | Tool | Input schema | Behavior |
 | :--- | :--- | :--- |

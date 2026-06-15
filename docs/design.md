@@ -297,6 +297,33 @@ Rules:
 - Route output is material for the initiating host chat. It keeps the host as
   executor unless the user explicitly hands work elsewhere.
 
+## Experience surface tiers
+
+The router lets Mythify reduce the surface users have to think about without
+removing compatibility for scripts, MCP hosts, or power users.
+
+Default front door:
+
+- CLI `route`, `report`, `verify run`, and `status`.
+- MCP `workflow_route`, `work_report`, `verify_run`, and `workflow_status`.
+
+Workflow primitives:
+
+- `plan`, `outcome`, `campaign`, `research`, and `prompt` in the CLI.
+- `plan_create`, `plan_add_step`, `plan_update_step`, `outcome_start`,
+  `outcome_check`, `campaign_next_prompt`, and `prompt_packet` in MCP.
+
+Advanced/admin surfaces:
+
+- Dashboards, history, background, readiness, timeline, phase, trace,
+  host-model state, memory, lessons, logs, fanout, probes, lifecycle adapters,
+  reflections, summaries, and protocol checks.
+
+Public help, docs, skills, and MCP tool descriptions should present the default
+front door first. Primitive commands stay available, but broad or ambiguous
+prompts should route through `route` or `workflow_route` before selecting a
+lower-level tool.
+
 ## Background task view
 
 The background task view is a read-only orientation surface for durable long
@@ -795,7 +822,7 @@ Implementation notes:
 ## MCP server: mcp-server/
 
 Node 18+, ESM (`"type": "module"`). Dependencies: `@modelcontextprotocol/sdk`
-(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.0`,
+(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.1`,
 scripts `{"start": "node src/index.js", "test": "node --test test/*.test.js"}`
 (the glob form, because modern Node treats a bare directory argument to --test as
 a literal file and fails), engines node >= 18. Use the registration API that the
@@ -1140,6 +1167,9 @@ without performing it:
 
 - `route TASK [--json]`
 - MCP clients use `workflow_route` with the same contract.
+- For broad or ambiguous prompts, chat hosts should call this before lower-level
+  primitives such as `classify`, `plan`, `outcome`, `campaign`, `prompt`, or
+  fanout.
 
 The router combines deterministic classification, the active durable state, the
 latest executed verification, and `protocol/workflow-router.json`. It returns a
@@ -1880,7 +1910,7 @@ step (`step ID in_progress`) sets the lower bound, the VERIFY step
 
 ## Versioning
 
-This is Mythify v3.6.0. Fanout was added in 2.1.0; 2.2.0 added local
+This is Mythify v3.6.1. Fanout was added in 2.1.0; 2.2.0 added local
 subscription-backed `codex-cli` and `cursor-agent` engines; 2.3.0 added
 task classification; 2.4.0 added optional fast model triage after
 classification, execution profiles, platform-aware model policy,
@@ -1902,6 +1932,7 @@ failures and warnings plus packaged skill guidance for chat-first Mythify use;
 campaigns, and campaign reprompt surfaces; 3.6.0 adds workflow prompt packets
 for research, analysis, failure recovery, handoff, review, campaign, and
 next-prompt routing, plus read-only workflow route surfaces for CLI and MCP
-hosts.
-The CLI prints no version banner; the MCP server reports 3.6.0 through its
+hosts; 3.6.1 makes the router the default front door in CLI help, docs, skill
+instructions, and MCP descriptions while keeping primitive commands available.
+The CLI prints no version banner; the MCP server reports 3.6.1 through its
 server info.

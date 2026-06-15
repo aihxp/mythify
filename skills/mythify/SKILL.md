@@ -18,6 +18,22 @@ State is per-project: each project owns a `.mythify/` directory (run `init`
 once). The only global state is the cross-project lessons store in
 `~/.mythify/lessons/`.
 
+## Default front door
+
+Prefer the reduced Mythify surface unless the user asks for a specific
+primitive:
+
+1. `mythify route "TASK"` or MCP `workflow_route` to choose the workflow.
+2. `mythify report --since last --cursor chat --format chat` or MCP
+   `work_report` to narrate progress and issues.
+3. `mythify verify run "COMMAND" --claim "CLAIM"` or MCP `verify_run` to prove
+   completion claims.
+4. `mythify status` or MCP `workflow_status` to reorient.
+
+Use lower-level commands only after the router selects that path, or when the
+user explicitly asks for a primitive such as `plan`, `outcome`, `campaign`,
+`research`, `prompt`, `memory`, `lesson`, or fanout.
+
 ## Chat trigger phrases
 
 Treat these user phrases as Mythify triggers even when the user does not type
@@ -147,13 +163,15 @@ much to build.
 
 ## Command quick reference
 
+Most turns should start with `route`, not the full table below.
+
 | Command | Purpose |
 | :--- | :--- |
 | `init` | Create `./.mythify` workspace. |
 | `protocol check [PATH ...] [--json]` | Verify copied protocol files match this CLI. |
 | `status` | Orientation: active plan, next step, counts. |
-| `classify TASK [--json] [--triage never\|auto\|always]` | Identify task type, risk, execution profile, verification strategy, fanout fit, model policy, and task-based host recommendation. |
 | `route TASK [--json] [--triage never\|auto\|always]` | Choose direct, plan, research, review, outcome, campaign, failure recovery, handoff, or prompt routing from task text and durable state without mutating state. |
+| `classify TASK [--json] [--triage never\|auto\|always]` | Identify task type, risk, execution profile, verification strategy, fanout fit, model policy, and task-based host recommendation when routing is not needed. |
 | `plan create GOAL [--steps JSON] [--name NAME]` | Create a plan, set it active. |
 | `plan add-step TITLE [--criteria TEXT] [--plan NAME]` | Append a step. |
 | `plan list` | List plans with progress. |
@@ -196,12 +214,12 @@ much to build.
 ## MCP clients
 
 Clients wired to the Mythify MCP server instead of the CLI should use the
-equivalent tools, especially `work_report` for chat narration,
-`workflow_status` for orientation, `verification_history` for evidence,
-`plan_create`, `plan_add_step`, `plan_update_step`, `verify_run`,
-`verify_claim`, `reflect`, `campaign_next_prompt` for campaign reprompts, and
-`workflow_route` for the route packet, plus `prompt_packet` for research,
-analysis, failure, handoff, review, campaign, or next-prompt packets.
+equivalent tools. For broad or ambiguous prompts, start with `workflow_route`.
+Use `work_report` for chat narration, `verify_run` for evidence,
+`workflow_status` for orientation, and lower-level tools only after routing or
+an explicit user request: `plan_create`, `plan_add_step`, `plan_update_step`,
+`verify_claim`, `reflect`, `campaign_next_prompt`, and `prompt_packet` for
+research, analysis, failure, handoff, review, campaign, or next-prompt packets.
 Same state directory, same file formats, full
 interop with the CLI.
 

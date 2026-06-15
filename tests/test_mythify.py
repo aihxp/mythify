@@ -123,6 +123,10 @@ class TestInit(CliTestCase):
         commands = self.read_json(SURFACE_MANIFEST)["surfaces"]["cli"]["commands"]
         for name in commands:
             self.assertIn(name, result.stdout)
+        self.assertIn("Recommended front door:", result.stdout)
+        self.assertIn('mythify route "TASK"', result.stdout)
+        self.assertIn("Workflow primitives:", result.stdout)
+        self.assertIn("Advanced/admin surfaces:", result.stdout)
 
 
 class TestProtocolHandshake(CliTestCase):

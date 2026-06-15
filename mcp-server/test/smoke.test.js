@@ -122,6 +122,10 @@ test("mythify MCP server smoke test", async (t) => {
       const names = tools.map((tool) => tool.name).sort();
       assert.equal(names.length, MCP_TOOL_COUNT);
       assert.deepEqual(names, [...MCP_TOOL_NAMES].sort());
+      const toolMap = new Map(tools.map((tool) => [tool.name, tool]));
+      assert.match(toolMap.get("workflow_route").description, /recommended first tool/);
+      assert.match(toolMap.get("plan_create").description, /workflow_route first/);
+      assert.match(toolMap.get("fanout_start").description, /workflow_route first/);
     });
 
     await t.test("packaged manifests mirror the root manifests", () => {

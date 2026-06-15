@@ -55,6 +55,8 @@ const TASK_STATUS_ICONS = {
 
 // Per-task text cap in fanout_results; the full output stays on disk.
 const RESULT_CAP_CHARS = 20000;
+const FANOUT_FRONT_DOOR_NOTE =
+  " For broad or ambiguous user prompts, call workflow_route first; use fanout_start directly only after the route or plan identifies independent parallel subtasks.";
 
 // Alias-to-ID map for the anthropic engine (docs/design.md engine table).
 export const ANTHROPIC_MODEL_ALIASES = {
@@ -2211,7 +2213,8 @@ export function registerFanoutTools(server, deps) {
         "Start a one-shot parallel delegation job: declare a list of tasks once and the server spawns, sequences, and collects background workers for you, returning a job id immediately. " +
         "Every task MUST be fully independent and self-contained: each one is a fresh model invocation with no memory of this conversation and no access to other tasks' outputs, and each one costs real money or subscription quota. " +
         "Visibility defaults to summary, can be quiet, verbose, or threaded, and can be inferred from the purpose or task prompts when set to auto. Threaded means request visible host threads only when the host supports them. " +
-        "Use this to parallelize independent subtasks (drafting sections, analyzing separate files, generating variants) during long work; afterwards merge the results yourself and verify the merged work with verify_run, because fanout results are material, not verification.",
+        "Use this to parallelize independent subtasks (drafting sections, analyzing separate files, generating variants) during long work; afterwards merge the results yourself and verify the merged work with verify_run, because fanout results are material, not verification." +
+        FANOUT_FRONT_DOOR_NOTE,
       inputSchema: {
         tasks: z
           .array(

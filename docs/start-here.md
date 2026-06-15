@@ -8,7 +8,8 @@ behind a durable answer to four questions:
 - What was actually verified?
 - What remains uncertain or unfinished?
 
-You do not need to learn every command first. Start with one loop.
+You do not need to learn every command first. Start with the reduced surface:
+`route`, `report`, `verify run`, and `status`.
 
 ## One Happy Path
 
@@ -17,7 +18,6 @@ From a Mythify checkout:
 ```bash
 ./scripts/install_user.sh --project /path/to/your/project
 cd /path/to/your/project
-mythify classify "Fix the failing parser test"
 mythify route "Fix the failing parser test"
 mythify plan create "Fix the failing parser test" --steps '[{"title":"Reproduce and fix","success_criteria":"parser tests pass"}]'
 mythify report --cursor chat --mark
@@ -57,8 +57,8 @@ Use `--peek` when you want to inspect the report without moving the cursor.
 Use this when the task is clear and the verifier is obvious.
 
 ```bash
-mythify classify "Fix typo in CLI help"
-# If classification says fast, do the edit.
+mythify route "Fix typo in CLI help"
+# If route says direct or fast, do the edit.
 mythify verify run "python3 -m unittest discover -s tests -v" --claim "CLI tests pass"
 ```
 
@@ -100,6 +100,10 @@ safe by itself.
 Do not start with fanout, host model switching, provider probes, remote
 execution, lifecycle adapters, or every MCP tool. Those are power-user surfaces.
 The first habit is simple: plan when useful, run checks, record evidence.
+
+Do not start with `classify` unless you only need classification. For ordinary
+chat work, `route` wraps classification with durable state and returns the next
+workflow move.
 
 ## When To Add MCP
 
