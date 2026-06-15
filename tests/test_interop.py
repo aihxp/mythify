@@ -173,6 +173,10 @@ class TestCliMcpInterop(unittest.TestCase):
         self.assertTrue(texts, "tool result has at least one text block")
         return "\n".join(texts)
 
+    def ok_json(self, text):
+        self.assertTrue(text.startswith("[OK] "), text)
+        return json.loads(text[len("[OK] "):])
+
     def call_tool(self, client, name, arguments=None):
         return self.tool_text(
             client.request(
@@ -200,6 +204,109 @@ class TestCliMcpInterop(unittest.TestCase):
         self.assertIn("protocolVersion", init_result)
         client.notify("notifications/initialized")
         return client
+
+    def test_cli_and_mcp_classification_outputs_match(self):
+        prompts = [
+            "Fix timestamp parsing bug and add tests",
+            "Research package identity options before publishing",
+            "Release v3.6.5 after full gates pass",
+            "What is the current Mythify status?",
+        ]
+        compared_keys = [
+            "task_type",
+            "risk",
+            "ambiguity",
+            "ceremony",
+            "execution_profile",
+            "execution_profile_reason",
+            "verification",
+            "fanout",
+            "fanout_reason",
+            "fanout_visibility",
+            "fanout_visibility_source",
+            "fanout_visibility_reason",
+            "model_triage",
+            "model_triage_reason",
+            "signals",
+            "next_action",
+        ]
+        client = self.start_mcp()
+        try:
+            for prompt in prompts:
+                cli = self.run_cli("classify", prompt, "--json", "--triage", "never")
+                self.assertEqual(cli.returncode, 0, cli.stderr)
+                cli_payload = json.loads(cli.stdout)
+                mcp_payload = self.ok_json(
+                    self.call_tool(
+                        client,
+                        "classify_task",
+                        {"task": prompt, "format": "json", "triage": "never"},
+                    )
+                )
+                self.assertEqual(
+                    {key: cli_payload.get(key) for key in compared_keys},
+                    {key: mcp_payload.get(key) for key in compared_keys},
+                    prompt,
+                )
+        finally:
+            client.close()
+
+    def test_cli_and_mcp_verify_run_record_shapes_match(self):
+        init = self.run_cli("init")
+        self.assertEqual(init.returncode, 0, init.stderr)
+        steps = json.dumps([
+            {"title": "CLI step", "success_criteria": "cli verified"},
+            {"title": "MCP step", "success_criteria": "mcp verified"},
+        ])
+        created = self.run_cli("plan", "create", "Record shape goal", "--steps", steps)
+        self.assertEqual(created.returncode, 0, created.stderr)
+        cli_started = self.run_cli("step", "1", "in_progress")
+        self.assertEqual(cli_started.returncode, 0, cli_started.stderr)
+        cli_verified = self.run_cli(
+            "verify",
+            "run",
+            shell_py("raise SystemExit(0)"),
+            "--claim",
+            "cli record shape",
+        )
+        self.assertEqual(cli_verified.returncode, 0, cli_verified.stderr)
+        cli_record = self.read_jsonl("verifications.jsonl")[-1]
+        cli_completed = self.run_cli("step", "1", "completed", "cli record shape")
+        self.assertEqual(cli_completed.returncode, 0, cli_completed.stderr)
+
+        client = self.start_mcp()
+        try:
+            mcp_started = self.call_tool(
+                client,
+                "plan_update_step",
+                {
+                    "step_id": 2,
+                    "status": "in_progress",
+                    "plan": "record-shape-goal",
+                },
+            )
+            self.assertIn("[OK]", mcp_started)
+            mcp_verified = self.call_tool(
+                client,
+                "verify_run",
+                {
+                    "command": shell_py("raise SystemExit(0)"),
+                    "claim": "mcp record shape",
+                },
+            )
+            self.assertIn("[OK]", mcp_verified)
+        finally:
+            client.close()
+
+        mcp_record = self.read_jsonl("verifications.jsonl")[-1]
+        self.assertEqual(set(cli_record.keys()), set(mcp_record.keys()))
+        self.assertEqual(cli_record["kind"], mcp_record["kind"])
+        self.assertIs(cli_record["verified"], True)
+        self.assertIs(mcp_record["verified"], True)
+        self.assertEqual(cli_record["plan"], "record-shape-goal")
+        self.assertEqual(mcp_record["plan"], "record-shape-goal")
+        self.assertEqual(cli_record["step_id"], 1)
+        self.assertEqual(mcp_record["step_id"], 2)
 
     def test_cli_and_mcp_server_share_mutating_state(self):
         # 1. Seed every shared state family that has a CLI writer.

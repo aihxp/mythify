@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Cross-runtime interop tests now assert CLI and MCP classification parity and
+  executed verification record-shape parity across the shared `.mythify` state
+  directory.
+
 ## [3.6.5] - 2026-06-15
 
 ### Fixed
