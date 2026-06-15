@@ -48,6 +48,19 @@ const ECHO_WORKER_SOURCE = [
   "",
 ].join("\n");
 
+const SPAM_WORKER_SOURCE = [
+  'process.stdin.resume();',
+  'process.stdin.on("end", () => {',
+  '  process.stdout.write("SPAM-START\\n");',
+  '  const chunk = "0123456789abcdef".repeat(256);',
+  "  for (let i = 0; i < 64; i += 1) {",
+  "    process.stdout.write(chunk);",
+  "  }",
+  '  process.stderr.write("SPAM-ERR-TAIL\\n");',
+  "});",
+  "",
+].join("\n");
+
 // The fanout worker environment must not leak harness variables. Tests spawn
 // the server with sentinel values for these and assert the stub claude binary
 // never sees them, while CLAUDE_CODE_OAUTH_TOKEN does pass through.
@@ -753,6 +766,52 @@ test("fanout with the command engine", async (t) => {
         assert.equal(Buffer.byteLength(output, "utf8"), task.output_bytes);
       }
     });
+  } finally {
+    await client.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("fanout command workers fail when subprocess output exceeds the byte cap", async () => {
+  const { root, stateDir, homeDir } = makeProject("mythify-fanout-output-cap-");
+  const workerPath = path.join(root, "spam-worker.cjs");
+  fs.writeFileSync(workerPath, SPAM_WORKER_SOURCE);
+  const client = await startServer(
+    {
+      MYTHIFY_FANOUT_ENGINE: "command",
+      MYTHIFY_FANOUT_COMMAND: `"${process.execPath}" "${workerPath}"`,
+      MYTHIFY_FANOUT_OUTPUT_BYTES: "4096",
+    },
+    stateDir,
+    homeDir
+  );
+  try {
+    const started = textOf(
+      await client.callTool({
+        name: "fanout_start",
+        arguments: { tasks: [{ title: "Too chatty", prompt: "produce too much output" }] },
+      })
+    );
+    const jobId = jobIdOf(started);
+    const finalStatus = await waitForAllFinished(client, jobId);
+    assert.ok(finalStatus.includes("[!] 1. Too chatty"), "the capped task shows the failed icon");
+    assert.match(finalStatus, /1 failed/, "the counts report one failure");
+
+    const results = textOf(
+      await client.callTool({ name: "fanout_results", arguments: { job_id: jobId } })
+    );
+    assert.match(results, /Worker output exceeded 4096 bytes/, "results report the byte cap");
+    assert.match(results, /MYTHIFY_FANOUT_OUTPUT_BYTES/, "results name the controlling env var");
+    assert.match(results, /SPAM-START/, "results include retained stdout prefix");
+
+    const job = JSON.parse(fs.readFileSync(path.join(stateDir, "fanout", jobId, "job.json"), "utf8"));
+    assert.equal(job.tasks[0].status, "failed");
+    assert.match(job.tasks[0].error, /Worker output exceeded 4096 bytes/);
+    const output = fs.readFileSync(path.join(stateDir, "fanout", jobId, "task-1-output.md"), "utf8");
+    assert.ok(
+      Buffer.byteLength(output, "utf8") <= 4096,
+      "the persisted diagnostic output stays within the configured cap"
+    );
   } finally {
     await client.close();
     fs.rmSync(root, { recursive: true, force: true });

@@ -53,8 +53,9 @@ const TASK_STATUS_ICONS = {
   interrupted: "[~]",
 };
 
-// Per-task text cap in fanout_results; the full output stays on disk.
+// Per-task text cap in fanout_results; task output stays on disk.
 const RESULT_CAP_CHARS = 20000;
+const DEFAULT_FANOUT_OUTPUT_BYTES = 1024 * 1024;
 const FANOUT_FRONT_DOOR_NOTE =
   " For broad or ambiguous user prompts, call workflow_route first; use fanout_start directly only after the route or plan identifies independent parallel subtasks.";
 
@@ -1015,12 +1016,12 @@ function assembleWorkerPrompt(task, projectRoot, contextBytesCap) {
 }
 
 // ---------------------------------------------------------------------------
-// Subprocess plumbing (claude-cli and command engines)
+// Subprocess plumbing (local CLI and command engines)
 // ---------------------------------------------------------------------------
 
 // Spawns either a binary with args or a shell command template, writes the
-// prompt to stdin, collects stdout and stderr, and enforces a kill timer at
-// the per-worker timeout.
+// prompt to stdin, collects bounded stdout and stderr, and enforces a kill
+// timer at the per-worker timeout.
 function runSubprocess(options) {
   return new Promise((resolve) => {
     let child;
@@ -1044,6 +1045,9 @@ function runSubprocess(options) {
     }
     let stdout = "";
     let stderr = "";
+    let outputBytes = 0;
+    let outputLimitExceeded = false;
+    const outputBytesCap = intEnv("MYTHIFY_FANOUT_OUTPUT_BYTES", DEFAULT_FANOUT_OUTPUT_BYTES);
     let timedOut = false;
     let settled = false;
     const finish = (result) => {
@@ -1054,7 +1058,38 @@ function runSubprocess(options) {
       clearTimeout(killTimer);
       resolve(result);
     };
+    const killForOutputLimit = () => {
+      if (outputLimitExceeded) {
+        return;
+      }
+      outputLimitExceeded = true;
+      try {
+        child.kill("SIGKILL");
+      } catch {
+        // The child may already be gone.
+      }
+    };
+    const captureChunk = (streamName, chunk) => {
+      const text = String(chunk);
+      const chunkBytes = Buffer.byteLength(text, "utf8");
+      const remaining = Math.max(0, outputBytesCap - outputBytes);
+      if (remaining > 0) {
+        const kept = Buffer.from(text, "utf8").subarray(0, remaining).toString("utf8");
+        if (streamName === "stdout") {
+          stdout += kept;
+        } else {
+          stderr += kept;
+        }
+      }
+      outputBytes += chunkBytes;
+      if (outputBytes > outputBytesCap) {
+        killForOutputLimit();
+      }
+    };
     const killTimer = setTimeout(() => {
+      if (outputLimitExceeded) {
+        return;
+      }
       timedOut = true;
       try {
         child.kill("SIGKILL");
@@ -1065,16 +1100,33 @@ function runSubprocess(options) {
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk) => {
-      stdout += chunk;
+      captureChunk("stdout", chunk);
     });
     child.stderr.on("data", (chunk) => {
-      stderr += chunk;
+      captureChunk("stderr", chunk);
     });
     child.on("error", (err) =>
-      finish({ exitCode: -1, stdout, stderr, timedOut, spawnError: err.message })
+      finish({
+        exitCode: -1,
+        stdout,
+        stderr,
+        timedOut,
+        outputLimitExceeded,
+        outputBytes,
+        outputBytesCap,
+        spawnError: err.message,
+      })
     );
     child.on("close", (code) =>
-      finish({ exitCode: code === null ? -1 : code, stdout, stderr, timedOut })
+      finish({
+        exitCode: code === null ? -1 : code,
+        stdout,
+        stderr,
+        timedOut,
+        outputLimitExceeded,
+        outputBytes,
+        outputBytesCap,
+      })
     );
     // The child may exit before consuming stdin; swallow the EPIPE.
     child.stdin.on("error", () => {});
@@ -1178,6 +1230,17 @@ function timeoutFailure(stdout, timeoutSeconds) {
   };
 }
 
+function outputLimitFailure(stdout, stderr, outputBytesCap, outputBytes) {
+  const stderrTail = stderr.trim() === "" ? "" : ` stderr (tail): ${stderr.slice(-2000)}`;
+  return {
+    ok: false,
+    output: stdout,
+    error:
+      `Worker output exceeded ${outputBytesCap} bytes (MYTHIFY_FANOUT_OUTPUT_BYTES) and was killed after ${outputBytes} bytes. ` +
+      `Reduce worker output or raise MYTHIFY_FANOUT_OUTPUT_BYTES.${stderrTail}`,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Engines
 // ---------------------------------------------------------------------------
@@ -1208,6 +1271,9 @@ async function runClaudeCliWorker(prompt, model, effort, timeoutSeconds, project
     input: prompt,
     timeoutSeconds,
   });
+  if (res.outputLimitExceeded) {
+    return outputLimitFailure(res.stdout, res.stderr, res.outputBytesCap, res.outputBytes);
+  }
   if (res.timedOut) {
     return timeoutFailure(res.stdout, timeoutSeconds);
   }
@@ -1320,6 +1386,9 @@ async function runCodexCliWorker(prompt, model, speed, timeoutSeconds, projectRo
   if (output === "") {
     output = res.stdout;
   }
+  if (res.outputLimitExceeded) {
+    return outputLimitFailure(output, res.stderr, res.outputBytesCap, res.outputBytes);
+  }
   if (res.timedOut) {
     return timeoutFailure(output, timeoutSeconds);
   }
@@ -1381,6 +1450,9 @@ async function runCursorAgentWorker(prompt, model, timeoutSeconds, projectRoot) 
   } catch {
     // Best effort cleanup.
   }
+  if (res.outputLimitExceeded) {
+    return outputLimitFailure(res.stdout, res.stderr, res.outputBytesCap, res.outputBytes);
+  }
   if (res.timedOut) {
     return timeoutFailure(res.stdout, timeoutSeconds);
   }
@@ -1416,6 +1488,9 @@ async function runCommandWorker(prompt, timeoutSeconds, projectRoot) {
     input: prompt,
     timeoutSeconds,
   });
+  if (res.outputLimitExceeded) {
+    return outputLimitFailure(res.stdout, res.stderr, res.outputBytesCap, res.outputBytes);
+  }
   if (res.timedOut) {
     return timeoutFailure(res.stdout, timeoutSeconds);
   }
@@ -2180,7 +2255,7 @@ function handleFanoutResults({ job_id, task_id }) {
     } else if (output.length > RESULT_CAP_CHARS) {
       lines.push(output.slice(0, RESULT_CAP_CHARS));
       lines.push(
-        `[WARN] Output truncated at ${RESULT_CAP_CHARS} characters; the full output (${task.output_bytes} bytes) is in ${outputPath}.`
+        `[WARN] Output truncated at ${RESULT_CAP_CHARS} characters; task output (${task.output_bytes} bytes) is in ${outputPath}.`
       );
     } else {
       lines.push(output);
@@ -2367,7 +2442,7 @@ export function registerFanoutTools(server, deps) {
       title: "Collect fanout job results",
       description:
         "Return the outputs of a fanout job's completed and failed tasks (failures include the error and any remediation), optionally limited to one task by id. Defaults to the most recent job. " +
-        "Per-task text is capped at 20000 characters with a pointer to the full output file on disk; tasks still running are flagged with a warning. " +
+        "Per-task text is capped at 20000 characters with a pointer to the task output file on disk; tasks still running are flagged with a warning. " +
         "Use this once fanout_status shows tasks finished, then merge the material and verify the merged work with verify_run.",
       inputSchema: {
         job_id: z.string().optional().describe("The job id from fanout_start; omit for the most recent job."),

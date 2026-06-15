@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fanout local CLI and command workers now cap captured stdout plus stderr with
+  `MYTHIFY_FANOUT_OUTPUT_BYTES`, failing overproducing workers instead of
+  accumulating unbounded subprocess output in memory.
+
 ## [3.6.6] - 2026-06-15
 
 ### Added
