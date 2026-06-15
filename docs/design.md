@@ -771,7 +771,7 @@ Implementation notes:
 ## MCP server: mcp-server/
 
 Node 18+, ESM (`"type": "module"`). Dependencies: `@modelcontextprotocol/sdk`
-(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.2.3`,
+(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.3.0`,
 scripts `{"start": "node src/index.js", "test": "node --test test/*.test.js"}`
 (the glob form, because modern Node treats a bare directory argument to --test as
 a literal file and fails), engines node >= 18. Use the registration API that the
@@ -1675,7 +1675,7 @@ step (`step ID in_progress`) sets the lower bound, the VERIFY step
 
 ## Versioning
 
-This is Mythify v3.2.3. Fanout was added in 2.1.0; 2.2.0 added local
+This is Mythify v3.3.0. Fanout was added in 2.1.0; 2.2.0 added local
 subscription-backed `codex-cli` and `cursor-agent` engines; 2.3.0 added
 task classification; 2.4.0 added optional fast model triage after
 classification, execution profiles, platform-aware model policy,
@@ -1691,6 +1691,7 @@ all runtime manifests under `mcp-server/protocol/`; 3.1.0 adds quick-start
 installation and live work reports; 3.2.0 and 3.2.1 refine report mark mode;
 3.2.2 rejects mark-plus-since report calls that would otherwise hide expected
 events; 3.2.3 releases the follow-up documentation hygiene fixes from the
-continuous audit loop. Unreleased changes add chat-visible report attention
-summaries for failures and warnings. The CLI prints no version banner; the MCP
-server reports 3.2.3 through its server info.
+continuous audit loop; 3.3.0 adds chat-visible report attention summaries for
+failures and warnings plus packaged skill guidance for chat-first Mythify use.
+The CLI prints no version banner; the MCP server reports 3.3.0 through its
+server info.
