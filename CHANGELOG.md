@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.40] - 2026-06-16
+
+### Changed
+
+- Extracted Python prompt packet and workflow route helpers into a direct-import
+  `mythify_router.py` module.
+- Added direct module coverage for analysis prompt packet rendering and route
+  selection while keeping CLI prompt, route, copied drop-in, and local eval
+  coverage.
+
 ## [3.6.39] - 2026-06-16
 
 ### Changed
@@ -907,7 +917,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.39...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.40...HEAD
+[3.6.40]: https://github.com/aihxp/mythify/compare/v3.6.39...v3.6.40
 [3.6.39]: https://github.com/aihxp/mythify/compare/v3.6.38...v3.6.39
 [3.6.38]: https://github.com/aihxp/mythify/compare/v3.6.37...v3.6.38
 [3.6.37]: https://github.com/aihxp/mythify/compare/v3.6.36...v3.6.37

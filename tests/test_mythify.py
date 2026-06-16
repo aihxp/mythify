@@ -27,6 +27,7 @@ PY_CLASSIFICATION = REPO_ROOT / "scripts" / "mythify_classification.py"
 PY_HOST_MODEL = REPO_ROOT / "scripts" / "mythify_host_model.py"
 PY_IO = REPO_ROOT / "scripts" / "mythify_io.py"
 PY_MODEL_POLICY = REPO_ROOT / "scripts" / "mythify_model_policy.py"
+PY_ROUTER = REPO_ROOT / "scripts" / "mythify_router.py"
 PY_TRACE = REPO_ROOT / "scripts" / "mythify_trace.py"
 PY_WORKFLOWS = REPO_ROOT / "scripts" / "mythify_workflows.py"
 OPERATION_REGISTRY = REPO_ROOT / "protocol" / "operation-registry.json"
@@ -319,6 +320,78 @@ class TestWorkflowStores(unittest.TestCase):
         self.assertEqual(mythify.campaign_progress(loaded), (0, 1))
 
 
+class TestPromptRouter(unittest.TestCase):
+    def load_router_module(self):
+        scripts_dir = str(REPO_ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        spec = importlib.util.spec_from_file_location(
+            "mythify_router_under_test",
+            PY_ROUTER,
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_analysis_packet_and_route_selection_import_directly(self):
+        mythify = self.load_router_module()
+        plan = {
+            "goal": "Ship router module",
+            "steps": [
+                {"id": 1, "title": "Design", "status": "completed"},
+                {
+                    "id": 2,
+                    "title": "Verify",
+                    "status": "pending",
+                    "success_criteria": "tests pass",
+                },
+            ],
+        }
+
+        mythify.configure_prompt_router(
+            get_active_slug_func=lambda state: "ship-router-module",
+            load_plan_func=lambda state, slug: plan,
+            plan_progress_func=lambda value: (1, 2),
+            next_pending_step_func=lambda value: value["steps"][1],
+            read_jsonl_func=lambda path: [],
+            build_verification_history_view_func=lambda state, recent=5: {
+                "records": [
+                    {
+                        "verdict": "verified",
+                        "claim": "router tests pass",
+                        "exit_code": 0,
+                        "timestamp": "2026-06-16T00:00:00+00:00",
+                    }
+                ]
+            },
+            verification_label_func=lambda row: row.get("claim", ""),
+            git_status_summary_func=lambda root: {
+                "branch": "main",
+                "status": "clean",
+                "detail": "working tree clean",
+                "changed_paths": [],
+            },
+            compact_report_detail_func=lambda text: text,
+            build_work_report_func=lambda *args, **kwargs: {"events": [], "attention_events": []},
+            load_outcome_func=lambda state: (None, None),
+            read_host_model_state_func=lambda state: {},
+        )
+
+        packet = mythify.build_prompt_packet("analysis", Path("."), goal="Ship router module")
+        self.assertEqual(packet["kind"], "analysis")
+        self.assertIn("Active plan: ship-router-module", packet["next_prompt"])
+        route, reason = mythify.select_workflow_route(
+            "continue",
+            {
+                "active_plan": {"id": "ship-router-module"},
+                "latest_executed_verification": None,
+            },
+            {"execution_profile": "standard", "task_type": "feature"},
+        )
+        self.assertEqual(route, "handoff")
+        self.assertIn("active plan", reason)
+
+
 class TestProtocolHandshake(CliTestCase):
     def test_protocol_check_accepts_repo_protocol_and_generated_variants(self):
         result = self.run_cli("protocol", "check", cwd=REPO_ROOT)
@@ -351,6 +424,10 @@ class TestProtocolHandshake(CliTestCase):
         shutil.copy2(
             PY_MODEL_POLICY,
             self.project / "scripts" / "mythify_model_policy.py",
+        )
+        shutil.copy2(
+            PY_ROUTER,
+            self.project / "scripts" / "mythify_router.py",
         )
         shutil.copy2(
             PY_TRACE,
