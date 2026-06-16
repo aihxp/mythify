@@ -1297,9 +1297,9 @@ test("mythify MCP server smoke test", async (t) => {
 
     await t.test("memory_clear with no arguments refuses", async () => {
       const snapshotBeforeRefusal = snapshotStateDir(stateDir);
-      const refused = textOf(
-        await client.callTool({ name: "memory_clear", arguments: {} })
-      );
+      const refusedResult = await client.callTool({ name: "memory_clear", arguments: {} });
+      assert.equal(refusedResult.isError, true);
+      const refused = textOf(refusedResult);
       assert.equal(refused, MEMORY_CLEAR_MCP_REFUSAL);
       assert.deepEqual(
         snapshotStateDir(stateDir),

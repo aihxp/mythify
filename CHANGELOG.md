@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- MCP tool failure results now set `isError: true` while preserving the
+  `[FAIL]` text response for chat and CLI-style clients.
+
 ## [3.6.9] - 2026-06-15
 
 ### Added

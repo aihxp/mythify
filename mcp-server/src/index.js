@@ -3822,7 +3822,11 @@ function formatPhaseView(view) {
 // ---------------------------------------------------------------------------
 
 function textResult(text) {
-  return { content: [{ type: "text", text }] };
+  const result = { content: [{ type: "text", text }] };
+  if (String(text).startsWith("[FAIL]")) {
+    result.isError = true;
+  }
+  return result;
 }
 
 function wordish(text) {
