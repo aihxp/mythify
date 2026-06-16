@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.8] - 2026-06-15
+
 ### Fixed
 
 - CLI `init` now adds `.mythify/` to the project `.gitignore` for the default
@@ -642,7 +644,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.7...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.8...HEAD
+[3.6.8]: https://github.com/aihxp/mythify/compare/v3.6.7...v3.6.8
 [3.6.7]: https://github.com/aihxp/mythify/compare/v3.6.6...v3.6.7
 [3.6.6]: https://github.com/aihxp/mythify/compare/v3.6.5...v3.6.6
 [3.6.5]: https://github.com/aihxp/mythify/compare/v3.6.4...v3.6.5
