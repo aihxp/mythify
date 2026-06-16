@@ -9055,7 +9055,7 @@ def build_parser():
         prog="mythify.py",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Mythify v3.6.9: evidence protocol for AI coding agents. Route broad "
+            "Mythify v3.6.10: evidence protocol for AI coding agents. Route broad "
             "work first, keep state in .mythify, and verify completion claims "
             "with executed commands."
         ),
