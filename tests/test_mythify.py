@@ -25,6 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CLI = REPO_ROOT / "scripts" / "mythify.py"
 PY_CLASSIFICATION = REPO_ROOT / "scripts" / "mythify_classification.py"
 PY_HOST_MODEL = REPO_ROOT / "scripts" / "mythify_host_model.py"
+PY_MODEL_POLICY = REPO_ROOT / "scripts" / "mythify_model_policy.py"
 PY_TRACE = REPO_ROOT / "scripts" / "mythify_trace.py"
 OPERATION_REGISTRY = REPO_ROOT / "protocol" / "operation-registry.json"
 SURFACE_MANIFEST = REPO_ROOT / "protocol" / "surface-manifest.json"
@@ -261,6 +262,10 @@ class TestProtocolHandshake(CliTestCase):
             self.project / "scripts" / "mythify_host_model.py",
         )
         shutil.copy2(
+            PY_MODEL_POLICY,
+            self.project / "scripts" / "mythify_model_policy.py",
+        )
+        shutil.copy2(
             PY_TRACE,
             self.project / "scripts" / "mythify_trace.py",
         )
@@ -419,6 +424,73 @@ class TestClassification(CliTestCase):
         self.assertEqual(legacy["switch_result"]["status"], "manual")
         self.assertEqual(legacy["host_confirmation"]["confirmation_status"], "unsupported")
         self.assertEqual(legacy["adapter_proof_scan"]["status"], "metadata_only")
+
+    def test_model_policy_module_imports_directly(self):
+        scripts_dir = str(REPO_ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        spec = importlib.util.spec_from_file_location(
+            "mythify_model_policy_under_test",
+            PY_MODEL_POLICY,
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        classification = {
+            "task_type": "security",
+            "risk": "high",
+            "ceremony": "full",
+            "execution_profile": "full",
+            "model_triage": "recommended",
+            "fanout": "recommended",
+            "fanout_visibility": "summary",
+            "fanout_visibility_source": "default",
+            "fanout_visibility_reason": "Summary visibility is the default.",
+        }
+        args = SimpleNamespace(
+            platform="codex-desktop",
+            effort="auto",
+            speed="auto",
+            session_model="",
+            spawn_ceiling="auto",
+            reviewer_strength="auto",
+            triage="always",
+            triage_engine="command",
+            triage_model="",
+            triage_timeout=5.0,
+        )
+
+        policy = module.build_model_policy(
+            classification,
+            args,
+            host_model_record={"target_model": "gpt-5.4"},
+        )
+        self.assertEqual(policy["session"]["model"], "gpt-5.4")
+        self.assertEqual(policy["session"]["model_source"], "host_model_switch")
+        self.assertEqual(policy["triage"]["provider"], "host_cli")
+        self.assertEqual(
+            policy["provider_defaults"]["fallback_policy"],
+            "no_implicit_cross_provider_fallback",
+        )
+        self.assertEqual(module.classify_model_tier("haiku"), "fast")
+
+        command = shell_py(
+            "import json, sys; sys.stdin.read(); "
+            "print(json.dumps({'task_type':'feature','risk':'low'}))"
+        )
+        old_command = os.environ.get("MYTHIFY_TRIAGE_COMMAND")
+        os.environ["MYTHIFY_TRIAGE_COMMAND"] = command
+        try:
+            triage = module.run_model_triage("ship the focused fix", classification, args)
+        finally:
+            if old_command is None:
+                os.environ.pop("MYTHIFY_TRIAGE_COMMAND", None)
+            else:
+                os.environ["MYTHIFY_TRIAGE_COMMAND"] = old_command
+        self.assertTrue(triage["attempted"])
+        self.assertTrue(triage["ok"])
+        self.assertEqual(triage["engine"], "command")
+        self.assertEqual(triage["parsed"]["task_type"], "feature")
 
     def test_classification_policy_manifest_contains_shared_decision_facts(self):
         manifest = self.read_json(CLASSIFICATION_RULES)

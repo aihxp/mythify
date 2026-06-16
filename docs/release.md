@@ -1,13 +1,13 @@
 # Release Process
 
-Current release target: `v3.6.36`.
+Current release target: `v3.6.37`.
 
 Current package metadata:
 
 - MCP package: `mythify-mcp`
-- Version: `3.6.36`
+- Version: `3.6.37`
 - Node runtime: `>=18`
-- Package artifact: `mcp-server/mythify-mcp-3.6.36.tgz`
+- Package artifact: `mcp-server/mythify-mcp-3.6.37.tgz`
 - Skill artifact: `dist/mythify.skill`
 
 ## Release Gate
@@ -42,7 +42,7 @@ python3 scripts/package_skill.py
 Expected artifacts:
 
 - `dist/mythify.skill`
-- `mcp-server/mythify-mcp-3.6.36.tgz`
+- `mcp-server/mythify-mcp-3.6.37.tgz`
 
 The npm tarball must include package-local copies of
 `mcp-server/protocol/classification-rules.json`,
@@ -76,10 +76,10 @@ optional `mythify-chat-report-hook.sh` helper under `$CODEX_HOME/hooks` or
 Create the GitHub release only after the final commit is pushed and CI is green:
 
 ```bash
-gh release create v3.6.36 \
+gh release create v3.6.37 \
   dist/mythify.skill \
-  mcp-server/mythify-mcp-3.6.36.tgz \
-  --title "Mythify v3.6.36" \
+  mcp-server/mythify-mcp-3.6.37.tgz \
+  --title "Mythify v3.6.37" \
   --notes-file /tmp/mythify-v3-6-36-release-notes.md
 ```
 
@@ -91,7 +91,7 @@ identical or safely overwritten by the workflow.
 
 The current npm package name is unscoped: `mythify-mcp`. This repository
 currently produces a GitHub release package artifact
-(`mythify-mcp-3.6.36.tgz`) rather than publishing an npm package to the GitHub
+(`mythify-mcp-3.6.37.tgz`) rather than publishing an npm package to the GitHub
 Packages registry. The current product promise is therefore:
 
 - Source checkout plus `scripts/install_user.sh` for user-local installation.

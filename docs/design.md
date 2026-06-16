@@ -47,6 +47,7 @@ mythify/
 |   |-- mythify.py               zero-dependency CLI orchestrator
 |   |-- mythify_classification.py deterministic classification helper
 |   |-- mythify_host_model.py    host model switch record helper
+|   |-- mythify_model_policy.py  model policy and triage helper
 |   |-- mythify_trace.py         trace analysis and playbook helper
 |   |-- build_variants.py        generates CLAUDE.md, AGENTS.md, .cursorrules
 |   |-- build_registry_docs.mjs  generates registry-backed docs
@@ -852,7 +853,7 @@ Implementation notes:
 ## MCP server: mcp-server/
 
 Node 18+, ESM (`"type": "module"`). Dependencies: `@modelcontextprotocol/sdk`
-(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.36`,
+(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.37`,
 scripts `{"start": "node src/index.js", "test": "node --test test/*.test.js"}`
 (the glob form, because modern Node treats a bare directory argument to --test as
 a literal file and fails), engines node >= 18. Use the registration API that the
@@ -1970,7 +1971,7 @@ step (`step ID in_progress`) sets the lower bound, the VERIFY step
 
 ## Versioning
 
-This is Mythify v3.6.36. Fanout was added in 2.1.0; 2.2.0 added local
+This is Mythify v3.6.37. Fanout was added in 2.1.0; 2.2.0 added local
 subscription-backed `codex-cli` and `cursor-agent` engines; 2.3.0 added
 task classification; 2.4.0 added optional fast model triage after
 classification, execution profiles, platform-aware model policy,
@@ -2035,6 +2036,8 @@ direct-import MCP helper module; 3.6.34 extracts MCP lifecycle probe helpers
 into a direct-import MCP helper module; 3.6.35 extracts MCP provider defaults,
 adapter contracts, and role assignment metadata into a direct-import MCP helper
 module; 3.6.36 extracts MCP model policy construction and model triage runner
-helpers into a direct-import MCP helper module.
-The CLI reports 3.6.36 through `--version`; the MCP server reads `package.json`
+helpers into a direct-import MCP helper module; 3.6.37 extracts Python model
+policy construction, provider-default metadata, and model triage runner helpers
+into a direct-import CLI helper module.
+The CLI reports 3.6.37 through `--version`; the MCP server reads `package.json`
 and reports the package version through server info.

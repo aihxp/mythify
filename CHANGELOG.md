@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.37] - 2026-06-16
+
+### Changed
+
+- Extracted Python model policy construction, provider-default metadata, and
+  model triage runner helpers into a direct-import `mythify_model_policy.py`
+  module.
+- Added direct module coverage for host-aware Python model policy and command
+  triage execution while keeping CLI classify coverage.
+
 ## [3.6.36] - 2026-06-16
 
 ### Changed
@@ -878,7 +888,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.36...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.37...HEAD
+[3.6.37]: https://github.com/aihxp/mythify/compare/v3.6.36...v3.6.37
 [3.6.36]: https://github.com/aihxp/mythify/compare/v3.6.35...v3.6.36
 [3.6.35]: https://github.com/aihxp/mythify/compare/v3.6.34...v3.6.35
 [3.6.34]: https://github.com/aihxp/mythify/compare/v3.6.33...v3.6.34
