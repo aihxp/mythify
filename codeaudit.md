@@ -72,7 +72,7 @@ Last updated: 2026-06-15.
 - [ ] [ERR-005] Fanout timeout kills only the direct child; shell-engine grandchildren can orphan - Open, needs re-verification before changing behavior.
 - [ ] [PERF-001] The evidence ledger is re-read in full on every gate check and report, and grows unbounded - Open.
 - [x] ~~[DEP-001] No `npm audit` gate in CI~~ - Completed in v3.6.9.
-- [x] ~~[TEST-002] Read-only view commands are lightly tested~~ - Completed in the post-v3.6.13 test slice.
+- [x] ~~[TEST-002] Read-only view commands are lightly tested~~ - Completed in v3.6.14.
 - [x] ~~[DOC-001] `roadmap.md` references a stale release~~ - Completed in v3.6.12.
 - [x] ~~[DOC-002] README "shared contract core" claim overstates current reality~~ - Completed in v3.6.13.
 - [x] ~~[QUAL-002] Version-surface asymmetry~~ - Completed in v3.6.11.
