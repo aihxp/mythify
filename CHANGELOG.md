@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.25] - 2026-06-16
+
+### Fixed
+
+- Fanout command and local CLI workers now run in a fresh POSIX process group and
+  kill that group on timeout or output-cap failure, preventing shell-engine
+  grandchildren from surviving a timed-out worker.
+
 ## [3.6.24] - 2026-06-16
 
 ### Fixed
@@ -769,7 +777,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.24...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.25...HEAD
+[3.6.25]: https://github.com/aihxp/mythify/compare/v3.6.24...v3.6.25
 [3.6.24]: https://github.com/aihxp/mythify/compare/v3.6.23...v3.6.24
 [3.6.23]: https://github.com/aihxp/mythify/compare/v3.6.22...v3.6.23
 [3.6.22]: https://github.com/aihxp/mythify/compare/v3.6.21...v3.6.22

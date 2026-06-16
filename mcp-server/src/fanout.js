@@ -1053,24 +1053,25 @@ function assembleWorkerPrompt(task, projectRoot, contextBytesCap) {
 
 // Spawns either a binary with args or a shell command template, writes the
 // prompt to stdin, collects bounded stdout and stderr, and enforces a kill
-// timer at the per-worker timeout.
+// timer at the per-worker timeout. POSIX workers run in a fresh process group
+// so shell-engine grandchildren are killed with their parent worker.
 function runSubprocess(options) {
   return new Promise((resolve) => {
     let child;
     try {
+      const baseSpawnOptions = {
+        cwd: options.cwd,
+        env: options.env,
+        stdio: ["pipe", "pipe", "pipe"],
+        detached: process.platform !== "win32",
+      };
       child =
         options.shellCommand !== undefined
           ? spawn(options.shellCommand, {
+              ...baseSpawnOptions,
               shell: true,
-              cwd: options.cwd,
-              env: options.env,
-              stdio: ["pipe", "pipe", "pipe"],
             })
-          : spawn(options.bin, options.args, {
-              cwd: options.cwd,
-              env: options.env,
-              stdio: ["pipe", "pipe", "pipe"],
-            });
+          : spawn(options.bin, options.args, baseSpawnOptions);
     } catch (err) {
       resolve({ exitCode: -1, stdout: "", stderr: "", timedOut: false, spawnError: err.message });
       return;
@@ -1090,16 +1091,27 @@ function runSubprocess(options) {
       clearTimeout(killTimer);
       resolve(result);
     };
+    const killWorkerTree = () => {
+      try {
+        if (process.platform !== "win32" && child.pid) {
+          process.kill(-child.pid, "SIGKILL");
+        } else {
+          child.kill("SIGKILL");
+        }
+      } catch {
+        try {
+          child.kill("SIGKILL");
+        } catch {
+          // The worker tree may already be gone.
+        }
+      }
+    };
     const killForOutputLimit = () => {
       if (outputLimitExceeded) {
         return;
       }
       outputLimitExceeded = true;
-      try {
-        child.kill("SIGKILL");
-      } catch {
-        // The child may already be gone.
-      }
+      killWorkerTree();
     };
     const captureChunk = (streamName, chunk) => {
       const text = String(chunk);
@@ -1123,11 +1135,7 @@ function runSubprocess(options) {
         return;
       }
       timedOut = true;
-      try {
-        child.kill("SIGKILL");
-      } catch {
-        // The child may already be gone.
-      }
+      killWorkerTree();
     }, Math.round(options.timeoutSeconds * 1000));
     child.stdout.setEncoding("utf8");
     child.stderr.setEncoding("utf8");

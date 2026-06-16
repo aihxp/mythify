@@ -852,6 +852,82 @@ test("fanout command workers fail when subprocess output exceeds the byte cap", 
   }
 });
 
+test(
+  "fanout command worker timeout kills shell grandchildren",
+  { skip: process.platform === "win32" ? "POSIX process groups are unavailable on Windows" : false },
+  async () => {
+    const { root, stateDir, homeDir } = makeProject("mythify-fanout-timeout-tree-");
+    const parentPath = path.join(root, "parent-worker.cjs");
+    const markerPath = path.join(root, "orphan-marker.txt");
+    const pidPath = path.join(root, "orphan-child.pid");
+    fs.writeFileSync(
+      parentPath,
+      [
+        'const { spawn } = require("node:child_process");',
+        'const fs = require("node:fs");',
+        "const childSource = [",
+        '  \'const fs = require("node:fs");\',',
+        '  \'setTimeout(() => { fs.writeFileSync(process.env.MYTHIFY_ORPHAN_MARKER, "alive\\\\n"); }, 1200);\',',
+        "  'setInterval(() => {}, 1000);',",
+        "].join('\\n');",
+        'const child = spawn(process.execPath, ["-e", childSource], { stdio: "ignore" });',
+        "fs.writeFileSync(process.env.MYTHIFY_ORPHAN_PID, String(child.pid));",
+        "setInterval(() => {}, 1000);",
+        "",
+      ].join("\n")
+    );
+    const client = await startServer(
+      {
+        MYTHIFY_FANOUT_ENGINE: "command",
+        MYTHIFY_FANOUT_COMMAND: `"${process.execPath}" "${parentPath}"`,
+        MYTHIFY_ORPHAN_MARKER: markerPath,
+        MYTHIFY_ORPHAN_PID: pidPath,
+      },
+      stateDir,
+      homeDir
+    );
+    try {
+      const started = textOf(
+        await client.callTool({
+          name: "fanout_start",
+          arguments: {
+            timeout_seconds: 0.2,
+            tasks: [{ title: "Timeout tree", prompt: "spawn a long-lived child" }],
+          },
+        })
+      );
+      const jobId = jobIdOf(started);
+      const finalStatus = await waitForAllFinished(client, jobId, 10000);
+      assert.match(finalStatus, /1 failed/, "the timed-out task fails");
+
+      const results = textOf(
+        await client.callTool({ name: "fanout_results", arguments: { job_id: jobId } })
+      );
+      assert.match(results, /Worker timed out after 0.2 seconds/, "results report the timeout");
+
+      await new Promise((resolve) => setTimeout(resolve, 1600));
+      assert.equal(
+        fs.existsSync(markerPath),
+        false,
+        "the shell grandchild did not survive long enough to write its marker"
+      );
+    } finally {
+      if (fs.existsSync(pidPath)) {
+        const pid = Number(fs.readFileSync(pidPath, "utf8"));
+        if (Number.isFinite(pid) && pid > 0) {
+          try {
+            process.kill(pid, "SIGKILL");
+          } catch {
+            // The fixed code should already have killed it.
+          }
+        }
+      }
+      await client.close();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+);
+
 test("the kill switch refuses all three fanout tools", async () => {
   const { root, stateDir, homeDir } = makeProject("mythify-fanout-kill-");
   const client = await startServer(
