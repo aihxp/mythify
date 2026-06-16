@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.16] - 2026-06-16
+
 ### Fixed
 
 - Outcome `allowed_paths` are now labeled as advisory host-edit hints in CLI
@@ -704,7 +706,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.15...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.16...HEAD
+[3.6.16]: https://github.com/aihxp/mythify/compare/v3.6.15...v3.6.16
 [3.6.15]: https://github.com/aihxp/mythify/compare/v3.6.14...v3.6.15
 [3.6.14]: https://github.com/aihxp/mythify/compare/v3.6.13...v3.6.14
 [3.6.13]: https://github.com/aihxp/mythify/compare/v3.6.12...v3.6.13
