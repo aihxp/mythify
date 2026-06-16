@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.12] - 2026-06-15
+
 ### Fixed
 
 - `roadmap.md` now reflects the current shipped release instead of the stale
@@ -674,7 +676,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.11...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.12...HEAD
+[3.6.12]: https://github.com/aihxp/mythify/compare/v3.6.11...v3.6.12
 [3.6.11]: https://github.com/aihxp/mythify/compare/v3.6.10...v3.6.11
 [3.6.10]: https://github.com/aihxp/mythify/compare/v3.6.9...v3.6.10
 [3.6.9]: https://github.com/aihxp/mythify/compare/v3.6.8...v3.6.9

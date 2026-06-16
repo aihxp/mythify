@@ -73,7 +73,7 @@ Last updated: 2026-06-15.
 - [ ] [PERF-001] The evidence ledger is re-read in full on every gate check and report, and grows unbounded - Open.
 - [x] ~~[DEP-001] No `npm audit` gate in CI~~ - Completed in v3.6.9.
 - [ ] [TEST-002] Read-only view commands are lightly tested - Open.
-- [x] ~~[DOC-001] `roadmap.md` references a stale release~~ - Completed in the post-v3.6.11 documentation slice.
+- [x] ~~[DOC-001] `roadmap.md` references a stale release~~ - Completed in v3.6.12.
 - [ ] [DOC-002] README "shared contract core" claim overstates current reality - Open.
 - [x] ~~[QUAL-002] Version-surface asymmetry~~ - Completed in v3.6.11.
 - [x] ~~[OBS-001] MCP tool errors do not set the `isError` flag~~ - Completed in v3.6.10.
