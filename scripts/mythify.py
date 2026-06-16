@@ -1386,14 +1386,16 @@ def save_plan(state, slug, plan):
     write_json_atomic(plan_path(state, slug), plan)
 
 
-def find_plan_slug(state, name):
-    """Map a user-supplied plan name to an existing plan slug, or None."""
-    if plan_path(state, name).exists():
-        return name
+def find_existing_slug_by_name(state, name, path_func):
     candidate = slugify(name)
-    if candidate and plan_path(state, candidate).exists():
+    if candidate and path_func(state, candidate).exists():
         return candidate
     return None
+
+
+def find_plan_slug(state, name):
+    """Map a user-supplied plan name to an existing plan slug, or None."""
+    return find_existing_slug_by_name(state, name, plan_path)
 
 
 def target_plan_slug(state, name):
@@ -1529,12 +1531,7 @@ def clear_active_research_slug(state, slug=None):
 
 def find_research_slug(state, name):
     if name:
-        if research_path(state, name).exists():
-            return name
-        candidate = slugify(name)
-        if candidate and research_path(state, candidate).exists():
-            return candidate
-        return None
+        return find_existing_slug_by_name(state, name, research_path)
     return get_active_research_slug(state)
 
 
@@ -1805,12 +1802,7 @@ def clear_active_campaign_slug(state, slug=None):
 
 def find_campaign_slug(state, name):
     if name:
-        if campaign_path(state, name).exists():
-            return name
-        candidate = slugify(name)
-        if candidate and campaign_path(state, candidate).exists():
-            return candidate
-        return None
+        return find_existing_slug_by_name(state, name, campaign_path)
     return get_active_campaign_slug(state)
 
 
@@ -2445,12 +2437,7 @@ def clear_active_outcome_slug(state, slug=None):
 
 def find_outcome_slug(state, name):
     if name:
-        if outcome_goal_path(state, name).exists():
-            return name
-        candidate = slugify(name)
-        if candidate and outcome_goal_path(state, candidate).exists():
-            return candidate
-        return None
+        return find_existing_slug_by_name(state, name, outcome_goal_path)
     return get_active_outcome_slug(state)
 
 

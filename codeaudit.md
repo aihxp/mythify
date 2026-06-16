@@ -63,7 +63,7 @@ Last updated: 2026-06-15.
 - [x] ~~[ERR-004] Fanout async worker output is accumulated unbounded (no `maxBuffer`)~~ - Completed in v3.6.7.
 - [~] [TEST-001] No cross-runtime behavioral conformance test - Partially addressed in v3.6.6; gate-decision conformance remains open.
 - [ ] [QUAL-001] Two ~10k-line god-modules - Open.
-- [ ] [SEC-003] Raw, un-slugified name is used as a filename before `slugify` - Open.
+- [x] ~~[SEC-003] Raw, un-slugified name is used as a filename before `slugify`~~ - Completed in the post-v3.6.14 security slice.
 - [ ] [SEC-004] Fanout `context_paths` are not sandboxed to the project root - Open, needs re-verification before changing behavior.
 - [ ] [SEC-005] `host_cli_run` accepts an arbitrary `bin` executable - Open, needs re-verification before changing behavior.
 - [ ] [SEC-006] `outcome` `allowed_paths` is advisory-only despite a sandboxing-implying name - Open.
@@ -336,10 +336,10 @@ Several controls exist in name or partial form but do not fully hold.
 
 ## Remediation plan
 
-- **Quick wins** (highest value per effort; act now): completed SEC-001 and ERR-004. Next small slices: SEC-003, SEC-006, and ERR-002 after confirming each cited behavior still holds.
+- **Quick wins** (highest value per effort; act now): completed SEC-001, SEC-003, and ERR-004. Next small slices: SEC-006 and ERR-002 after confirming each cited behavior still holds.
 - **Plan now** (High/Critical and scheduled Medium work, suggested order): finish ARC-003 (+TEST-001 gate-decision conformance) -> ARC-004 -> ERR-001 -> SEC-002 redaction -> QUAL-001 -> ARC-002 (long-horizon dedup/generation program).
 - **Verify first** (Suspected; re-check the cited code before acting): SEC-004, SEC-005, ERR-003, ERR-005.
-- **Backlog** (Low; batch): SEC-003, SEC-006, ERR-002, PERF-001.
+- **Backlog** (Low; batch): SEC-006, ERR-002, PERF-001.
 
 ## Scope and limitations
 

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Explicit plan, research, campaign, and outcome lookup names are now slugified
+  before filesystem lookup, preventing traversal-like names from resolving
+  outside their state subdirectories.
+
 ## [3.6.14] - 2026-06-16
 
 ### Added

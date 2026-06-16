@@ -1374,6 +1374,75 @@ test("mythify MCP server smoke test", async (t) => {
   }
 });
 
+test("explicit MCP names cannot escape state subdirectories", async () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-mcp-path-state-"));
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-mcp-path-home-"));
+  const outsideBase = `${path.basename(stateDir)}-outside`;
+  const outsidePlan = path.resolve(stateDir, "plans", "..", "..", `${outsideBase}-plan.json`);
+  const outsideOutcomeDir = path.resolve(stateDir, "outcomes", "..", "..", `${outsideBase}-outcome`);
+
+  fs.mkdirSync(path.join(stateDir, "plans"), { recursive: true });
+  fs.mkdirSync(path.join(stateDir, "outcomes"), { recursive: true });
+  fs.writeFileSync(
+    outsidePlan,
+    JSON.stringify({
+      name: `${outsideBase}-plan`,
+      goal: "Outside MCP plan sentinel",
+      steps: [],
+    }),
+    "utf8"
+  );
+  fs.mkdirSync(outsideOutcomeDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(outsideOutcomeDir, "goal.json"),
+    JSON.stringify({
+      goal: "Outside MCP outcome sentinel",
+      status: "active",
+      success_criteria: "not loaded",
+      verify_command: "true",
+    }),
+    "utf8"
+  );
+
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [SERVER_PATH],
+    env: {
+      ...process.env,
+      MYTHIFY_DIR: stateDir,
+      HOME: homeDir,
+    },
+  });
+  const client = new Client({ name: "mythify-path-test", version: "3.6.14" });
+  await client.connect(transport);
+
+  try {
+    const planText = textOf(
+      await client.callTool({
+        name: "plan_status",
+        arguments: { plan: `../../${outsideBase}-plan` },
+      })
+    );
+    assert.match(planText, /^\[FAIL\]/);
+    assert.doesNotMatch(planText, /Outside MCP plan sentinel/);
+
+    const outcomeText = textOf(
+      await client.callTool({
+        name: "outcome_status",
+        arguments: { name: `../../${outsideBase}-outcome` },
+      })
+    );
+    assert.match(outcomeText, /^\[FAIL\]/);
+    assert.doesNotMatch(outcomeText, /Outside MCP outcome sentinel/);
+  } finally {
+    await client.close();
+    fs.rmSync(stateDir, { recursive: true, force: true });
+    fs.rmSync(homeDir, { recursive: true, force: true });
+    fs.rmSync(outsidePlan, { force: true });
+    fs.rmSync(outsideOutcomeDir, { recursive: true, force: true });
+  }
+});
+
 test("strict evidence gate on plan_update_step", async (t) => {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-gate-state-"));
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-gate-home-"));

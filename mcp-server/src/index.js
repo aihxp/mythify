@@ -283,6 +283,14 @@ function slugify(text) {
     .slice(0, 40);
 }
 
+function findExistingSlugByName(name, pathForSlug) {
+  const candidate = slugify(name);
+  if (candidate && fs.existsSync(pathForSlug(candidate))) {
+    return candidate;
+  }
+  return null;
+}
+
 function tail(text) {
   const s = String(text == null ? "" : text);
   return s.length > TAIL_CHARS ? s.slice(-TAIL_CHARS) : s;
@@ -402,14 +410,7 @@ function getActiveCampaignSlug() {
 function findCampaignSlug(name) {
   const raw = String(name || "").trim();
   if (raw) {
-    if (fs.existsSync(campaignPath(raw))) {
-      return raw;
-    }
-    const candidate = slugify(raw);
-    if (candidate && fs.existsSync(campaignPath(candidate))) {
-      return candidate;
-    }
-    return null;
+    return findExistingSlugByName(raw, campaignPath);
   }
   return getActiveCampaignSlug();
 }
@@ -454,14 +455,7 @@ function getActiveResearchSlug() {
 function findResearchSlug(name) {
   const raw = String(name || "").trim();
   if (raw) {
-    if (fs.existsSync(researchPath(raw))) {
-      return raw;
-    }
-    const candidate = slugify(raw);
-    if (candidate && fs.existsSync(researchPath(candidate))) {
-      return candidate;
-    }
-    return null;
+    return findExistingSlugByName(raw, researchPath);
   }
   return getActiveResearchSlug();
 }
@@ -1832,15 +1826,13 @@ function setActiveSlug(slug) {
 // the active pointer. Returns {slug, plan} or {error} with explanatory text.
 function resolvePlan(name) {
   if (name !== undefined && name !== null && String(name).trim() !== "") {
-    const candidates = [String(name).trim(), slugify(name)].filter((c) => c !== "");
-    for (const slug of candidates) {
-      if (fs.existsSync(planPath(slug))) {
-        const plan = readJsonRecover(planPath(slug), () => null);
-        if (plan === null) {
-          return { error: `[FAIL] Plan file for "${slug}" was corrupt and has been quarantined. Recreate it with plan_create.` };
-        }
-        return { slug, plan };
+    const slug = findExistingSlugByName(String(name).trim(), planPath);
+    if (slug) {
+      const plan = readJsonRecover(planPath(slug), () => null);
+      if (plan === null) {
+        return { error: `[FAIL] Plan file for "${slug}" was corrupt and has been quarantined. Recreate it with plan_create.` };
       }
+      return { slug, plan };
     }
     return { error: `[FAIL] No plan named "${name}" found. Use plan_create to create one or plan_status to inspect the active plan.` };
   }
@@ -2012,15 +2004,13 @@ function clearActiveOutcomeSlug(slug = null) {
 
 function resolveOutcome(name) {
   if (name !== undefined && name !== null && String(name).trim() !== "") {
-    const candidates = [String(name).trim(), slugify(name)].filter((c) => c !== "");
-    for (const slug of candidates) {
-      if (fs.existsSync(outcomeGoalPath(slug))) {
-        const goal = readJsonRecover(outcomeGoalPath(slug), () => null);
-        if (goal === null) {
-          return { error: `[FAIL] Outcome file for "${slug}" was corrupt and has been quarantined.` };
-        }
-        return { slug, goal };
+    const slug = findExistingSlugByName(String(name).trim(), outcomeGoalPath);
+    if (slug) {
+      const goal = readJsonRecover(outcomeGoalPath(slug), () => null);
+      if (goal === null) {
+        return { error: `[FAIL] Outcome file for "${slug}" was corrupt and has been quarantined.` };
       }
+      return { slug, goal };
     }
     return { error: `[FAIL] No outcome named "${name}" found. Use outcome_start to create one.` };
   }

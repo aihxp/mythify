@@ -1827,6 +1827,63 @@ class TestPlanLifecycle(CliTestCase):
         self.assertEqual(shown.returncode, 0, shown.stderr)
         self.assertIn("Degenerate goal", shown.stdout)
 
+    def test_explicit_lookup_names_cannot_escape_state_subdirectories(self):
+        state = self.init_workspace()
+        for dirname in ("research", "campaigns", "outcomes"):
+            (state / dirname).mkdir(parents=True, exist_ok=True)
+
+        (self.project / "outside-plan.json").write_text(
+            json.dumps({
+                "name": "outside-plan",
+                "goal": "Outside plan sentinel",
+                "steps": [],
+            }),
+            encoding="utf-8",
+        )
+        (self.project / "outside-research.json").write_text(
+            json.dumps({
+                "question": "Outside research sentinel",
+                "status": "active",
+                "sources": [],
+                "claims": [],
+                "open_questions": [],
+            }),
+            encoding="utf-8",
+        )
+        (self.project / "outside-campaign.json").write_text(
+            json.dumps({
+                "goal": "Outside campaign sentinel",
+                "status": "active",
+                "tasks": [],
+            }),
+            encoding="utf-8",
+        )
+        outside_outcome = self.project / "outside-outcome"
+        outside_outcome.mkdir()
+        (outside_outcome / "goal.json").write_text(
+            json.dumps({
+                "goal": "Outside outcome sentinel",
+                "status": "active",
+                "success_criteria": "not loaded",
+                "verify_command": "true",
+            }),
+            encoding="utf-8",
+        )
+
+        cases = [
+            (("plan", "show", "../../outside-plan"), "Outside plan sentinel"),
+            (("research", "summary", "../../outside-research"), "Outside research sentinel"),
+            (("campaign", "status", "../../outside-campaign"), "Outside campaign sentinel"),
+            (("outcome", "status", "../../outside-outcome"), "Outside outcome sentinel"),
+        ]
+        for args, sentinel in cases:
+            with self.subTest(command=" ".join(args)):
+                result = self.run_cli(*args)
+                output = result.stdout + result.stderr
+                self.assertEqual(result.returncode, 1, output)
+                self.assertIn("[FAIL]", output)
+                self.assertNotIn(sentinel, output)
+
     def test_add_step_appends_with_next_id(self):
         state = self.init_workspace()
         steps = json.dumps([{"title": "A"}])
