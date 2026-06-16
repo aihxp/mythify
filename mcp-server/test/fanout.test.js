@@ -370,6 +370,40 @@ test("fanout with the command engine", async (t) => {
       );
     });
 
+    await t.test("context_paths refuse files outside the project root", async () => {
+      const outsidePath = path.join(root, "outside-secret.txt");
+      const outsideMarker = "OUTSIDE-CONTEXT-MUST-NOT-LEAK";
+      fs.writeFileSync(outsidePath, `${outsideMarker}\n`, "utf8");
+      const symlinkPath = path.join(projectRoot, "notes", "external-link.txt");
+      fs.symlinkSync(outsidePath, symlinkPath);
+
+      const cases = [
+        ["absolute outside", outsidePath],
+        ["relative escape", "../outside-secret.txt"],
+        ["symlink escape", "notes/external-link.txt"],
+      ];
+      for (const [title, contextPath] of cases) {
+        const refused = textOf(
+          await client.callTool({
+            name: "fanout_start",
+            arguments: {
+              tasks: [
+                {
+                  title,
+                  prompt: "irrelevant",
+                  context_paths: [contextPath],
+                },
+              ],
+            },
+          })
+        );
+        assert.ok(refused.startsWith("[FAIL]"), `${title} refuses: ${refused}`);
+        assert.match(refused, /outside the project root/, `${title} names the containment failure`);
+        assert.match(refused, /No job was started/, `${title} does not create a job`);
+        assert.doesNotMatch(refused, new RegExp(outsideMarker), `${title} does not include outside content`);
+      }
+    });
+
     await t.test("per-task effort overrides job effort and reaches the worker prompt", async () => {
       const started = textOf(
         await client.callTool({

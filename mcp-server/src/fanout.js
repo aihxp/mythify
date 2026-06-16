@@ -972,10 +972,38 @@ function providerAuditBase(job, task, prompt) {
 // Worker prompt assembly
 // ---------------------------------------------------------------------------
 
+function isPathInside(parent, child) {
+  const relative = path.relative(parent, child);
+  return (
+    relative === "" ||
+    (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  );
+}
+
+function resolveContextPath(rawPath, projectRoot) {
+  const root = path.resolve(projectRoot);
+  const resolved = path.isAbsolute(rawPath) ? path.resolve(rawPath) : path.resolve(root, rawPath);
+  if (!isPathInside(root, resolved)) {
+    return {
+      error: `context path "${rawPath}" resolves outside the project root (${root}). Use a path within the project root.`,
+    };
+  }
+  if (fs.existsSync(resolved)) {
+    const realRoot = fs.realpathSync(root);
+    const realTarget = fs.realpathSync(resolved);
+    if (!isPathInside(realRoot, realTarget)) {
+      return {
+        error: `context path "${rawPath}" resolves outside the project root (${realRoot}). Use a path within the project root.`,
+      };
+    }
+  }
+  return { resolved };
+}
+
 // Fixed preamble, then each context file as a labeled fenced block, then the
-// task prompt. context_paths resolve relative to the project root (absolute
-// paths allowed); total inlined context is capped at MYTHIFY_FANOUT_CONTEXT_BYTES
-// with an explicit truncation marker. An unreadable path is a validation error.
+// task prompt. context_paths resolve inside the project root; total inlined
+// context is capped at MYTHIFY_FANOUT_CONTEXT_BYTES with an explicit truncation
+// marker. An unreadable path is a validation error.
 function assembleWorkerPrompt(task, projectRoot, contextBytesCap) {
   const parts = [WORKER_PREAMBLE];
   if (typeof task.effort === "string" && task.effort !== "") {
@@ -990,7 +1018,11 @@ function assembleWorkerPrompt(task, projectRoot, contextBytesCap) {
   }
   let remaining = contextBytesCap;
   for (const rawPath of task.context_paths || []) {
-    const resolved = path.isAbsolute(rawPath) ? rawPath : path.join(projectRoot, rawPath);
+    const checkedPath = resolveContextPath(rawPath, projectRoot);
+    if (checkedPath.error) {
+      return { error: checkedPath.error };
+    }
+    const resolved = checkedPath.resolved;
     let buffer;
     try {
       buffer = fs.readFileSync(resolved);
@@ -2304,7 +2336,7 @@ export function registerFanoutTools(server, deps) {
                 .array(z.string())
                 .optional()
                 .describe(
-                  "Files to inline into the worker prompt as labeled fenced blocks. Relative paths resolve against the project root (the parent of .mythify); absolute paths are allowed. Total inlined context per task is capped at MYTHIFY_FANOUT_CONTEXT_BYTES."
+                  "Files to inline into the worker prompt as labeled fenced blocks. Relative paths resolve against the project root (the parent of .mythify); absolute paths are allowed only when they resolve inside that root. Total inlined context per task is capped at MYTHIFY_FANOUT_CONTEXT_BYTES."
                 ),
               role: z
                 .enum(TASK_ROLES)

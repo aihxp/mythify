@@ -835,7 +835,7 @@ Implementation notes:
 ## MCP server: mcp-server/
 
 Node 18+, ESM (`"type": "module"`). Dependencies: `@modelcontextprotocol/sdk`
-(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.21`,
+(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.22`,
 scripts `{"start": "node src/index.js", "test": "node --test test/*.test.js"}`
 (the glob form, because modern Node treats a bare directory argument to --test as
 a literal file and fails), engines node >= 18. Use the registration API that the
@@ -1729,17 +1729,18 @@ Platform mapping:
 
 | Tool | Input schema | Behavior |
 | :--- | :--- | :--- |
-| `fanout_start` | `{tasks: [{title: string, prompt: string, context_paths?: string[], role?: enum(worker, reviewer), model?: string, engine?: string, effort?: enum(auto, low, medium, high), speed?: enum(auto, standard, fast)}], purpose?: string, model?: string, engine?: string, effort?: enum(auto, low, medium, high), speed?: enum(auto, standard, fast), visibility?: enum(auto, quiet, summary, verbose, threaded), session_model?: string, spawn_ceiling?: enum(auto, lower_only, same_or_lower, allow_stronger), reviewer_allow_stronger?: boolean, hosted_provider_billing_ack?: boolean, hosted_provider_data_ack?: boolean, hosted_provider_material_ack?: boolean, timeout_seconds?: number}` | Validate (1 to `MYTHIFY_FANOUT_MAX_TASKS` tasks, non-empty prompts, engine resolvable, kill switch and depth guard, context files readable, spawned model does not exceed the ceiling unless a reviewer-specific opt-in applies, hosted provider API engines require billing, data, and material-only acknowledgements). Create `.mythify/fanout/<job_id>/job.json`, return the job id IMMEDIATELY, run workers in the background with a concurrency pool. Tasks must be fully independent; the description says so and says each task is a fresh model call that costs real money, subscription quota, or local compute. Visibility defaults to summary unless `visibility`, `purpose`, or task prompts request quiet, verbose, or threaded reporting. |
+| `fanout_start` | `{tasks: [{title: string, prompt: string, context_paths?: string[], role?: enum(worker, reviewer), model?: string, engine?: string, effort?: enum(auto, low, medium, high), speed?: enum(auto, standard, fast)}], purpose?: string, model?: string, engine?: string, effort?: enum(auto, low, medium, high), speed?: enum(auto, standard, fast), visibility?: enum(auto, quiet, summary, verbose, threaded), session_model?: string, spawn_ceiling?: enum(auto, lower_only, same_or_lower, allow_stronger), reviewer_allow_stronger?: boolean, hosted_provider_billing_ack?: boolean, hosted_provider_data_ack?: boolean, hosted_provider_material_ack?: boolean, timeout_seconds?: number}` | Validate (1 to `MYTHIFY_FANOUT_MAX_TASKS` tasks, non-empty prompts, engine resolvable, kill switch and depth guard, context files readable and contained to the project root, spawned model does not exceed the ceiling unless a reviewer-specific opt-in applies, hosted provider API engines require billing, data, and material-only acknowledgements). Create `.mythify/fanout/<job_id>/job.json`, return the job id IMMEDIATELY, run workers in the background with a concurrency pool. Tasks must be fully independent; the description says so and says each task is a fresh model call that costs real money, subscription quota, or local compute. Visibility defaults to summary unless `visibility`, `purpose`, or task prompts request quiet, verbose, or threaded reporting. |
 | `fanout_status` | `{job_id?: string}` | Default: most recent job. Per-task lines with the step icon convention plus counts, engine, model, model tier, effort, speed, visibility, and elapsed. Quiet jobs show aggregate progress and failures only. If the job is marked running on disk but unknown to the in-memory registry (server restarted), mark its running tasks `interrupted` and say so. |
 | `fanout_results` | `{job_id?: string, task_id?: number}` | Return outputs of completed and failed tasks (failures include the error and remediation). Per-task text in the tool result is capped at 20000 characters with a note pointing at the task output file. Warns when tasks are still running. |
 
 Job ids: `fo-<YYYYMMDDHHMMSS>-<4 random hex>`. Worker prompt assembly:
 fixed preamble (you are a delegated worker; the task is self-contained; do not
 ask questions; return only the deliverable), then each context file as a
-labeled fenced block, then the task prompt. `context_paths` resolve relative
-to the project root (absolute allowed); total inlined context per task is
-capped at `MYTHIFY_FANOUT_CONTEXT_BYTES` with an explicit truncation marker;
-an unreadable path fails the task at validation time with a clear error.
+labeled fenced block, then the task prompt. `context_paths` resolve within
+the project root; absolute paths are accepted only when they still resolve
+inside that root. Total inlined context per task is capped at
+`MYTHIFY_FANOUT_CONTEXT_BYTES` with an explicit truncation marker; an unreadable
+path fails the task at validation time with a clear error.
 
 Fanout visibility controls what the host should surface in the main chat.
 Modes are `quiet`, `summary`, `verbose`, and `threaded`; `auto` is accepted
@@ -1951,7 +1952,7 @@ step (`step ID in_progress`) sets the lower bound, the VERIFY step
 
 ## Versioning
 
-This is Mythify v3.6.21. Fanout was added in 2.1.0; 2.2.0 added local
+This is Mythify v3.6.22. Fanout was added in 2.1.0; 2.2.0 added local
 subscription-backed `codex-cli` and `cursor-agent` engines; 2.3.0 added
 task classification; 2.4.0 added optional fast model triage after
 classification, execution profiles, platform-aware model policy,
@@ -1997,6 +1998,7 @@ outcome `allowed_paths` as advisory host-edit hints; 3.6.17 warns when malformed
 JSONL evidence records are skipped; 3.6.18 adds strict gate-decision conformance
 tests; 3.6.19 aligns CLI and MCP verifier output-cap and no-exit evidence
 semantics; 3.6.20 adds shared JSONL locks for appends and log compaction;
-3.6.21 redacts obvious secret patterns from stored verifier output tails.
-The CLI reports 3.6.21 through `--version`; the MCP server reads `package.json`
+3.6.21 redacts obvious secret patterns from stored verifier output tails;
+3.6.22 contains fanout `context_paths` to the project root.
+The CLI reports 3.6.22 through `--version`; the MCP server reads `package.json`
 and reports the package version through server info.

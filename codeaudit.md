@@ -64,7 +64,7 @@ Last updated: 2026-06-16.
 - [x] ~~[TEST-001] No cross-runtime behavioral conformance test~~ - Completed in v3.6.18 with classification, verify record-shape, and strict gate-decision conformance.
 - [ ] [QUAL-001] Two ~10k-line god-modules - Open.
 - [x] ~~[SEC-003] Raw, un-slugified name is used as a filename before `slugify`~~ - Completed in v3.6.15.
-- [ ] [SEC-004] Fanout `context_paths` are not sandboxed to the project root - Open, needs re-verification before changing behavior.
+- [x] ~~[SEC-004] Fanout `context_paths` are not sandboxed to the project root~~ - Completed in v3.6.22.
 - [ ] [SEC-005] `host_cli_run` accepts an arbitrary `bin` executable - Open, needs re-verification before changing behavior.
 - [x] ~~[SEC-006] `outcome` `allowed_paths` is advisory-only despite a sandboxing-implying name~~ - Completed in v3.6.16.
 - [x] ~~[ERR-002] `append_jsonl` is non-atomic for large records~~ - Completed in v3.6.17 by surfacing malformed JSONL records.
@@ -100,8 +100,8 @@ State IO still mostly assumes a single writer, but the protocol explicitly spawn
 - Root fix: extend advisory locking to read-modify-write JSON stores where concurrent writers are supported; keep worker output buffers capped; consider an index or tail-read for the growing ledger.
 
 ### SP-3: Security controls declared but not fully enforced (paper controls)
-Several original controls existed in name or partial form. The concrete SEC-001, SEC-002, SEC-003, and SEC-006 instances are now remediated, while the lower-risk suspected sandbox and host-binary items still need verification before behavior changes.
-- Members: SEC-001 (completed kill-switch coverage), SEC-002 (completed `.gitignore` and verifier-tail redaction), SEC-003 (completed slugged lookup), SEC-006 (completed advisory labeling), plus verify-first SEC-004 and SEC-005.
+Several original controls existed in name or partial form. The concrete SEC-001, SEC-002, SEC-003, SEC-004, and SEC-006 instances are now remediated, while the lower-risk suspected host-binary item still needs verification before behavior changes.
+- Members: SEC-001 (completed kill-switch coverage), SEC-002 (completed `.gitignore` and verifier-tail redaction), SEC-003 (completed slugged lookup), SEC-004 (completed fanout context containment), SEC-006 (completed advisory labeling), plus verify-first SEC-005.
 - Root fix: keep execution controls enforced on every execution path, keep name-to-path lookups normalized before filesystem access, and either enforce future path controls or label them as advisory.
 
 ## Findings
@@ -206,12 +206,12 @@ Several original controls existed in name or partial form. The concrete SEC-001,
 - Related: SP-3.
 
 ### [SEC-004] Fanout `context_paths` are not sandboxed to the project root
-- Severity: Low | Confidence: Suspected | Effort: S | Dimension: Security
-- Location: `mcp-server/src/fanout.js:991-1000` (resolve), `:1011` (inlined into worker prompt); schema note `:2232`.
-- Evidence: Each `context_paths` entry is resolved as `path.isAbsolute(p) ? p : path.join(projectRoot, p)`; absolute paths and `../` are read as-is and their content is inlined into a worker prompt sent to an external engine. The tool schema states absolute paths are allowed, so this is partly intended, and the caller is normally the trusted orchestrating agent.
-- Impact: A `context_paths` value like `../../.ssh/id_rsa` causes the server to read that file and ship it to a third-party model. No containment or opt-in for out-of-project reads.
-- Recommendation: Add an opt-in flag or allowlist for out-of-project reads; otherwise resolve within `projectRoot` and reject escapes. Re-verify intended behavior against the documented contract before changing.
-- Verify the fix: an out-of-project `context_paths` entry is rejected unless an explicit opt-in is set.
+- Severity: Low | Confidence: Fixed | Effort: S | Dimension: Security
+- Location: `mcp-server/src/fanout.js:980-1027` (containment check and prompt assembly); schema note `mcp-server/src/fanout.js:2336`; regression test `mcp-server/test/fanout.test.js:371`.
+- Evidence: v3.6.22 resolves each `context_paths` entry against the project root and rejects absolute paths, relative `../` escapes, and symlink targets that resolve outside that root before any worker job is started.
+- Impact: Fanout no longer inlines out-of-project files into delegated worker prompts by accident. Absolute paths remain accepted when they resolve inside the project root.
+- Recommendation: Keep external context opt-in out of the default path; if a future workflow needs cross-project context, add a separate explicit allowlist.
+- Verify the fix: `npm test --prefix mcp-server -- --test-name-pattern 'context_paths'` passes, including absolute outside, relative escape, and symlink escape cases.
 - Related: SP-3.
 
 ### [SEC-005] `host_cli_run` accepts an arbitrary `bin` executable
@@ -324,7 +324,7 @@ Several original controls existed in name or partial form. The concrete SEC-001,
 
 ## Dimension notes
 
-- **Security (82):** No critical or remotely exploitable issues; shell execution is the tool's stated purpose and inputs are operator-supplied, with good controls (loopback allowlist for local providers, env-var key names not raw secrets, recursive-fanout fork-bomb guards, kill-switch coverage, and verifier-tail redaction). Score remains below A because lower-risk sandbox and host-binary items still need verification.
+- **Security (82):** No critical or remotely exploitable issues; shell execution is the tool's stated purpose and inputs are operator-supplied, with good controls (loopback allowlist for local providers, env-var key names not raw secrets, recursive-fanout fork-bomb guards, kill-switch coverage, verifier-tail redaction, and fanout context containment). Score remains below A because the lower-risk host-binary item still needs verification.
 - **Architecture (62):** Three High findings (ARC-001/002/003) plus ARC-004 are all facets of SP-1. The dual-runtime model is deliberate and partly mitigated, but it has produced a live correctness bug and the guards do not cover the bug class. This is the dimension that most needs investment.
 - **Code Quality (74):** Naming, consistency, and dead-code hygiene are good; the drag is the two god-modules (QUAL-001) and the cross-runtime duplication.
 - **Testing (84):** A genuine strength in depth and honesty; v3.6.18 closes the strict gate-decision conformance gap, and v3.6.19 adds verifier failure parity regressions.
@@ -338,7 +338,7 @@ Several original controls existed in name or partial form. The concrete SEC-001,
 
 - **Quick wins** (highest value per effort; act now): completed SEC-001, SEC-003, SEC-006, ERR-002, and ERR-004.
 - **Plan now** (High/Critical and scheduled Medium work, suggested order): QUAL-001 -> ARC-002 (long-horizon dedup/generation program).
-- **Verify first** (Suspected; re-check the cited code before acting): SEC-004, SEC-005, ERR-003, ERR-005.
+- **Verify first** (Suspected; re-check the cited code before acting): SEC-005, ERR-003, ERR-005.
 - **Backlog** (Low; batch): PERF-001.
 
 ## Scope and limitations
