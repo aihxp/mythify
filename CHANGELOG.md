@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.19] - 2026-06-16
+
+### Fixed
+
+- CLI and MCP `verify_run` now share the same verifier output cap and
+  no-exit evidence semantics for timeouts, output overflow, and signal-killed
+  commands.
+
 ## [3.6.18] - 2026-06-16
 
 ### Added
@@ -721,7 +729,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.18...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.19...HEAD
+[3.6.19]: https://github.com/aihxp/mythify/compare/v3.6.18...v3.6.19
 [3.6.18]: https://github.com/aihxp/mythify/compare/v3.6.17...v3.6.18
 [3.6.17]: https://github.com/aihxp/mythify/compare/v3.6.16...v3.6.17
 [3.6.16]: https://github.com/aihxp/mythify/compare/v3.6.15...v3.6.16

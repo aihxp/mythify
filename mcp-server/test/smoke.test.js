@@ -1873,3 +1873,83 @@ test("MCP verify_run disabled refusal preserves whole state", async () => {
     fs.rmSync(homeDir, { recursive: true, force: true });
   }
 });
+
+test("MCP verify_run records signal termination as shared verifier failure", async () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-signal-state-"));
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-signal-home-"));
+
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [SERVER_PATH],
+    env: {
+      ...process.env,
+      MYTHIFY_DIR: stateDir,
+      HOME: homeDir,
+    },
+  });
+  const client = new Client({ name: "mythify-signal-test", version: "3.6.19" });
+  await client.connect(transport);
+
+  try {
+    const killed = textOf(
+      await client.callTool({
+        name: "verify_run",
+        arguments: { command: "kill -9 $$", claim: "signal kill" },
+      })
+    );
+    assert.ok(killed.startsWith("[FAIL]"), `signal kill reports [FAIL]: ${killed}`);
+    assert.match(killed, /exit -1/, "signal kill records the shared no-exit code");
+    const record = JSON.parse(
+      fs.readFileSync(path.join(stateDir, "verifications.jsonl"), "utf8").trim().split(/\n/).at(-1)
+    );
+    assert.equal(record.exit_code, -1);
+    assert.equal(record.verified, false);
+    assert.match(record.stderr_tail, /terminated by signal SIGKILL/);
+  } finally {
+    await client.close();
+    fs.rmSync(stateDir, { recursive: true, force: true });
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  }
+});
+
+test("MCP verify_run records output cap as shared verifier failure", async () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-output-cap-state-"));
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "mythify-output-cap-home-"));
+
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [SERVER_PATH],
+    env: {
+      ...process.env,
+      MYTHIFY_DIR: stateDir,
+      HOME: homeDir,
+      MYTHIFY_VERIFY_MAX_OUTPUT_BYTES: "1024",
+    },
+  });
+  const client = new Client({ name: "mythify-output-cap-test", version: "3.6.19" });
+  await client.connect(transport);
+
+  try {
+    const capped = textOf(
+      await client.callTool({
+        name: "verify_run",
+        arguments: {
+          command: 'node -e "process.stdout.write(\\"x\\".repeat(2048))"',
+          claim: "too much output",
+        },
+      })
+    );
+    assert.ok(capped.startsWith("[FAIL]"), `output cap reports [FAIL]: ${capped}`);
+    assert.match(capped, /exit -1/, "output cap records the shared no-exit code");
+    const record = JSON.parse(
+      fs.readFileSync(path.join(stateDir, "verifications.jsonl"), "utf8").trim().split(/\n/).at(-1)
+    );
+    assert.equal(record.exit_code, -1);
+    assert.equal(record.verified, false);
+    assert.match(record.stderr_tail, /output exceeded 1024 bytes/);
+  } finally {
+    await client.close();
+    fs.rmSync(stateDir, { recursive: true, force: true });
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  }
+});

@@ -56,7 +56,7 @@ Last updated: 2026-06-16.
 - [x] ~~[ARC-001] Cross-runtime timestamp format mismatch silently breaks the strict step gate~~ - Completed in v3.6.5.
 - [ ] [ARC-002] Core business logic is hand-duplicated across both runtimes - Open.
 - [x] ~~[ARC-003] Drift guards verify copies and counts, not behavior or record shapes~~ - Completed in v3.6.18 with classification, verify record-shape, and strict gate-decision conformance.
-- [ ] [ARC-004] Additional confirmed behavioral divergences between the two runtimes - Open.
+- [x] ~~[ARC-004] Additional confirmed behavioral divergences between the two runtimes~~ - Completed in v3.6.19 by aligning verifier output-cap and no-exit evidence semantics.
 - [x] ~~[SEC-001] `outcome check` ignores `MYTHIFY_DISABLE_RUN`~~ - Completed in v3.6.5.
 - [~] [SEC-002] Verifier output tails are persisted unredacted and `init` writes no `.gitignore` - Partially addressed in v3.6.8; output redaction remains open.
 - [ ] [ERR-001] No file locking; `logs compact` read-then-rewrite drops concurrent appends - Open.
@@ -135,11 +135,11 @@ Several controls exist in name or partial form but do not fully hold.
 
 ### [ARC-004] Additional confirmed behavioral divergences between the two runtimes
 - Severity: Medium | Confidence: Confirmed | Effort: M | Dimension: Architecture and Design
-- Location: verify-failure path `mcp-server/src/index.js:8914-8923` vs `scripts/mythify.py:8707-8722`; buffer caps `index.js:8899` (16 MiB) vs `index.js:5295/6130/6448` (1 MiB) vs Python uncapped.
-- Evidence: Node records a third outcome for a spawn-failed or signal-killed verifier (`exit_code:-1, verified:false` with a reason note); Python only catches `TimeoutExpired`, so a signal-killed verifier follows a different path and records different (or no) evidence. Node caps captured output at 16 MiB for `verify_run` but 1 MiB elsewhere; Python's `subprocess.run` has no cap, so large-output commands truncate differently across and within runtimes.
+- Location: verifier capture paths in `scripts/mythify.py` and `mcp-server/src/index.js`; regression coverage in `tests/test_mythify.py` and `mcp-server/test/smoke.test.js`.
+- Evidence: v3.6.19 gives CLI and MCP `verify_run` the same default 16 MiB verifier output cap, the same optional `MYTHIFY_VERIFY_MAX_OUTPUT_BYTES` test/config override, and the same `exit_code:-1, verified:false` record semantics for timeouts, output overflow, and signal-killed commands.
 - Impact: The same verifier command can produce different recorded evidence depending on which adapter ran it, weakening the "executed verification is trustworthy" promise.
-- Recommendation: Unify the failure-classification logic and the output-cap constant across both runtimes (a shared contract per ARC-002).
-- Verify the fix: a verifier killed by signal records the same `verified:false` evidence in both runtimes; the output cap is one shared constant.
+- Recommendation: Keep verifier failure cases in the cross-runtime contract when future execution lanes are added.
+- Verify the fix: `python3 -m unittest tests.test_mythify.TestVerify.test_run_output_limit_records_minus_one_and_exits_two tests.test_mythify.TestVerify.test_run_signal_kill_records_minus_one_and_exits_two` and `npm test --prefix mcp-server -- --test-name-pattern 'verify_run'` pass.
 - Related: SP-1; ARC-002.
 
 ### [SEC-001] `outcome check` ignores the `MYTHIFY_DISABLE_RUN` execution kill-switch
@@ -327,7 +327,7 @@ Several controls exist in name or partial form but do not fully hold.
 - **Security (78):** No critical or remotely exploitable issues; shell execution is the tool's stated purpose and inputs are operator-supplied, with good controls (loopback allowlist for local providers `index.js:5658-5661`, env-var key names not raw secrets, recursive-fanout fork-bomb guards `fanout.js:265-268`). Score held below B by SEC-001 (half-enforced kill-switch) and SEC-002 (unredacted secret persistence + no auto-gitignore), with several Low sandbox/traversal gaps (SEC-003/004/005/006).
 - **Architecture (62):** Three High findings (ARC-001/002/003) plus ARC-004 are all facets of SP-1. The dual-runtime model is deliberate and partly mitigated, but it has produced a live correctness bug and the guards do not cover the bug class. This is the dimension that most needs investment.
 - **Code Quality (74):** Naming, consistency, and dead-code hygiene are good; the drag is the two god-modules (QUAL-001) and the cross-runtime duplication.
-- **Testing (84):** A genuine strength in depth and honesty; v3.6.18 closes the strict gate-decision conformance gap while broader ARC-004 parity work remains.
+- **Testing (84):** A genuine strength in depth and honesty; v3.6.18 closes the strict gate-decision conformance gap, and v3.6.19 adds verifier failure parity regressions.
 - **Error Handling (68):** Single-process behavior and corruption quarantine are solid, but SP-2 (no locking, TOCTOU, non-atomic append, unbounded fanout buffer) is a real systemic gap given the parallel-worker design.
 - **Performance (82):** Adequate for a CLI; PERF-001 (full-ledger re-read, unbounded growth) is the only structural note.
 - **Dependencies (90):** Best dimension; only DEP-001 (no CI audit gate) keeps it from A.
@@ -337,7 +337,7 @@ Several controls exist in name or partial form but do not fully hold.
 ## Remediation plan
 
 - **Quick wins** (highest value per effort; act now): completed SEC-001, SEC-003, SEC-006, ERR-002, and ERR-004.
-- **Plan now** (High/Critical and scheduled Medium work, suggested order): ARC-004 -> ERR-001 -> SEC-002 redaction -> QUAL-001 -> ARC-002 (long-horizon dedup/generation program).
+- **Plan now** (High/Critical and scheduled Medium work, suggested order): ERR-001 -> SEC-002 redaction -> QUAL-001 -> ARC-002 (long-horizon dedup/generation program).
 - **Verify first** (Suspected; re-check the cited code before acting): SEC-004, SEC-005, ERR-003, ERR-005.
 - **Backlog** (Low; batch): PERF-001.
 

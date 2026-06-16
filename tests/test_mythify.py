@@ -2612,6 +2612,33 @@ class TestVerify(CliTestCase):
         self.assertIs(record["verified"], False)
         self.assertIn("(timed out after 1 seconds)", record["stderr_tail"])
 
+    def test_run_output_limit_records_minus_one_and_exits_two(self):
+        state = self.init_workspace()
+        command = shell_py("import sys; sys.stdout.write('x' * 2048)")
+        result = self.run_cli(
+            "verify",
+            "run",
+            command,
+            "--claim",
+            "too much output",
+            env_extra={"MYTHIFY_VERIFY_MAX_OUTPUT_BYTES": "1024"},
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("[FAIL] UNVERIFIED: too much output (exit -1,", result.stdout)
+        record = self.read_jsonl(state / "verifications.jsonl")[-1]
+        self.assertEqual(record["exit_code"], -1)
+        self.assertIs(record["verified"], False)
+        self.assertIn("(output exceeded 1024 bytes)", record["stderr_tail"])
+
+    def test_run_signal_kill_records_minus_one_and_exits_two(self):
+        state = self.init_workspace()
+        result = self.run_cli("verify", "run", "kill -9 $$", "--claim", "signal kill")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        record = self.read_jsonl(state / "verifications.jsonl")[-1]
+        self.assertEqual(record["exit_code"], -1)
+        self.assertIs(record["verified"], False)
+        self.assertIn("(terminated by signal SIGKILL)", record["stderr_tail"])
+
     def test_claim_records_attested_with_verified_null(self):
         state = self.init_workspace()
         result = self.run_cli("verify", "claim", "docs updated", "read the diff")

@@ -58,6 +58,7 @@ const VERSION = PACKAGE_JSON.version;
 const CLASSIFICATION_RULES_PATH = new URL("../protocol/classification-rules.json", import.meta.url);
 const WORKFLOW_ROUTER_PATH = new URL("../protocol/workflow-router.json", import.meta.url);
 const TAIL_CHARS = 4000;
+const DEFAULT_VERIFY_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const STEP_STATUSES = ["pending", "in_progress", "completed", "failed", "skipped"];
 const OUTCOME_STATUSES = ["active", "succeeded", "failed", "stopped"];
 const FALSE_ENV_VALUES = new Set(["0", "false", "no", "off"]);
@@ -294,6 +295,17 @@ function findExistingSlugByName(name, pathForSlug) {
 function tail(text) {
   const s = String(text == null ? "" : text);
   return s.length > TAIL_CHARS ? s.slice(-TAIL_CHARS) : s;
+}
+
+function verifyMaxOutputBytes() {
+  const raw = String(process.env.MYTHIFY_VERIFY_MAX_OUTPUT_BYTES || "").trim();
+  if (raw === "") {
+    return DEFAULT_VERIFY_MAX_OUTPUT_BYTES;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_VERIFY_MAX_OUTPUT_BYTES;
 }
 
 // ---------------------------------------------------------------------------
@@ -2048,23 +2060,29 @@ function uniqueOutcomeSlug(base) {
 }
 
 function runShellCapture(command, timeoutSeconds) {
+  const maxOutputBytes = verifyMaxOutputBytes();
   const startedAt = process.hrtime.bigint();
   const run = spawnSync(command, {
     shell: true,
     encoding: "utf8",
     timeout: Math.round(timeoutSeconds * 1000),
-    maxBuffer: 16 * 1024 * 1024,
+    maxBuffer: maxOutputBytes,
   });
   const durationSeconds = Number(process.hrtime.bigint() - startedAt) / 1e9;
   let stdoutTail = tail(run.stdout);
   let stderrTail = tail(run.stderr);
   const timedOut = Boolean(run.error && run.error.code === "ETIMEDOUT");
+  const outputLimitExceeded = Boolean(run.error && run.error.code === "ENOBUFS");
   let exitCode;
   let verified;
   if (timedOut) {
     exitCode = -1;
     verified = false;
     stderrTail = stderrTail + (stderrTail ? "\n" : "") + `(timed out after ${timeoutSeconds} seconds)`;
+  } else if (outputLimitExceeded) {
+    exitCode = -1;
+    verified = false;
+    stderrTail = stderrTail + (stderrTail ? "\n" : "") + `(output exceeded ${maxOutputBytes} bytes)`;
   } else if (typeof run.status === "number") {
     exitCode = run.status;
     verified = exitCode === 0;
@@ -2086,6 +2104,7 @@ function runShellCapture(command, timeoutSeconds) {
     stderr_tail: stderrTail,
     verified,
     timed_out: timedOut,
+    output_limit_exceeded: outputLimitExceeded,
   };
 }
 
@@ -8953,42 +8972,17 @@ server.registerTool(
       );
     }
     const timeoutSeconds = timeout_seconds || 300;
-    const startedAt = process.hrtime.bigint();
-    const run = spawnSync(command, {
-      shell: true,
-      encoding: "utf8",
-      timeout: Math.round(timeoutSeconds * 1000),
-      maxBuffer: 16 * 1024 * 1024,
-    });
-    const durationSeconds = Number(process.hrtime.bigint() - startedAt) / 1e9;
-    let stdoutTail = tail(run.stdout);
-    let stderrTail = tail(run.stderr);
-    const timedOut = Boolean(run.error && run.error.code === "ETIMEDOUT");
-    let exitCode;
-    let verified;
-    if (timedOut) {
-      exitCode = -1;
-      verified = false;
-      stderrTail = stderrTail + (stderrTail ? "\n" : "") + `(timed out after ${timeoutSeconds} seconds)`;
-    } else if (typeof run.status === "number") {
-      exitCode = run.status;
-      verified = exitCode === 0;
-    } else {
-      exitCode = -1;
-      verified = false;
-      const reason = run.error
-        ? run.error.message
-        : run.signal
-          ? `terminated by signal ${run.signal}`
-          : "command did not produce an exit code";
-      stderrTail = stderrTail + (stderrTail ? "\n" : "") + `(${reason})`;
-    }
+    const run = runShellCapture(command, timeoutSeconds);
+    const stdoutTail = run.stdout_tail;
+    const stderrTail = run.stderr_tail;
+    const exitCode = run.exit_code;
+    const verified = run.verified;
     const record = {
       kind: "executed",
       claim: claim !== undefined && claim !== null ? claim : null,
       command,
       exit_code: exitCode,
-      duration_seconds: Number(durationSeconds.toFixed(3)),
+      duration_seconds: run.duration_seconds,
       stdout_tail: stdoutTail,
       stderr_tail: stderrTail,
       verified,
@@ -8997,7 +8991,7 @@ server.registerTool(
     };
     appendJsonl(verificationsPath(), record);
     const label = record.claim !== null ? record.claim : command;
-    const timing = `(exit ${exitCode}, ${durationSeconds.toFixed(2)}s)`;
+    const timing = `(exit ${exitCode}, ${run.duration_seconds.toFixed(2)}s)`;
     if (verified) {
       return `[OK] VERIFIED: ${label} ${timing}`;
     }

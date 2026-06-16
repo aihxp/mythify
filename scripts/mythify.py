@@ -18,6 +18,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -27,7 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 WORKSPACE_DIR_NAME = ".mythify"
-VERSION = "3.6.18"
+VERSION = "3.6.19"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
 CLASSIFICATION_RULES_PATH = REPO_ROOT / "protocol" / "classification-rules.json"
@@ -122,6 +123,7 @@ MEMORY_CLEAR_CLI_REFUSAL = (
 REFLECT_OUTCOMES = ("success", "partial", "failure")
 TAIL_CHARS = 4000
 DEFAULT_VERIFY_TIMEOUT = 300.0
+DEFAULT_VERIFY_MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 DEFAULT_LOG_COMPACT_KEEP = 1000
 LOG_COMPACT_TARGETS = ("verifications.jsonl", "reflections.jsonl")
 TRIAGE_ENGINES = ("claude-cli", "codex-cli", "cursor-agent", "command")
@@ -2478,42 +2480,6 @@ def parse_allowed_paths(value):
     if not value:
         return []
     return [item.strip() for item in str(value).split(",") if item.strip()]
-
-
-def run_shell_capture(command, timeout):
-    started = datetime.now(timezone.utc)
-    timed_out = False
-    try:
-        completed = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        exit_code = completed.returncode
-        stdout = completed.stdout or ""
-        stderr = completed.stderr or ""
-    except subprocess.TimeoutExpired as exc:
-        timed_out = True
-        exit_code = -1
-        stdout = _coerce_stream_text(exc.stdout)
-        stderr = _coerce_stream_text(exc.stderr)
-    duration = (datetime.now(timezone.utc) - started).total_seconds()
-    stdout_tail = stdout[-TAIL_CHARS:]
-    stderr_tail = stderr[-TAIL_CHARS:]
-    if timed_out:
-        notice = "(timed out after {0:g} seconds)".format(timeout)
-        stderr_tail = (stderr_tail + "\n" + notice) if stderr_tail else notice
-    return {
-        "command": command,
-        "exit_code": exit_code,
-        "duration_seconds": round(duration, 3),
-        "stdout_tail": stdout_tail,
-        "stderr_tail": stderr_tail,
-        "verified": (not timed_out) and exit_code == 0,
-        "timed_out": timed_out,
-    }
 
 
 def parse_metric_score(output):
@@ -8769,50 +8735,152 @@ def cmd_outcome_stop(args, state):
     return 0
 
 
-def _coerce_stream_text(value):
-    if value is None:
+def _append_stderr_notice(stderr_tail, notice):
+    return (stderr_tail + "\n" + notice) if stderr_tail else notice
+
+
+def _read_file_tail_text(path, char_limit=TAIL_CHARS):
+    try:
+        size = path.stat().st_size
+    except OSError:
         return ""
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return value
+    byte_limit = max(char_limit * 4, 1024)
+    try:
+        with path.open("rb") as handle:
+            handle.seek(max(0, size - byte_limit))
+            return handle.read().decode("utf-8", errors="replace")[-char_limit:]
+    except OSError:
+        return ""
+
+
+def _file_size(path):
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
+def verify_max_output_bytes():
+    raw = os.environ.get("MYTHIFY_VERIFY_MAX_OUTPUT_BYTES", "").strip()
+    if not raw:
+        return DEFAULT_VERIFY_MAX_OUTPUT_BYTES
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_VERIFY_MAX_OUTPUT_BYTES
+    return value if value > 0 else DEFAULT_VERIFY_MAX_OUTPUT_BYTES
+
+
+def signal_name(signum):
+    try:
+        return signal.Signals(signum).name
+    except ValueError:
+        return str(signum)
+
+
+def run_shell_capture(command, timeout, max_output_bytes=None):
+    max_output_bytes = (
+        verify_max_output_bytes() if max_output_bytes is None else max_output_bytes
+    )
+    started = datetime.now(timezone.utc)
+    timed_out = False
+    output_limit_exceeded = False
+    spawn_error = None
+    exit_code = None
+    with tempfile.TemporaryDirectory(prefix="mythify-capture-") as tempdir:
+        stdout_path = Path(tempdir) / "stdout"
+        stderr_path = Path(tempdir) / "stderr"
+        with stdout_path.open("wb") as stdout_file, stderr_path.open("wb") as stderr_file:
+            try:
+                process = subprocess.Popen(
+                    command,
+                    shell=True,
+                    stdout=stdout_file,
+                    stderr=stderr_file,
+                )
+            except OSError as exc:
+                process = None
+                spawn_error = str(exc)
+            if process is not None:
+                deadline = time.monotonic() + timeout
+                while process.poll() is None:
+                    if time.monotonic() >= deadline:
+                        timed_out = True
+                        process.kill()
+                        break
+                    total_size = _file_size(stdout_path) + _file_size(stderr_path)
+                    if total_size > max_output_bytes:
+                        output_limit_exceeded = True
+                        process.kill()
+                        break
+                    time.sleep(0.02)
+                try:
+                    process.wait(timeout=1)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=1)
+                exit_code = process.returncode
+        stdout_tail = _read_file_tail_text(stdout_path)
+        stderr_tail = _read_file_tail_text(stderr_path)
+        total_size = _file_size(stdout_path) + _file_size(stderr_path)
+    duration = (datetime.now(timezone.utc) - started).total_seconds()
+    if (
+        not timed_out
+        and not output_limit_exceeded
+        and max_output_bytes is not None
+        and total_size > max_output_bytes
+    ):
+        output_limit_exceeded = True
+    if timed_out:
+        exit_code = -1
+        notice = "(timed out after {0:g} seconds)".format(timeout)
+        stderr_tail = _append_stderr_notice(stderr_tail, notice)
+    elif output_limit_exceeded:
+        exit_code = -1
+        notice = "(output exceeded {0} bytes)".format(max_output_bytes)
+        stderr_tail = _append_stderr_notice(stderr_tail, notice)
+    elif spawn_error is not None:
+        exit_code = -1
+        stderr_tail = _append_stderr_notice(stderr_tail, "({0})".format(spawn_error))
+    elif exit_code is None:
+        exit_code = -1
+        stderr_tail = _append_stderr_notice(
+            stderr_tail,
+            "(command did not produce an exit code)",
+        )
+    elif exit_code < 0:
+        stderr_tail = _append_stderr_notice(
+            stderr_tail,
+            "(terminated by signal {0})".format(signal_name(-exit_code)),
+        )
+        exit_code = -1
+    return {
+        "command": command,
+        "exit_code": exit_code,
+        "duration_seconds": round(duration, 3),
+        "stdout_tail": stdout_tail,
+        "stderr_tail": stderr_tail,
+        "verified": exit_code == 0 and not timed_out and not output_limit_exceeded,
+        "timed_out": timed_out,
+        "output_limit_exceeded": output_limit_exceeded,
+    }
 
 
 def cmd_verify_run(args, state):
     if os.environ.get("MYTHIFY_DISABLE_RUN") == "1":
         fail(VERIFY_RUN_DISABLED_MESSAGE)
         return 2
-    timeout = args.timeout
-    started = datetime.now(timezone.utc)
-    timed_out = False
-    try:
-        completed = subprocess.run(
-            args.command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        exit_code = completed.returncode
-        stdout = completed.stdout or ""
-        stderr = completed.stderr or ""
-    except subprocess.TimeoutExpired as exc:
-        timed_out = True
-        exit_code = -1
-        stdout = _coerce_stream_text(exc.stdout)
-        stderr = _coerce_stream_text(exc.stderr)
-    duration = (datetime.now(timezone.utc) - started).total_seconds()
-    stdout_tail = stdout[-TAIL_CHARS:]
-    stderr_tail = stderr[-TAIL_CHARS:]
-    if timed_out:
-        notice = "(timed out after {0:g} seconds)".format(timeout)
-        stderr_tail = (stderr_tail + "\n" + notice) if stderr_tail else notice
-    verified = (not timed_out) and exit_code == 0
+    run = run_shell_capture(args.command, args.timeout)
+    exit_code = run["exit_code"]
+    stdout_tail = run["stdout_tail"]
+    stderr_tail = run["stderr_tail"]
+    verified = run["verified"]
     record = {
         "kind": "executed",
         "claim": args.claim,
         "command": args.command,
         "exit_code": exit_code,
-        "duration_seconds": round(duration, 3),
+        "duration_seconds": run["duration_seconds"],
         "stdout_tail": stdout_tail,
         "stderr_tail": stderr_tail,
         "verified": verified,
@@ -8822,9 +8890,21 @@ def cmd_verify_run(args, state):
     append_jsonl(state / "verifications.jsonl", record)
     label = args.claim or args.command
     if verified:
-        print("[OK] VERIFIED: {0} (exit {1}, {2:.2f}s)".format(label, exit_code, duration))
+        print(
+            "[OK] VERIFIED: {0} (exit {1}, {2:.2f}s)".format(
+                label,
+                exit_code,
+                run["duration_seconds"],
+            )
+        )
         return 0
-    print("[FAIL] UNVERIFIED: {0} (exit {1}, {2:.2f}s)".format(label, exit_code, duration))
+    print(
+        "[FAIL] UNVERIFIED: {0} (exit {1}, {2:.2f}s)".format(
+            label,
+            exit_code,
+            run["duration_seconds"],
+        )
+    )
     if stdout_tail:
         print("--- stdout (tail) ---")
         print(stdout_tail)
