@@ -404,6 +404,10 @@ def install_mythify(workspace):
         workspace / "scripts" / "mythify_trace.py",
     )
     shutil.copy2(
+        root / "scripts" / "mythify_views.py",
+        workspace / "scripts" / "mythify_views.py",
+    )
+    shutil.copy2(
         root / "scripts" / "mythify_workflows.py",
         workspace / "scripts" / "mythify_workflows.py",
     )

@@ -30,6 +30,7 @@ PY_MODEL_POLICY = REPO_ROOT / "scripts" / "mythify_model_policy.py"
 PY_OUTCOMES = REPO_ROOT / "scripts" / "mythify_outcomes.py"
 PY_ROUTER = REPO_ROOT / "scripts" / "mythify_router.py"
 PY_TRACE = REPO_ROOT / "scripts" / "mythify_trace.py"
+PY_VIEWS = REPO_ROOT / "scripts" / "mythify_views.py"
 PY_WORKFLOWS = REPO_ROOT / "scripts" / "mythify_workflows.py"
 OPERATION_REGISTRY = REPO_ROOT / "protocol" / "operation-registry.json"
 SURFACE_MANIFEST = REPO_ROOT / "protocol" / "surface-manifest.json"
@@ -453,6 +454,96 @@ class TestPromptRouter(unittest.TestCase):
         self.assertIn("active plan", reason)
 
 
+class TestReadOnlyViews(unittest.TestCase):
+    def load_views_module(self):
+        scripts_dir = str(REPO_ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        spec = importlib.util.spec_from_file_location(
+            "mythify_views_under_test",
+            PY_VIEWS,
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_dashboard_phase_and_report_import_directly(self):
+        mythify = self.load_views_module()
+        timestamp = "2026-06-16T00:00:00+00:00"
+        plan = {
+            "goal": "Ship views module",
+            "created": timestamp,
+            "steps": [
+                {
+                    "id": 1,
+                    "title": "Design views",
+                    "status": "completed",
+                    "success_criteria": "module boundary is clear",
+                    "result": "done",
+                    "updated_at": timestamp,
+                },
+                {
+                    "id": 2,
+                    "title": "Verify views",
+                    "status": "in_progress",
+                    "success_criteria": "tests pass",
+                    "updated_at": timestamp,
+                },
+            ],
+        }
+        mythify.configure_views(
+            get_active_slug_func=lambda state: "views-module",
+            load_plan_func=lambda state, slug: plan,
+            plan_progress_func=lambda value: (1, 2),
+            next_pending_step_func=lambda value: None,
+            load_memory_func=lambda state: {"entries": [{"key": "views", "value": "ready"}]},
+            load_lessons_func=lambda directory, scope: [{"title": scope}],
+            global_lessons_dir_func=lambda: Path("/tmp/mythify-global-lessons"),
+            list_plan_slugs_func=lambda state: ["views-module"],
+            format_step_line_func=lambda step, indent="  ": (
+                "{0}{1}. {2}".format(indent, step.get("id"), step.get("title"))
+            ),
+            timestamp_sort_key_func=lambda value: value or "",
+            timestamp_after_func=lambda value, lower: str(value or "") > str(lower or ""),
+            now_iso_func=lambda: timestamp,
+            slugify_func=lambda text: str(text).strip().lower().replace(" ", "-"),
+        )
+        state = Path(tempfile.mkdtemp(prefix="mythify-views-test-"))
+        self.addCleanup(shutil.rmtree, str(state), True)
+        (state / "verifications.jsonl").write_text(
+            json.dumps(
+                {
+                    "kind": "executed",
+                    "verified": True,
+                    "claim": "views tests pass",
+                    "exit_code": 0,
+                    "timestamp": timestamp,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        dashboard = mythify.build_dashboard(state, recent=1)
+        self.assertEqual(dashboard["active_plan"]["slug"], "views-module")
+        self.assertEqual(dashboard["active_plan"]["current_step"]["title"], "Verify views")
+        self.assertEqual(dashboard["verification_summary"]["executed_passed"], 1)
+
+        phase = mythify.build_phase_view(state, recent=1)
+        verify_phase = next(item for item in phase["phases"] if item["id"] == "verify")
+        self.assertEqual(verify_phase["status"], "in_progress")
+
+        report = mythify.build_work_report(
+            state,
+            since="start",
+            recent=5,
+            cursor="views",
+            peek=True,
+        )
+        self.assertTrue(any(event["kind"] == "verification_passed" for event in report["events"]))
+        self.assertFalse((state / "reports" / "views.json").exists())
+
+
 class TestProtocolHandshake(CliTestCase):
     def test_protocol_check_accepts_repo_protocol_and_generated_variants(self):
         result = self.run_cli("protocol", "check", cwd=REPO_ROOT)
@@ -497,6 +588,10 @@ class TestProtocolHandshake(CliTestCase):
         shutil.copy2(
             PY_TRACE,
             self.project / "scripts" / "mythify_trace.py",
+        )
+        shutil.copy2(
+            PY_VIEWS,
+            self.project / "scripts" / "mythify_views.py",
         )
         shutil.copy2(
             PY_WORKFLOWS,
