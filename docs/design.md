@@ -68,6 +68,7 @@ mythify/
 |   |-- src/lifecycle-adapter.js
 |   |-- src/model-provider.js
 |   |-- src/operation-registry.js
+|   |-- src/provider-defaults.js
 |   |-- src/surface-manifest.js
 |   |-- protocol/classification-rules.json package copy of classifier keywords
 |   |-- protocol/operation-registry.json package copy of operation metadata
@@ -83,6 +84,7 @@ mythify/
 |   |-- test/lifecycle-probe.test.js
 |   |-- test/local-model-run.test.js
 |   |-- test/model-provider.test.js
+|   |-- test/provider-defaults.test.js
 |   |-- test/provider-probe.test.js
 |   |-- test/smoke.test.js
 |   `-- test/fanout.test.js
@@ -848,7 +850,7 @@ Implementation notes:
 ## MCP server: mcp-server/
 
 Node 18+, ESM (`"type": "module"`). Dependencies: `@modelcontextprotocol/sdk`
-(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.34`,
+(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.35`,
 scripts `{"start": "node src/index.js", "test": "node --test test/*.test.js"}`
 (the glob form, because modern Node treats a bare directory argument to --test as
 a literal file and fails), engines node >= 18. Use the registration API that the
@@ -1966,7 +1968,7 @@ step (`step ID in_progress`) sets the lower bound, the VERIFY step
 
 ## Versioning
 
-This is Mythify v3.6.34. Fanout was added in 2.1.0; 2.2.0 added local
+This is Mythify v3.6.35. Fanout was added in 2.1.0; 2.2.0 added local
 subscription-backed `codex-cli` and `cursor-agent` engines; 2.3.0 added
 task classification; 2.4.0 added optional fast model triage after
 classification, execution profiles, platform-aware model policy,
@@ -2028,6 +2030,8 @@ model role-runner helpers into a direct-import MCP helper module; 3.6.32
 extracts MCP host CLI probe and worker helpers into a direct-import MCP helper
 module; 3.6.33 extracts MCP execution adapter probe and run helpers into a
 direct-import MCP helper module; 3.6.34 extracts MCP lifecycle probe helpers
-into a direct-import MCP helper module.
-The CLI reports 3.6.34 through `--version`; the MCP server reads `package.json`
+into a direct-import MCP helper module; 3.6.35 extracts MCP provider defaults,
+adapter contracts, and role assignment metadata into a direct-import MCP helper
+module.
+The CLI reports 3.6.35 through `--version`; the MCP server reads `package.json`
 and reports the package version through server info.

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.35] - 2026-06-16
+
+### Changed
+
+- Extracted MCP provider defaults, adapter contracts, and role assignment
+  metadata into a direct-import `src/provider-defaults.js` module.
+- Added direct module coverage for provider defaults and API provider guardrail
+  contracts while keeping existing smoke coverage.
+
 ## [3.6.34] - 2026-06-16
 
 ### Changed
@@ -860,7 +869,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.34...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.35...HEAD
+[3.6.35]: https://github.com/aihxp/mythify/compare/v3.6.34...v3.6.35
 [3.6.34]: https://github.com/aihxp/mythify/compare/v3.6.33...v3.6.34
 [3.6.33]: https://github.com/aihxp/mythify/compare/v3.6.32...v3.6.33
 [3.6.32]: https://github.com/aihxp/mythify/compare/v3.6.31...v3.6.32
