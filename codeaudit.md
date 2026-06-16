@@ -41,13 +41,42 @@ Weighting: defaults, unchanged. No Critical findings, so no dimension or overall
 
 ## What to fix first
 
-1. `[ARC-001]` Cross-runtime timestamp format mismatch silently breaks the strict step gate - High, M - a legitimately passing verify is rejected when Node and Python interleave on one state dir.
-2. `[ARC-003]` Drift guards verify copies and counts, not behavior - High, M - add a cross-runtime conformance test so this class of bug cannot recur (this also resolves TEST-001).
-3. `[SEC-001]` `outcome check` ignores `MYTHIFY_DISABLE_RUN` - Medium, S - the execution kill-switch is only half-enforced.
-4. `[ERR-004]` Fanout async worker output is accumulated unbounded (no `maxBuffer`) - Medium, S - a chatty worker can OOM the MCP server.
-5. `[ARC-002]` Core logic is hand-duplicated across both runtimes - High, L - the systemic root; schedule a dedup or generation strategy.
-6. `[ERR-001]` No file locking; `logs compact` TOCTOU drops concurrent appends - Medium, M - silent evidence loss under the fanout/worker model.
-7. `[SEC-002]` Verifier stdout/stderr tails persisted unredacted; `init` writes no `.gitignore` - Medium, M - secrets-at-rest and a commit-leak path.
+1. [x] ~~`[ARC-001]` Cross-runtime timestamp format mismatch silently breaks the strict step gate~~ - Completed in v3.6.5.
+2. [~] `[ARC-003]` Drift guards verify copies and counts, not behavior - Partially addressed in v3.6.6 with classification and verify record-shape conformance; gate-decision conformance remains open.
+3. [x] ~~`[SEC-001]` `outcome check` ignores `MYTHIFY_DISABLE_RUN`~~ - Completed in v3.6.5.
+4. [x] ~~`[ERR-004]` Fanout async worker output is accumulated unbounded (no `maxBuffer`)~~ - Completed in v3.6.7.
+5. [ ] `[ARC-002]` Core logic is hand-duplicated across both runtimes - Open.
+6. [ ] `[ERR-001]` No file locking; `logs compact` TOCTOU drops concurrent appends - Open.
+7. [~] `[SEC-002]` Verifier stdout/stderr tails persisted unredacted; `init` writes no `.gitignore` - Partially addressed in v3.6.8 by adding default `.mythify/` `.gitignore` coverage; verifier-output redaction remains open.
+
+## Remediation status
+
+Last updated: 2026-06-15.
+
+- [x] ~~[ARC-001] Cross-runtime timestamp format mismatch silently breaks the strict step gate~~ - Completed in v3.6.5.
+- [ ] [ARC-002] Core business logic is hand-duplicated across both runtimes - Open.
+- [~] [ARC-003] Drift guards verify copies and counts, not behavior or record shapes - Partially addressed in v3.6.6; gate-decision conformance remains open.
+- [ ] [ARC-004] Additional confirmed behavioral divergences between the two runtimes - Open.
+- [x] ~~[SEC-001] `outcome check` ignores `MYTHIFY_DISABLE_RUN`~~ - Completed in v3.6.5.
+- [~] [SEC-002] Verifier output tails are persisted unredacted and `init` writes no `.gitignore` - Partially addressed in v3.6.8; output redaction remains open.
+- [ ] [ERR-001] No file locking; `logs compact` read-then-rewrite drops concurrent appends - Open.
+- [x] ~~[ERR-004] Fanout async worker output is accumulated unbounded (no `maxBuffer`)~~ - Completed in v3.6.7.
+- [~] [TEST-001] No cross-runtime behavioral conformance test - Partially addressed in v3.6.6; gate-decision conformance remains open.
+- [ ] [QUAL-001] Two ~10k-line god-modules - Open.
+- [ ] [SEC-003] Raw, un-slugified name is used as a filename before `slugify` - Open.
+- [ ] [SEC-004] Fanout `context_paths` are not sandboxed to the project root - Open, needs re-verification before changing behavior.
+- [ ] [SEC-005] `host_cli_run` accepts an arbitrary `bin` executable - Open, needs re-verification before changing behavior.
+- [ ] [SEC-006] `outcome` `allowed_paths` is advisory-only despite a sandboxing-implying name - Open.
+- [ ] [ERR-002] `append_jsonl` is non-atomic for large records - Open.
+- [ ] [ERR-003] No `fsync` before atomic rename - Open, needs re-verification before changing behavior.
+- [ ] [ERR-005] Fanout timeout kills only the direct child; shell-engine grandchildren can orphan - Open, needs re-verification before changing behavior.
+- [ ] [PERF-001] The evidence ledger is re-read in full on every gate check and report, and grows unbounded - Open.
+- [x] ~~[DEP-001] No `npm audit` gate in CI~~ - Completed in v3.6.9.
+- [ ] [TEST-002] Read-only view commands are lightly tested - Open.
+- [ ] [DOC-001] `roadmap.md` references a stale release - Open.
+- [ ] [DOC-002] README "shared contract core" claim overstates current reality - Open.
+- [x] ~~[QUAL-002] Version-surface asymmetry~~ - Completed in v3.6.11.
+- [x] ~~[OBS-001] MCP tool errors do not set the `isError` flag~~ - Completed in v3.6.10.
 
 ## Strengths (preserve these)
 
@@ -307,10 +336,10 @@ Several controls exist in name or partial form but do not fully hold.
 
 ## Remediation plan
 
-- **Quick wins** (highest value per effort; act now): SEC-001, ERR-004. (No High/Critical finding is pure-S; these Medium-S items are the cheapest high-value fixes.)
-- **Plan now** (High/Critical and scheduled Medium work, suggested order): ARC-001 -> ARC-003 (+TEST-001, shared fix) -> ARC-004 -> ERR-001 -> SEC-002 -> QUAL-001 -> ARC-002 (long-horizon dedup/generation program).
+- **Quick wins** (highest value per effort; act now): completed SEC-001 and ERR-004. Next small slices: SEC-003, SEC-006, ERR-002, TEST-002, DOC-001, and DOC-002 after confirming each cited behavior still holds.
+- **Plan now** (High/Critical and scheduled Medium work, suggested order): finish ARC-003 (+TEST-001 gate-decision conformance) -> ARC-004 -> ERR-001 -> SEC-002 redaction -> QUAL-001 -> ARC-002 (long-horizon dedup/generation program).
 - **Verify first** (Suspected; re-check the cited code before acting): SEC-004, SEC-005, ERR-003, ERR-005.
-- **Backlog** (Low; batch): SEC-003, SEC-006, ERR-002, PERF-001, DEP-001, TEST-002, DOC-001, DOC-002, QUAL-002, OBS-001.
+- **Backlog** (Low; batch): SEC-003, SEC-006, ERR-002, PERF-001, TEST-002, DOC-001, DOC-002.
 
 ## Scope and limitations
 
