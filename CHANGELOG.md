@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.50] - 2026-06-16
+
+### Changed
+
+- Extracted MCP plan tool registrations into the direct-import
+  `mcp-server/src/plan-tools.js` module.
+- Added direct module coverage for the plan tool registrar, including strict
+  step evidence enforcement.
+
 ## [3.6.49] - 2026-06-16
 
 ### Changed
@@ -999,7 +1008,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.49...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.50...HEAD
+[3.6.50]: https://github.com/aihxp/mythify/compare/v3.6.49...v3.6.50
 [3.6.49]: https://github.com/aihxp/mythify/compare/v3.6.48...v3.6.49
 [3.6.48]: https://github.com/aihxp/mythify/compare/v3.6.47...v3.6.48
 [3.6.47]: https://github.com/aihxp/mythify/compare/v3.6.46...v3.6.47

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const INDEX_SOURCE = fs.readFileSync(new URL("../src/index.js", import.meta.url), "utf8");
+const PLAN_TOOLS_SOURCE = fs.readFileSync(new URL("../src/plan-tools.js", import.meta.url), "utf8");
 
 function functionSlice(name, nextName) {
   const start = INDEX_SOURCE.indexOf(`function ${name}`);
@@ -40,5 +41,5 @@ test("MCP bounded JSONL reader is used by report and strict step gates", () => {
   assert.match(INDEX_SOURCE, /function buildReportEvents\(logLowerBound = ""\)/);
   assert.match(INDEX_SOURCE, /readJsonlSince\(verificationsPath\(\), logLowerBound\)/);
   assert.match(INDEX_SOURCE, /readJsonlSince\(reflectionsPath\(\), logLowerBound\)/);
-  assert.match(INDEX_SOURCE, /readJsonlSince\(verificationsPath\(\), lowerBound\)/);
+  assert.match(PLAN_TOOLS_SOURCE, /readJsonlSince\(verificationsPath\(\), lowerBound\)/);
 });
