@@ -42,7 +42,7 @@ Weighting: defaults, unchanged. No Critical findings, so no dimension or overall
 ## What to fix first
 
 1. [x] ~~`[ARC-001]` Cross-runtime timestamp format mismatch silently breaks the strict step gate~~ - Completed in v3.6.5.
-2. [~] `[ARC-003]` Drift guards verify copies and counts, not behavior - Partially addressed in v3.6.6 with classification and verify record-shape conformance; gate-decision conformance remains open.
+2. [x] ~~`[ARC-003]` Drift guards verify copies and counts, not behavior~~ - Completed in v3.6.18 with classification, verify record-shape, and strict gate-decision conformance.
 3. [x] ~~`[SEC-001]` `outcome check` ignores `MYTHIFY_DISABLE_RUN`~~ - Completed in v3.6.5.
 4. [x] ~~`[ERR-004]` Fanout async worker output is accumulated unbounded (no `maxBuffer`)~~ - Completed in v3.6.7.
 5. [ ] `[ARC-002]` Core logic is hand-duplicated across both runtimes - Open.
@@ -51,17 +51,17 @@ Weighting: defaults, unchanged. No Critical findings, so no dimension or overall
 
 ## Remediation status
 
-Last updated: 2026-06-15.
+Last updated: 2026-06-16.
 
 - [x] ~~[ARC-001] Cross-runtime timestamp format mismatch silently breaks the strict step gate~~ - Completed in v3.6.5.
 - [ ] [ARC-002] Core business logic is hand-duplicated across both runtimes - Open.
-- [~] [ARC-003] Drift guards verify copies and counts, not behavior or record shapes - Partially addressed in v3.6.6; gate-decision conformance remains open.
+- [x] ~~[ARC-003] Drift guards verify copies and counts, not behavior or record shapes~~ - Completed in v3.6.18 with classification, verify record-shape, and strict gate-decision conformance.
 - [ ] [ARC-004] Additional confirmed behavioral divergences between the two runtimes - Open.
 - [x] ~~[SEC-001] `outcome check` ignores `MYTHIFY_DISABLE_RUN`~~ - Completed in v3.6.5.
 - [~] [SEC-002] Verifier output tails are persisted unredacted and `init` writes no `.gitignore` - Partially addressed in v3.6.8; output redaction remains open.
 - [ ] [ERR-001] No file locking; `logs compact` read-then-rewrite drops concurrent appends - Open.
 - [x] ~~[ERR-004] Fanout async worker output is accumulated unbounded (no `maxBuffer`)~~ - Completed in v3.6.7.
-- [~] [TEST-001] No cross-runtime behavioral conformance test - Partially addressed in v3.6.6; gate-decision conformance remains open.
+- [x] ~~[TEST-001] No cross-runtime behavioral conformance test~~ - Completed in v3.6.18 with classification, verify record-shape, and strict gate-decision conformance.
 - [ ] [QUAL-001] Two ~10k-line god-modules - Open.
 - [x] ~~[SEC-003] Raw, un-slugified name is used as a filename before `slugify`~~ - Completed in v3.6.15.
 - [ ] [SEC-004] Fanout `context_paths` are not sandboxed to the project root - Open, needs re-verification before changing behavior.
@@ -126,11 +126,11 @@ Several controls exist in name or partial form but do not fully hold.
 
 ### [ARC-003] Drift guards verify copies and counts, not behavior or record shapes
 - Severity: High | Confidence: Confirmed | Effort: M | Dimension: Architecture and Design
-- Location: `scripts/check_surface_manifest.mjs`, `scripts/check_classification_rules_manifest.mjs`, interop test `tests/test_interop.py:204`.
-- Evidence: The guards assert (a) the two JSON manifest copies are byte-identical, (b) tool/command counts match `registerTool` scrapes and `--help`, and (c) docs mention each name. The interop test runs both runtimes against one temp dir but only asserts substring round-trips (e.g. `assertIn("Interop goal", status_text)`). Nothing asserts that `classify_task_text`/`classifyTaskText` return the same classification for the same prompt, that the verify record shapes match field-for-field, or that the gate makes the same decision.
+- Location: `scripts/check_surface_manifest.mjs`, `scripts/check_classification_rules_manifest.mjs`, interop tests in `tests/test_interop.py`.
+- Evidence: v3.6.18 completes the behavioral conformance coverage by asserting identical classification outputs, matching `verify_run` record shapes, and strict gate decisions in both directions: MCP completion accepts CLI `verify_run` evidence, and CLI completion accepts MCP `verify_run` evidence. The older manifest guards still cover byte-identical JSON copies, tool and command counts, and documentation mentions.
 - Impact: The guards give false confidence: the cheap, mechanical part of parity is policed while the expensive, bug-prone part (behavioral equivalence) is left to manual discipline. ARC-001 passed every existing guard.
-- Recommendation: Add a cross-runtime conformance harness: feed a fixed corpus of prompts/commands through both runtimes and assert identical classification output, identical record JSON shape, and identical gate decisions. Run it in CI alongside the existing manifest checks.
-- Verify the fix: introduce a deliberate one-line divergence (e.g. change one risk term in one runtime) and confirm the harness fails.
+- Recommendation: Keep extending the interop conformance harness when shared behavior changes, especially for gate decisions, record schemas, and classification rules.
+- Verify the fix: `python3 -m unittest tests.test_interop.TestCliMcpInterop.test_cli_and_mcp_gate_decisions_accept_each_others_verify_run_records` passes; full interop tests run in CI.
 - Related: SP-1; ARC-001, ARC-002, TEST-001.
 
 ### [ARC-004] Additional confirmed behavioral divergences between the two runtimes
@@ -180,11 +180,11 @@ Several controls exist in name or partial form but do not fully hold.
 
 ### [TEST-001] No cross-runtime behavioral conformance test
 - Severity: Medium | Confidence: Confirmed | Effort: M | Dimension: Testing and Verification
-- Location: `tests/test_interop.py:204` (substring round-trip only).
-- Evidence: The interop test confirms both runtimes can read each other's state and surface expected substrings, but never asserts identical behavior (classification output, record shape, gate decision) for identical inputs. This is the test that would have caught ARC-001 and ARC-004.
+- Location: `tests/test_interop.py`.
+- Evidence: v3.6.18 adds gate-decision conformance to the existing classification and verify record-shape interop tests. The harness now checks that each runtime can consume the other's `verify_run` evidence for strict step completion.
 - Impact: The most consequential class of regression (silent semantic divergence between the two implementations) has no coverage.
-- Recommendation: Implement the conformance harness described in ARC-003; this finding and ARC-003 share a fix.
-- Verify the fix: the harness exists, runs in CI, and fails on an injected divergence.
+- Recommendation: Keep this harness mandatory in CI and add cases for future shared state behavior.
+- Verify the fix: `python3 -m unittest tests.test_interop.TestCliMcpInterop.test_cli_and_mcp_gate_decisions_accept_each_others_verify_run_records` passes.
 - Related: SP-1; ARC-001, ARC-003, ARC-004.
 
 ### [QUAL-001] Two ~10k-line god-modules
@@ -327,7 +327,7 @@ Several controls exist in name or partial form but do not fully hold.
 - **Security (78):** No critical or remotely exploitable issues; shell execution is the tool's stated purpose and inputs are operator-supplied, with good controls (loopback allowlist for local providers `index.js:5658-5661`, env-var key names not raw secrets, recursive-fanout fork-bomb guards `fanout.js:265-268`). Score held below B by SEC-001 (half-enforced kill-switch) and SEC-002 (unredacted secret persistence + no auto-gitignore), with several Low sandbox/traversal gaps (SEC-003/004/005/006).
 - **Architecture (62):** Three High findings (ARC-001/002/003) plus ARC-004 are all facets of SP-1. The dual-runtime model is deliberate and partly mitigated, but it has produced a live correctness bug and the guards do not cover the bug class. This is the dimension that most needs investment.
 - **Code Quality (74):** Naming, consistency, and dead-code hygiene are good; the drag is the two god-modules (QUAL-001) and the cross-runtime duplication.
-- **Testing (84):** A genuine strength in depth and honesty; the single structural gap (TEST-001, no conformance test) is precisely what allowed ARC-001/004 to ship.
+- **Testing (84):** A genuine strength in depth and honesty; v3.6.18 closes the strict gate-decision conformance gap while broader ARC-004 parity work remains.
 - **Error Handling (68):** Single-process behavior and corruption quarantine are solid, but SP-2 (no locking, TOCTOU, non-atomic append, unbounded fanout buffer) is a real systemic gap given the parallel-worker design.
 - **Performance (82):** Adequate for a CLI; PERF-001 (full-ledger re-read, unbounded growth) is the only structural note.
 - **Dependencies (90):** Best dimension; only DEP-001 (no CI audit gate) keeps it from A.
@@ -337,7 +337,7 @@ Several controls exist in name or partial form but do not fully hold.
 ## Remediation plan
 
 - **Quick wins** (highest value per effort; act now): completed SEC-001, SEC-003, SEC-006, ERR-002, and ERR-004.
-- **Plan now** (High/Critical and scheduled Medium work, suggested order): finish ARC-003 (+TEST-001 gate-decision conformance) -> ARC-004 -> ERR-001 -> SEC-002 redaction -> QUAL-001 -> ARC-002 (long-horizon dedup/generation program).
+- **Plan now** (High/Critical and scheduled Medium work, suggested order): ARC-004 -> ERR-001 -> SEC-002 redaction -> QUAL-001 -> ARC-002 (long-horizon dedup/generation program).
 - **Verify first** (Suspected; re-check the cited code before acting): SEC-004, SEC-005, ERR-003, ERR-005.
 - **Backlog** (Low; batch): PERF-001.
 

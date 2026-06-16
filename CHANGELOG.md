@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.18] - 2026-06-16
+
+### Added
+
+- Cross-runtime interop tests now assert that the CLI accepts MCP `verify_run`
+  evidence for strict step completion and the MCP server accepts CLI
+  `verify_run` evidence for the same gate.
+
 ## [3.6.17] - 2026-06-16
 
 ### Fixed
@@ -713,7 +721,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.17...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.18...HEAD
+[3.6.18]: https://github.com/aihxp/mythify/compare/v3.6.17...v3.6.18
 [3.6.17]: https://github.com/aihxp/mythify/compare/v3.6.16...v3.6.17
 [3.6.16]: https://github.com/aihxp/mythify/compare/v3.6.15...v3.6.16
 [3.6.15]: https://github.com/aihxp/mythify/compare/v3.6.14...v3.6.15

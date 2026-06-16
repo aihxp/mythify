@@ -308,6 +308,88 @@ class TestCliMcpInterop(unittest.TestCase):
         self.assertEqual(cli_record["step_id"], 1)
         self.assertEqual(mcp_record["step_id"], 2)
 
+    def test_cli_and_mcp_gate_decisions_accept_each_others_verify_run_records(self):
+        init = self.run_cli("init")
+        self.assertEqual(init.returncode, 0, init.stderr)
+        steps = json.dumps([
+            {
+                "title": "CLI evidence, MCP gate",
+                "success_criteria": "mcp accepts cli evidence",
+            },
+            {
+                "title": "MCP evidence, CLI gate",
+                "success_criteria": "cli accepts mcp evidence",
+            },
+        ])
+        created = self.run_cli(
+            "plan",
+            "create",
+            "Gate conformance goal",
+            "--steps",
+            steps,
+        )
+        self.assertEqual(created.returncode, 0, created.stderr)
+
+        cli_started = self.run_cli("step", "1", "in_progress")
+        self.assertEqual(cli_started.returncode, 0, cli_started.stderr)
+        cli_verified = self.run_cli(
+            "verify",
+            "run",
+            shell_py("raise SystemExit(0)"),
+            "--claim",
+            "cli evidence for mcp gate",
+        )
+        self.assertEqual(cli_verified.returncode, 0, cli_verified.stderr)
+
+        client = self.start_mcp()
+        try:
+            mcp_completed = self.call_tool(
+                client,
+                "plan_update_step",
+                {
+                    "step_id": 1,
+                    "status": "completed",
+                    "result": "mcp accepted cli verify_run evidence",
+                    "plan": "gate-conformance-goal",
+                },
+            )
+            self.assertIn("[OK]", mcp_completed)
+
+            mcp_started = self.call_tool(
+                client,
+                "plan_update_step",
+                {
+                    "step_id": 2,
+                    "status": "in_progress",
+                    "plan": "gate-conformance-goal",
+                },
+            )
+            self.assertIn("[OK]", mcp_started)
+            mcp_verified = self.call_tool(
+                client,
+                "verify_run",
+                {
+                    "command": shell_py("raise SystemExit(0)"),
+                    "claim": "mcp evidence for cli gate",
+                },
+            )
+            self.assertIn("[OK]", mcp_verified)
+        finally:
+            client.close()
+
+        cli_completed = self.run_cli(
+            "step",
+            "2",
+            "completed",
+            "cli accepted mcp verify_run evidence",
+            "--plan",
+            "gate-conformance-goal",
+        )
+        self.assertEqual(cli_completed.returncode, 0, cli_completed.stderr)
+        shown = self.run_cli("plan", "show", "gate-conformance-goal")
+        self.assertEqual(shown.returncode, 0, shown.stderr)
+        self.assertIn("Progress: 2/2 completed", shown.stdout)
+
     def test_cli_and_mcp_server_share_mutating_state(self):
         # 1. Seed every shared state family that has a CLI writer.
         init = self.run_cli("init")
