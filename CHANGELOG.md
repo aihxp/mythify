@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.36] - 2026-06-16
+
+### Changed
+
+- Extracted MCP model policy construction and model triage runner helpers into
+  a direct-import `src/model-policy.js` module.
+- Added direct module coverage for host-aware model policy and command triage
+  parsing while keeping existing classification and workflow smoke coverage.
+
 ## [3.6.35] - 2026-06-16
 
 ### Changed
@@ -869,7 +878,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.35...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.36...HEAD
+[3.6.36]: https://github.com/aihxp/mythify/compare/v3.6.35...v3.6.36
 [3.6.35]: https://github.com/aihxp/mythify/compare/v3.6.34...v3.6.35
 [3.6.34]: https://github.com/aihxp/mythify/compare/v3.6.33...v3.6.34
 [3.6.33]: https://github.com/aihxp/mythify/compare/v3.6.32...v3.6.33
