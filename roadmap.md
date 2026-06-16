@@ -11,8 +11,8 @@ The completed roadmap now lives at
 
 ## Current Release State
 
-- Current intended release: `v3.0.0`.
-- Release gate: ready to run on the final commit before publishing.
+- Current shipped release: `v3.6.11`.
+- Release gate: passed for `v3.6.11`; rerun the gate before the next release.
 - Packaging targets: GitHub release assets for `dist/mythify.skill` and the
   MCP npm tarball.
 
