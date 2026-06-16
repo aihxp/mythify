@@ -77,14 +77,17 @@ function requireIncludes(relativePath, needle) {
   }
 }
 
-function registeredTools(relativePath) {
-  const text = readText(relativePath);
+function registeredTools(relativePaths) {
+  const paths = Array.isArray(relativePaths) ? relativePaths : [relativePaths];
   const names = [];
   const pattern = /server\.registerTool\(\s*["']([^"']+)["']/g;
-  let match = pattern.exec(text);
-  while (match !== null) {
-    names.push(match[1]);
-    match = pattern.exec(text);
+  for (const relativePath of paths) {
+    const text = readText(relativePath);
+    let match = pattern.exec(text);
+    while (match !== null) {
+      names.push(match[1]);
+      match = pattern.exec(text);
+    }
   }
   return names;
 }
@@ -112,7 +115,10 @@ function main() {
 
   requireArrayEqual(
     "MCP core runtime registrations",
-    registeredTools("mcp-server/src/index.js"),
+    registeredTools([
+      "mcp-server/src/index.js",
+      "mcp-server/src/adapter-tools.js",
+    ]),
     coreTools
   );
   requireArrayEqual(

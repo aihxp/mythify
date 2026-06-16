@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.46] - 2026-06-16
+
+### Changed
+
+- Extracted MCP adapter and host integration tool registrations into the
+  direct-import `mcp-server/src/adapter-tools.js` module.
+- Added direct module coverage for the adapter tool registrar and host-model
+  switch wiring.
+- Updated the surface manifest guard to include extracted MCP registration
+  helper modules.
+
 ## [3.6.45] - 2026-06-16
 
 ### Changed
@@ -962,7 +973,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.45...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.46...HEAD
+[3.6.46]: https://github.com/aihxp/mythify/compare/v3.6.45...v3.6.46
 [3.6.45]: https://github.com/aihxp/mythify/compare/v3.6.44...v3.6.45
 [3.6.44]: https://github.com/aihxp/mythify/compare/v3.6.43...v3.6.44
 [3.6.43]: https://github.com/aihxp/mythify/compare/v3.6.42...v3.6.43
