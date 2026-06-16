@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.38] - 2026-06-16
+
+### Changed
+
+- Extracted Python durable IO helpers into a direct-import `mythify_io.py`
+  module, covering atomic writes, JSONL locks, tolerant JSONL reads, and
+  bounded JSONL tail reads.
+- Updated copied drop-in and local eval install paths to include the new IO
+  helper module.
+
 ## [3.6.37] - 2026-06-16
 
 ### Changed
@@ -888,7 +898,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.37...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.38...HEAD
+[3.6.38]: https://github.com/aihxp/mythify/compare/v3.6.37...v3.6.38
 [3.6.37]: https://github.com/aihxp/mythify/compare/v3.6.36...v3.6.37
 [3.6.36]: https://github.com/aihxp/mythify/compare/v3.6.35...v3.6.36
 [3.6.35]: https://github.com/aihxp/mythify/compare/v3.6.34...v3.6.35

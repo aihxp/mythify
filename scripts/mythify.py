@@ -23,7 +23,6 @@ import sys
 import tempfile
 import time
 from collections import Counter, defaultdict
-from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -59,6 +58,18 @@ from mythify_model_policy import (  # noqa: E402
     classify_model_tier,
     run_model_triage,
 )
+from mythify_io import (  # noqa: E402
+    JSONL_TAIL_CHUNK_BYTES,
+    _write_text_atomic,
+    append_jsonl,
+    configure_durable_io,
+    jsonl_file_lock,
+    read_json,
+    read_jsonl,
+    read_jsonl_since,
+    write_json_atomic,
+    write_jsonl_atomic,
+)
 from mythify_trace import (  # noqa: E402
     build_trace_analysis,
     format_trace_analysis,
@@ -68,7 +79,7 @@ from mythify_trace import (  # noqa: E402
 )
 
 WORKSPACE_DIR_NAME = ".mythify"
-VERSION = "3.6.37"
+VERSION = "3.6.38"
 REPO_ROOT = SCRIPT_DIR.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
 WORKFLOW_ROUTER_PATH = REPO_ROOT / "protocol" / "workflow-router.json"
@@ -147,8 +158,6 @@ REDACTED_SECRET = "[REDACTED]"
 DEFAULT_VERIFY_TIMEOUT = 300.0
 DEFAULT_VERIFY_MAX_OUTPUT_BYTES = 16 * 1024 * 1024
 DEFAULT_LOG_COMPACT_KEEP = 1000
-JSONL_LOCK_TIMEOUT_SECONDS = 10.0
-JSONL_TAIL_CHUNK_BYTES = 64 * 1024
 LOG_COMPACT_TARGETS = ("verifications.jsonl", "reflections.jsonl")
 HOST_MODEL_STATE_FILE = "host-model.json"
 RESEARCH_STATUSES = ("active", "closed", "paused")
@@ -368,204 +377,6 @@ def fail(message):
     sys.stderr.write(message + "\n")
 
 
-# ---------------------------------------------------------------------------
-# Durable file IO
-# ---------------------------------------------------------------------------
-
-def _fsync_dir_best_effort(path):
-    flags = getattr(os, "O_RDONLY", 0)
-    if hasattr(os, "O_DIRECTORY"):
-        flags |= os.O_DIRECTORY
-    try:
-        fd = os.open(str(path), flags)
-    except OSError:
-        return
-    try:
-        os.fsync(fd)
-    except OSError:
-        pass
-    finally:
-        os.close(fd)
-
-
-def _write_text_atomic(path, text):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(
-        prefix=path.name + ".", suffix=".tmp", dir=str(path.parent)
-    )
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(text)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(tmp_name, str(path))
-        _fsync_dir_best_effort(path.parent)
-    finally:
-        if os.path.exists(tmp_name):
-            try:
-                os.remove(tmp_name)
-            except OSError:
-                pass
-
-
-def write_json_atomic(path, data):
-    """Write JSON to a temp file in the same directory, then rename over the
-    target so readers never observe a partial file."""
-    _write_text_atomic(path, json.dumps(data, indent=2) + "\n")
-
-
-def read_json(path, default):
-    """Read a JSON file. On corruption, quarantine the bad file as
-    <filename>.corrupt-<YYYYMMDDHHMMSS>, warn on stderr, and return the
-    default. Never raises on bad state."""
-    path = Path(path)
-    if not path.exists():
-        return default
-    try:
-        with open(path, "r", encoding="utf-8") as handle:
-            return json.load(handle)
-    except (ValueError, UnicodeDecodeError):
-        corrupt_name = path.name + ".corrupt-" + now_stamp()
-        corrupt_path = path.with_name(corrupt_name)
-        try:
-            os.replace(str(path), str(corrupt_path))
-            moved = " Moved it to " + corrupt_name + "."
-        except OSError:
-            moved = ""
-        sys.stderr.write(
-            "[WARN] Corrupt JSON in " + str(path) + "." + moved
-            + " Continuing with a fresh default.\n"
-        )
-        return default
-
-
-def append_jsonl(path, record):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with jsonl_file_lock(path):
-        with open(path, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record) + "\n")
-
-
-def write_jsonl_atomic(path, records):
-    text = "".join(json.dumps(record) + "\n" for record in records)
-    _write_text_atomic(path, text)
-
-
-def jsonl_lock_dir(path):
-    path = Path(path)
-    state = resolve_state_dir()
-    digest = hashlib.sha256(str(path.resolve()).encode("utf-8")).hexdigest()[:16]
-    return state / "locks" / ("jsonl-" + digest + ".lock")
-
-
-@contextmanager
-def jsonl_file_lock(path, timeout=JSONL_LOCK_TIMEOUT_SECONDS):
-    lock_dir = jsonl_lock_dir(path)
-    lock_dir.parent.mkdir(parents=True, exist_ok=True)
-    deadline = time.monotonic() + timeout
-    acquired = False
-    while not acquired:
-        try:
-            lock_dir.mkdir()
-            acquired = True
-        except FileExistsError:
-            if time.monotonic() >= deadline:
-                raise TimeoutError("Timed out waiting for JSONL lock: {0}".format(lock_dir))
-            time.sleep(0.05)
-    try:
-        yield
-    finally:
-        try:
-            lock_dir.rmdir()
-        except OSError:
-            pass
-
-
-def read_jsonl(path):
-    """Parse a jsonl file, skipping blanks and warning on malformed lines."""
-    path = Path(path)
-    records = []
-    if not path.exists():
-        return records
-    with open(path, "r", encoding="utf-8") as handle:
-        for line_number, line in enumerate(handle, start=1):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                records.append(json.loads(line))
-            except ValueError:
-                sys.stderr.write(
-                    "[WARN] Skipping malformed JSONL record in {0} at line {1}.\n".format(
-                        path, line_number
-                    )
-                )
-                continue
-    return records
-
-
-def _parse_jsonl_lines(path, lines, line_number_offset=None):
-    records = []
-    for index, line in enumerate(lines, start=1):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            records.append(json.loads(line))
-        except ValueError:
-            if line_number_offset is None:
-                location = "while reading tail"
-            else:
-                location = "at line {0}".format(line_number_offset + index)
-            sys.stderr.write(
-                "[WARN] Skipping malformed JSONL record in {0} {1}.\n".format(
-                    path, location
-                )
-            )
-            continue
-    return records
-
-
-def read_jsonl_since(path, lower_bound):
-    """Read JSONL records at or after lower_bound with a tail-window fast path."""
-    if not lower_bound:
-        return read_jsonl(path)
-    path = Path(path)
-    if not path.exists():
-        return []
-    size = path.stat().st_size
-    offset = size
-    data = b""
-    while offset > 0:
-        read_size = min(JSONL_TAIL_CHUNK_BYTES, offset)
-        offset -= read_size
-        with open(path, "rb") as handle:
-            handle.seek(offset)
-            data = handle.read(read_size) + data
-        text = data.decode("utf-8", errors="replace")
-        lines = text.splitlines()
-        if offset > 0 and lines:
-            lines = lines[1:]
-        records = _parse_jsonl_lines(path, lines)
-        if any(
-            record.get("timestamp")
-            and not timestamp_at_or_after(record.get("timestamp", ""), lower_bound, True)
-            for record in records
-        ):
-            return [
-                record for record in records
-                if timestamp_at_or_after(record.get("timestamp", ""), lower_bound, True)
-            ]
-    return [
-        record
-        for record in _parse_jsonl_lines(
-            path, data.decode("utf-8", errors="replace").splitlines()
-        )
-        if timestamp_at_or_after(record.get("timestamp", ""), lower_bound, True)
-    ]
-
 
 # ---------------------------------------------------------------------------
 # State directory resolution
@@ -620,6 +431,13 @@ def resolve_state_dir():
         ensure_layout(state)
         return state
     return discover_state_dir()
+
+
+configure_durable_io(
+    resolve_state_dir_func=resolve_state_dir,
+    now_stamp_func=now_stamp,
+    timestamp_at_or_after_func=timestamp_at_or_after,
+)
 
 
 def global_lessons_dir():

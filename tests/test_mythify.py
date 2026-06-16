@@ -25,6 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CLI = REPO_ROOT / "scripts" / "mythify.py"
 PY_CLASSIFICATION = REPO_ROOT / "scripts" / "mythify_classification.py"
 PY_HOST_MODEL = REPO_ROOT / "scripts" / "mythify_host_model.py"
+PY_IO = REPO_ROOT / "scripts" / "mythify_io.py"
 PY_MODEL_POLICY = REPO_ROOT / "scripts" / "mythify_model_policy.py"
 PY_TRACE = REPO_ROOT / "scripts" / "mythify_trace.py"
 OPERATION_REGISTRY = REPO_ROOT / "protocol" / "operation-registry.json"
@@ -187,8 +188,17 @@ class TestInit(CliTestCase):
 
 
 class TestDurableIo(unittest.TestCase):
+    def load_io_module(self):
+        spec = importlib.util.spec_from_file_location(
+            "mythify_io_under_test",
+            PY_IO,
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
     def test_atomic_text_write_fsyncs_file_before_replace_and_parent_after(self):
-        mythify = load_cli_module()
+        mythify = self.load_io_module()
         tmp = Path(tempfile.mkdtemp(prefix="mythify-atomic-test-"))
         self.addCleanup(shutil.rmtree, str(tmp), True)
         target = tmp / "state.json"
@@ -215,7 +225,10 @@ class TestDurableIo(unittest.TestCase):
         self.assertEqual(events[:3], ["fsync", "replace", "fsync"])
 
     def test_read_jsonl_since_uses_tail_window_for_recent_records(self):
-        mythify = load_cli_module()
+        mythify = self.load_io_module()
+        mythify.configure_durable_io(
+            timestamp_at_or_after_func=lambda value, lower, allow=False: value >= lower
+        )
         tmp = Path(tempfile.mkdtemp(prefix="mythify-tail-test-"))
         self.addCleanup(shutil.rmtree, str(tmp), True)
         log = tmp / "verifications.jsonl"
@@ -260,6 +273,10 @@ class TestProtocolHandshake(CliTestCase):
         shutil.copy2(
             PY_HOST_MODEL,
             self.project / "scripts" / "mythify_host_model.py",
+        )
+        shutil.copy2(
+            PY_IO,
+            self.project / "scripts" / "mythify_io.py",
         )
         shutil.copy2(
             PY_MODEL_POLICY,
