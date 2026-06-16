@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- README architecture wording now states which contract pieces are actually
+  shared today and which runtime behavior remains duplicated.
+
 ## [3.6.12] - 2026-06-15
 
 ### Fixed

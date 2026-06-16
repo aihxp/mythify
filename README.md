@@ -97,9 +97,12 @@ All components read and write the same per-project `.mythify/` state directory, 
 they interoperate: a plan created by the CLI is visible to the MCP server and vice
 versa.
 
-Architecture posture: Mythify is moving toward one shared contract core, not a
-single runtime. The Python CLI and Node MCP server remain native adapters, while
-duplicated facts move into checked protocol files, registries, generated docs,
+Architecture posture: Mythify has two native runtimes over one state directory.
+Today, the runtime-shared pieces are the protocol text, operation registry,
+classification rules, workflow router, and surface manifest. The verification
+engine, strict evidence gate, outcome loop, classification scoring, and
+persistence helpers still live in both the Python CLI and Node MCP server. New
+shared facts move into checked protocol files, registries, generated docs,
 schemas, or manifests one surface at a time.
 
 Migration guide: [docs/cli-to-model-runtime-migration.md](docs/cli-to-model-runtime-migration.md)
