@@ -26,6 +26,7 @@ CLI = REPO_ROOT / "scripts" / "mythify.py"
 PY_CLASSIFICATION = REPO_ROOT / "scripts" / "mythify_classification.py"
 PY_HOST_MODEL = REPO_ROOT / "scripts" / "mythify_host_model.py"
 PY_IO = REPO_ROOT / "scripts" / "mythify_io.py"
+PY_MEMORY = REPO_ROOT / "scripts" / "mythify_memory.py"
 PY_MODEL_POLICY = REPO_ROOT / "scripts" / "mythify_model_policy.py"
 PY_OUTCOMES = REPO_ROOT / "scripts" / "mythify_outcomes.py"
 PY_ROUTER = REPO_ROOT / "scripts" / "mythify_router.py"
@@ -251,6 +252,54 @@ class TestDurableIo(unittest.TestCase):
 
         self.assertEqual(records, [new])
         self.assertEqual(stderr.getvalue(), "")
+
+
+class TestMemoryStore(unittest.TestCase):
+    def load_memory_module(self):
+        scripts_dir = str(REPO_ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        spec = importlib.util.spec_from_file_location(
+            "mythify_memory_under_test",
+            PY_MEMORY,
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_memory_and_lesson_helpers_import_directly(self):
+        mythify = self.load_memory_module()
+        timestamp = "2026-06-16T00:00:00+00:00"
+        mythify.configure_memory_store(
+            now_iso_func=lambda: timestamp,
+            now_stamp_func=lambda: "20260616000000",
+            slugify_func=lambda text: str(text).strip().lower().replace(" ", "-"),
+        )
+        state = Path(tempfile.mkdtemp(prefix="mythify-memory-test-"))
+        self.addCleanup(shutil.rmtree, str(state), True)
+
+        memory = mythify.default_memory()
+        self.assertEqual(memory["metadata"]["created"], timestamp)
+        mythify.save_memory(state, memory)
+        loaded = mythify.load_memory(state)
+        self.assertEqual(loaded["metadata"]["total_entries"], 0)
+
+        args = SimpleNamespace(
+            key="project",
+            value="Mythify",
+            category=mythify.MEMORY_DEFAULT_CATEGORY,
+        )
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            result = mythify.cmd_memory_set(args, state)
+        self.assertEqual(result, 0)
+        self.assertIn("[OK] Stored memory entry: project", stdout.getvalue())
+        self.assertEqual(mythify.load_memory(state)["entries"][0]["value"], "Mythify")
+
+        path = mythify.write_lesson(state / "lessons", "Useful Lesson", "Keep it small", ["test"])
+        self.assertTrue(path.name.startswith("useful-lesson-"))
+        lessons = mythify.load_lessons(state / "lessons", "project")
+        self.assertEqual(lessons[0][1]["detail"], "Keep it small")
 
 
 class TestOutcomeStore(unittest.TestCase):
@@ -572,6 +621,10 @@ class TestProtocolHandshake(CliTestCase):
         shutil.copy2(
             PY_IO,
             self.project / "scripts" / "mythify_io.py",
+        )
+        shutil.copy2(
+            PY_MEMORY,
+            self.project / "scripts" / "mythify_memory.py",
         )
         shutil.copy2(
             PY_MODEL_POLICY,
