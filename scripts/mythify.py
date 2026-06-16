@@ -59,7 +59,7 @@ from mythify_trace import (  # noqa: E402
 )
 
 WORKSPACE_DIR_NAME = ".mythify"
-VERSION = "3.6.32"
+VERSION = "3.6.33"
 REPO_ROOT = SCRIPT_DIR.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
 WORKFLOW_ROUTER_PATH = REPO_ROOT / "protocol" / "workflow-router.json"
