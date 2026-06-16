@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.31] - 2026-06-16
+
+### Changed
+
+- Extracted MCP provider probing and local model role-runner helpers into a
+  direct-import `src/model-provider.js` module.
+- Added direct module coverage for model-provider guard behavior while keeping
+  existing provider and local-model MCP tests.
+
 ## [3.6.30] - 2026-06-16
 
 ### Changed
@@ -824,7 +833,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.30...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.31...HEAD
+[3.6.31]: https://github.com/aihxp/mythify/compare/v3.6.30...v3.6.31
 [3.6.30]: https://github.com/aihxp/mythify/compare/v3.6.29...v3.6.30
 [3.6.29]: https://github.com/aihxp/mythify/compare/v3.6.28...v3.6.29
 [3.6.28]: https://github.com/aihxp/mythify/compare/v3.6.27...v3.6.28
