@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 WORKSPACE_DIR_NAME = ".mythify"
-VERSION = "3.6.22"
+VERSION = "3.6.23"
 REPO_ROOT = Path(__file__).resolve().parent.parent
 OPERATION_REGISTRY_PATH = REPO_ROOT / "protocol" / "operation-registry.json"
 CLASSIFICATION_RULES_PATH = REPO_ROOT / "protocol" / "classification-rules.json"

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.23] - 2026-06-16
+
+### Fixed
+
+- Explicit `host_cli_probe` and `host_cli_run` `bin` paths now must use a
+  basename that matches the selected host CLI family, so a remote tool caller
+  cannot point the host-CLI adapter at an arbitrary executable name.
+
 ## [3.6.22] - 2026-06-16
 
 ### Fixed
@@ -753,7 +761,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.22...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.23...HEAD
+[3.6.23]: https://github.com/aihxp/mythify/compare/v3.6.22...v3.6.23
 [3.6.22]: https://github.com/aihxp/mythify/compare/v3.6.21...v3.6.22
 [3.6.21]: https://github.com/aihxp/mythify/compare/v3.6.20...v3.6.21
 [3.6.20]: https://github.com/aihxp/mythify/compare/v3.6.19...v3.6.20

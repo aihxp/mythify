@@ -6248,9 +6248,28 @@ function resolveHostCliBinary(host, explicitBin) {
   }
   const explicit = String(explicitBin || "").trim();
   if (explicit !== "") {
-    return isExecutableFile(explicit)
-      ? { bin: explicit, source: "explicit", error: "" }
-      : { bin: "", source: "explicit", error: `Configured binary is not executable: ${explicit}` };
+    if (!isExecutableFile(explicit)) {
+      return {
+        bin: "",
+        source: "explicit",
+        error: `Configured binary is not executable: ${explicit}`,
+      };
+    }
+    const allowedBasenames = new Set([
+      ...config.binaryNames,
+      ...config.fallbacks.map((candidate) => path.basename(candidate)),
+    ]);
+    const explicitBasename = path.basename(explicit);
+    if (!allowedBasenames.has(explicitBasename)) {
+      return {
+        bin: "",
+        source: "explicit",
+        error:
+          `Explicit binary is not allowed for ${host}: ${explicit}. ` +
+          `Expected one of: ${Array.from(allowedBasenames).sort().join(", ")}`,
+      };
+    }
+    return { bin: explicit, source: "explicit", error: "" };
   }
   const envBin = envValue(config.envName);
   if (envBin !== "") {
@@ -7652,7 +7671,7 @@ server.registerTool(
       bin: z
         .string()
         .optional()
-        .describe("Explicit CLI binary path. Defaults to MYTHIFY_KIMI_BIN, MYTHIFY_OPENCODE_BIN, or MYTHIFY_ANTIGRAVITY_BIN, then PATH and common install paths."),
+        .describe("Explicit CLI binary path. The basename must match the selected host family. Defaults to MYTHIFY_KIMI_BIN, MYTHIFY_OPENCODE_BIN, or MYTHIFY_ANTIGRAVITY_BIN, then PATH and common install paths."),
       timeout_seconds: z
         .number()
         .positive()
@@ -7694,7 +7713,7 @@ server.registerTool(
       bin: z
         .string()
         .optional()
-        .describe("Explicit CLI binary path. Defaults to MYTHIFY_KIMI_BIN or MYTHIFY_OPENCODE_BIN, then PATH and common install paths."),
+        .describe("Explicit CLI binary path. The basename must match the selected host family. Defaults to MYTHIFY_KIMI_BIN, MYTHIFY_OPENCODE_BIN, or MYTHIFY_ANTIGRAVITY_BIN, then PATH and common install paths."),
       prompt: z
         .string()
         .describe("Prompt to pass to the host CLI non-interactive runner."),

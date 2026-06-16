@@ -392,3 +392,54 @@ test("host_cli_run reports missing binary without recording verification", async
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("host_cli_run rejects explicit binaries outside the selected host allowlist", async () => {
+  const { root, stateDir, homeDir, binDir } = makeProject("mythify-host-run-bin-allowlist-");
+  const markerPath = path.join(root, "custom-runner-invoked");
+  const customBin = path.join(binDir, "custom-runner");
+  writeStub(
+    customBin,
+    [
+      "#!/usr/bin/env node",
+      'const fs = require("node:fs");',
+      `fs.writeFileSync(${JSON.stringify(markerPath)}, "ran");`,
+      'console.log("custom runner should not execute");',
+      "",
+    ].join("\n")
+  );
+  try {
+    await withClient(
+      cleanEnv({
+        MYTHIFY_DIR: stateDir,
+        HOME: homeDir,
+      }),
+      async (client) => {
+        const runText = textOf(
+          await client.callTool({
+            name: "host_cli_run",
+            arguments: {
+              host: "opencode",
+              bin: customBin,
+              prompt: "Review repo",
+              cwd: root,
+              format: "json",
+            },
+          })
+        );
+        assert.ok(runText.startsWith("[FAIL]"), `host_cli_run refuses: ${runText}`);
+        const parsed = JSON.parse(runText.replace(/^\[FAIL\] /, ""));
+        assert.equal(parsed.host, "opencode");
+        assert.equal(parsed.status, "blocked");
+        assert.equal(parsed.binary_source, "explicit");
+        assert.match(parsed.error, /not allowed/);
+        assert.match(parsed.error, /opencode/);
+        assert.deepEqual(parsed.args, []);
+        assert.equal(fs.existsSync(markerPath), false);
+        assertMaterialOnly(parsed);
+        assert.equal(fs.existsSync(path.join(stateDir, "verifications.jsonl")), false);
+      }
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

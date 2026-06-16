@@ -26,7 +26,7 @@ Calibration: graded as a mature developer tool / agent protocol; concurrency and
 
 | Dimension | Score | Grade | Weight | Verdict |
 | :-- | :-- | :-- | :-- | :-- |
-| Security | 82 | B- | 20% | No critical/remote vulns; shell exec is by-design for a local tool, and the kill-switch plus verifier-tail redaction now have regression coverage. |
+| Security | 86 | B | 20% | No critical/remote vulns; shell exec is by-design for a local tool, and the named security findings now have regression coverage. |
 | Architecture and Design | 62 | D | 15% | Two hand-duplicated runtimes; drift guards check copies/counts not behavior; a confirmed correctness divergence already exists. |
 | Code Quality and Maintainability | 74 | C | 15% | Consistent, well-named, low dead code, but two ~10k-line god-modules and pervasive cross-runtime duplication. |
 | Testing and Verification | 84 | B | 15% | 227 tests, ~2,300 real assertions, no theater, deterministic, gate edges covered; the one gap (no cross-runtime conformance test) is exactly what let the divergences through. |
@@ -35,7 +35,7 @@ Calibration: graded as a mature developer tool / agent protocol; concurrency and
 | Dependencies and Supply Chain | 90 | A- | 7% | Zero-dep Python; two pinned, current Node deps with lockfile + SRI + Dependabot. Only gap: no `npm audit` gate in CI. |
 | Documentation and Drift | 86 | B | 5% | Verified claims hold (40-tool count, protocol-hash check, variant sync); two small drift items. |
 | Observability and Operability | 84 | B | 5% | Clean exit-code discipline, `[OK]`/`[FAIL]`/`[WARN]`, quarantine warnings, log compaction. Minor MCP `isError` nit. |
-| **Overall (weighted)** | **78** | **C+** | 100% | Strong engineering still taxed by a dual-runtime maintenance model that has begun to bite. |
+| **Overall (weighted)** | **79** | **C+** | 100% | Strong engineering still taxed by a dual-runtime maintenance model that has begun to bite. |
 
 Weighting: defaults, unchanged. No Critical findings, so no dimension or overall cap is triggered.
 
@@ -65,7 +65,7 @@ Last updated: 2026-06-16.
 - [ ] [QUAL-001] Two ~10k-line god-modules - Open.
 - [x] ~~[SEC-003] Raw, un-slugified name is used as a filename before `slugify`~~ - Completed in v3.6.15.
 - [x] ~~[SEC-004] Fanout `context_paths` are not sandboxed to the project root~~ - Completed in v3.6.22.
-- [ ] [SEC-005] `host_cli_run` accepts an arbitrary `bin` executable - Open, needs re-verification before changing behavior.
+- [x] ~~[SEC-005] `host_cli_run` accepts an arbitrary `bin` executable~~ - Completed in v3.6.23.
 - [x] ~~[SEC-006] `outcome` `allowed_paths` is advisory-only despite a sandboxing-implying name~~ - Completed in v3.6.16.
 - [x] ~~[ERR-002] `append_jsonl` is non-atomic for large records~~ - Completed in v3.6.17 by surfacing malformed JSONL records.
 - [ ] [ERR-003] No `fsync` before atomic rename - Open, needs re-verification before changing behavior.
@@ -100,9 +100,9 @@ State IO still mostly assumes a single writer, but the protocol explicitly spawn
 - Root fix: extend advisory locking to read-modify-write JSON stores where concurrent writers are supported; keep worker output buffers capped; consider an index or tail-read for the growing ledger.
 
 ### SP-3: Security controls declared but not fully enforced (paper controls)
-Several original controls existed in name or partial form. The concrete SEC-001, SEC-002, SEC-003, SEC-004, and SEC-006 instances are now remediated, while the lower-risk suspected host-binary item still needs verification before behavior changes.
-- Members: SEC-001 (completed kill-switch coverage), SEC-002 (completed `.gitignore` and verifier-tail redaction), SEC-003 (completed slugged lookup), SEC-004 (completed fanout context containment), SEC-006 (completed advisory labeling), plus verify-first SEC-005.
-- Root fix: keep execution controls enforced on every execution path, keep name-to-path lookups normalized before filesystem access, and either enforce future path controls or label them as advisory.
+Several original controls existed in name or partial form. The concrete SEC-001, SEC-002, SEC-003, SEC-004, SEC-005, and SEC-006 instances are now remediated.
+- Members: SEC-001 (completed kill-switch coverage), SEC-002 (completed `.gitignore` and verifier-tail redaction), SEC-003 (completed slugged lookup), SEC-004 (completed fanout context containment), SEC-005 (completed host CLI bin allowlist), and SEC-006 (completed advisory labeling).
+- Root fix: keep execution controls enforced on every execution path, keep name-to-path lookups normalized before filesystem access, and keep explicit executable overrides tied to their adapter family.
 
 ## Findings
 
@@ -215,12 +215,12 @@ Several original controls existed in name or partial form. The concrete SEC-001,
 - Related: SP-3.
 
 ### [SEC-005] `host_cli_run` accepts an arbitrary `bin` executable
-- Severity: Low | Confidence: Suspected | Effort: S | Dimension: Security
-- Location: `mcp-server/src/index.js:7539-7542`, `:7569-7581`; `resolveHostCliBinary` (`:6094-6098`); exec `spawnSync(resolved.bin, args, { shell: false })` (`:6443`).
-- Evidence: `bin` is a free-form MCP input validated only by `isExecutableFile`, with no allowlist tying it to the known host CLIs (Kimi/OpenCode/Antigravity). A caller can run any on-disk executable with the prompt as argv. `shell: false` prevents metacharacter injection, and the caller is the trusted agent.
-- Impact: Broadest "arbitrary executable" surface among the non-shell tools; low risk given the trust model but unconstrained.
-- Recommendation: Allowlist `bin` to the supported host CLIs, or require an explicit opt-in for arbitrary executables. Re-verify the intended capability before restricting.
-- Verify the fix: a `bin` outside the allowlist is rejected unless opt-in is set.
+- Severity: Low | Confidence: Fixed | Effort: S | Dimension: Security
+- Location: `mcp-server/src/index.js` `resolveHostCliBinary`; `host_cli_probe` and `host_cli_run` schema descriptions; regression test in `mcp-server/test/host-cli-run.test.js`.
+- Evidence: v3.6.23 rejects executable explicit `bin` overrides whose basename is not part of the selected host CLI family. Missing paths still report the existing not-executable error, while an executable `custom-runner` is blocked before invocation.
+- Impact: The host CLI adapter can no longer be pointed at an arbitrary executable name through the MCP `bin` input. Operator-controlled environment variables still support local installation overrides.
+- Recommendation: Keep the host-family basename allowlist in sync with supported Kimi, OpenCode, and Antigravity binary names.
+- Verify the fix: `npm test --prefix mcp-server -- --test-name-pattern 'host_cli_run|host_cli_probe reports missing'` passes.
 - Related: SP-3.
 
 ### [SEC-006] `outcome` `allowed_paths` is advisory-only despite a sandboxing-implying name
@@ -324,7 +324,7 @@ Several original controls existed in name or partial form. The concrete SEC-001,
 
 ## Dimension notes
 
-- **Security (82):** No critical or remotely exploitable issues; shell execution is the tool's stated purpose and inputs are operator-supplied, with good controls (loopback allowlist for local providers, env-var key names not raw secrets, recursive-fanout fork-bomb guards, kill-switch coverage, verifier-tail redaction, and fanout context containment). Score remains below A because the lower-risk host-binary item still needs verification.
+- **Security (86):** No critical or remotely exploitable issues; shell execution is the tool's stated purpose and inputs are operator-supplied, with good controls (loopback allowlist for local providers, env-var key names not raw secrets, recursive-fanout fork-bomb guards, kill-switch coverage, verifier-tail redaction, fanout context containment, and host CLI bin allowlisting). Score remains below A because command execution is still a core operator-facing capability that needs ongoing review as adapters are added.
 - **Architecture (62):** Three High findings (ARC-001/002/003) plus ARC-004 are all facets of SP-1. The dual-runtime model is deliberate and partly mitigated, but it has produced a live correctness bug and the guards do not cover the bug class. This is the dimension that most needs investment.
 - **Code Quality (74):** Naming, consistency, and dead-code hygiene are good; the drag is the two god-modules (QUAL-001) and the cross-runtime duplication.
 - **Testing (84):** A genuine strength in depth and honesty; v3.6.18 closes the strict gate-decision conformance gap, and v3.6.19 adds verifier failure parity regressions.
@@ -338,7 +338,7 @@ Several original controls existed in name or partial form. The concrete SEC-001,
 
 - **Quick wins** (highest value per effort; act now): completed SEC-001, SEC-003, SEC-006, ERR-002, and ERR-004.
 - **Plan now** (High/Critical and scheduled Medium work, suggested order): QUAL-001 -> ARC-002 (long-horizon dedup/generation program).
-- **Verify first** (Suspected; re-check the cited code before acting): SEC-005, ERR-003, ERR-005.
+- **Verify first** (Suspected; re-check the cited code before acting): ERR-003, ERR-005.
 - **Backlog** (Low; batch): PERF-001.
 
 ## Scope and limitations
