@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- CI now runs `npm audit --audit-level=moderate` in the MCP server Node
+  matrix.
+
 ## [3.6.8] - 2026-06-15
 
 ### Fixed
