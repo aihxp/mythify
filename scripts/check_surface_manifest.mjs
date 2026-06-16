@@ -122,6 +122,7 @@ function main() {
       "mcp-server/src/memory-tools.js",
       "mcp-server/src/plan-tools.js",
       "mcp-server/src/outcome-tools.js",
+      "mcp-server/src/verification-tools.js",
     ]),
     coreTools
   );
