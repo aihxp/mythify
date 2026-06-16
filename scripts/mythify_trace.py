@@ -8,6 +8,8 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from mythify_io import _write_text_atomic
+
 TRACE_JSON_SUFFIXES = (".jsonl", ".json")
 TRACE_TEXT_KEYS = (
     "prompt",
@@ -60,6 +62,27 @@ TRACE_SHELL_TOOL_KEYWORDS = (
     "powershell",
     "runcommand",
 )
+
+
+def _missing_dependency(*_args, **_kwargs):
+    raise RuntimeError("mythify_trace command dependencies are not configured")
+
+
+slugify = _missing_dependency
+
+
+def fail(message):
+    print(message, file=sys.stderr)
+
+
+def configure_trace_commands(*, slugify_func=None, fail_func=None):
+    global slugify, fail
+    if slugify_func is not None:
+        slugify = slugify_func
+    if fail_func is not None:
+        fail = fail_func
+
+
 
 
 def counter_top(counter, limit=10):
@@ -881,3 +904,219 @@ def format_trace_playbook_markdown(target_view, baseline_view, target_label, bas
         "This playbook copies visible workflow habits. It does not copy model capability and does not replace verification.",
     ])
     return "\n".join(lines)
+
+def write_trace_markdown_output(output_path, markdown, label):
+    if not output_path:
+        return ""
+    path = Path(output_path).expanduser()
+    _write_text_atomic(path, markdown.rstrip() + "\n")
+    return "[OK] {0} written: {1}".format(label, path)
+
+
+def trace_label_from_model(model, fallback):
+    return str(model).strip() if str(model or "").strip() else fallback
+
+
+def trace_paths_include_stdin(paths):
+    return any(str(path) == "-" for path in paths)
+
+
+def cmd_trace_distill(args, _state):
+    if not args.paths:
+        fail("[FAIL] trace distill requires at least one JSON or JSONL path.")
+        return 1
+    if args.limit < 0:
+        fail("[FAIL] trace distill requires --limit >= 0.")
+        return 1
+    view = build_trace_analysis(
+        args.paths,
+        args.limit,
+        args.recursive,
+        model_filter=args.model,
+    )
+    if view["records_read"] == 0:
+        if args.json_output:
+            print(json.dumps({"analysis": view, "markdown": ""}, indent=2))
+        else:
+            fail("[FAIL] Trace distill found no matching records.")
+        return 1
+    label = trace_label_from_model(args.model, "all models")
+    title = args.title or "Trace-Derived Behavior Profile"
+    markdown = format_trace_distillation_markdown(view, title, label)
+    message = write_trace_markdown_output(args.output, markdown, "Trace distillation")
+    payload = {"analysis": view, "markdown": markdown}
+    if args.json_output:
+        print(json.dumps(payload, indent=2))
+    elif message:
+        print(message)
+    else:
+        print(markdown)
+    return 0
+
+
+def cmd_trace_compare(args, _state):
+    if not args.paths:
+        fail("[FAIL] trace compare requires at least one JSON or JSONL path.")
+        return 1
+    if args.limit < 0:
+        fail("[FAIL] trace compare requires --limit >= 0.")
+        return 1
+    if trace_paths_include_stdin(args.paths):
+        fail("[FAIL] trace compare cannot use - because it needs two filtered passes. Write stdin to a JSONL file first.")
+        return 1
+    target_view = build_trace_analysis(
+        args.paths,
+        args.limit,
+        args.recursive,
+        model_filter=args.target,
+    )
+    baseline_view = build_trace_analysis(
+        args.paths,
+        args.limit,
+        args.recursive,
+        model_filter=args.baseline,
+    )
+    if target_view["records_read"] == 0 or baseline_view["records_read"] == 0:
+        if args.json_output:
+            print(json.dumps({
+                "target": target_view,
+                "baseline": baseline_view,
+                "markdown": "",
+            }, indent=2))
+        else:
+            fail("[FAIL] Trace compare needs matching records for both target and baseline.")
+        return 1
+    target_label = args.target_label or args.target
+    baseline_label = args.baseline_label or args.baseline
+    markdown = format_trace_compare_markdown(
+        target_view,
+        baseline_view,
+        target_label,
+        baseline_label,
+    )
+    message = write_trace_markdown_output(args.output, markdown, "Trace comparison")
+    payload = {
+        "target": {"label": target_label, "analysis": target_view},
+        "baseline": {"label": baseline_label, "analysis": baseline_view},
+        "markdown": markdown,
+    }
+    if args.json_output:
+        print(json.dumps(payload, indent=2))
+    elif message:
+        print(message)
+    else:
+        print(markdown)
+    return 0
+
+
+def cmd_trace_playbook(args, _state):
+    if not args.paths:
+        fail("[FAIL] trace playbook requires at least one JSON or JSONL path.")
+        return 1
+    if args.limit < 0:
+        fail("[FAIL] trace playbook requires --limit >= 0.")
+        return 1
+    if args.baseline and trace_paths_include_stdin(args.paths):
+        fail("[FAIL] trace playbook with --baseline cannot use - because it needs two filtered passes. Write stdin to a JSONL file first.")
+        return 1
+    target_view = build_trace_analysis(
+        args.paths,
+        args.limit,
+        args.recursive,
+        model_filter=args.target,
+    )
+    baseline_view = None
+    if args.baseline:
+        baseline_view = build_trace_analysis(
+            args.paths,
+            args.limit,
+            args.recursive,
+            model_filter=args.baseline,
+        )
+    if target_view["records_read"] == 0 or (baseline_view is not None and baseline_view["records_read"] == 0):
+        if args.json_output:
+            print(json.dumps({
+                "target": target_view,
+                "baseline": baseline_view,
+                "markdown": "",
+            }, indent=2))
+        else:
+            fail("[FAIL] Trace playbook found no matching target or baseline records.")
+        return 1
+    target_label = args.target_label or args.target
+    baseline_label = args.baseline_label or args.baseline
+    markdown = format_trace_playbook_markdown(
+        target_view,
+        baseline_view,
+        target_label,
+        baseline_label=baseline_label,
+        title=args.title,
+    )
+    message = write_trace_markdown_output(args.output, markdown, "Trace playbook")
+    payload = {
+        "target": {"label": target_label, "analysis": target_view},
+        "baseline": {"label": baseline_label, "analysis": baseline_view} if baseline_view is not None else None,
+        "markdown": markdown,
+    }
+    if args.json_output:
+        print(json.dumps(payload, indent=2))
+    elif message:
+        print(message)
+    else:
+        print(markdown)
+    return 0
+
+
+def cmd_trace_install_playbook(args, _state):
+    source = Path(args.playbook).expanduser()
+    if not source.is_file():
+        fail("[FAIL] Playbook file not found: {0}".format(source))
+        return 1
+    skill_slug = slugify(args.skill or source.stem)
+    if not skill_slug:
+        fail("[FAIL] trace install-playbook requires a usable --skill name or playbook filename.")
+        return 1
+    skill_root = Path(args.skill_root).expanduser()
+    skill_dir = skill_root / skill_slug
+    skill_file = skill_dir / "SKILL.md"
+    if skill_dir.exists() and not args.force:
+        fail("[FAIL] Skill already exists: {0}. Re-run with --force to overwrite.".format(skill_dir))
+        return 1
+    playbook_text = source.read_text(encoding="utf-8").strip()
+    skill_text = "\n".join([
+        "---",
+        "name: {0}".format(skill_slug),
+        "description: Trace-derived agent behavior playbook generated by Mythify.",
+        "---",
+        "",
+        "# {0} Skill".format(skill_slug),
+        "",
+        "Use this skill when the user asks to apply the trace-derived playbook named {0}.".format(skill_slug),
+        "",
+        playbook_text,
+        "",
+    ])
+    _write_text_atomic(skill_file, skill_text)
+    print("[OK] Installed trace playbook skill: {0}".format(skill_file))
+    return 0
+
+
+def cmd_trace_analyze(args, _state):
+    if not args.paths:
+        fail("[FAIL] trace analyze requires at least one JSON or JSONL path.")
+        return 1
+    if args.limit < 0:
+        fail("[FAIL] trace analyze requires --limit >= 0.")
+        return 1
+    view = build_trace_analysis(args.paths, args.limit, args.recursive)
+    if view["records_read"] == 0:
+        if args.json_output:
+            print(json.dumps(view, indent=2))
+        else:
+            fail("[FAIL] Trace analysis found no records.")
+        return 1
+    if args.json_output:
+        print(json.dumps(view, indent=2))
+    else:
+        print(format_trace_analysis(view))
+    return 0

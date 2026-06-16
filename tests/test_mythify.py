@@ -1595,6 +1595,9 @@ class TestTraceAnalyze(CliTestCase):
         return path
 
     def test_trace_module_imports_directly(self):
+        scripts_dir = str(REPO_ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
         spec = importlib.util.spec_from_file_location(
             "mythify_trace_under_test",
             PY_TRACE,
@@ -1630,6 +1633,22 @@ class TestTraceAnalyze(CliTestCase):
         )
         self.assertIn("Trace Profile", markdown)
         self.assertIn("Verify to edit ratio", markdown)
+
+        stdout = io.StringIO()
+        args = SimpleNamespace(
+            paths=[str(path)],
+            limit=5000,
+            recursive=False,
+            json_output=True,
+        )
+        module.configure_trace_commands(
+            slugify_func=lambda text: str(text).strip().lower().replace(" ", "-")
+        )
+        with contextlib.redirect_stdout(stdout):
+            result = module.cmd_trace_analyze(args, None)
+        self.assertEqual(result, 0)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["records_read"], 1)
 
     def test_trace_analyze_summarizes_session_action_and_scenario_rows(self):
         session = self.write_jsonl(
