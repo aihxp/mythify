@@ -174,6 +174,38 @@ Migration guardrails:
 - Rollback must be simple: adapters can keep their local implementation while
   the shared artifact is corrected.
 
+## Dual-runtime parity discipline
+
+The remaining architecture risk is not an open refactor task. It is the ongoing
+discipline of keeping the Python CLI and Node MCP server aligned while they
+remain separate native runtimes.
+
+Rules:
+
+- If a behavior is exposed by both the CLI and MCP server, update both
+  implementations or document the intentional asymmetry in this design spec.
+- Every shared behavior change must include at least one parity anchor: a
+  shared manifest or registry update, a cross-runtime fixture, or an interop
+  assertion in `tests/test_interop.py`.
+- Shared facts should move into protocol files, registries, generated docs,
+  schemas, or manifests before any cross-language runtime dependency is added.
+- Do not refactor only to remove duplication. Extract shared artifacts when
+  drift has occurred, when a focused drift test can prove the contract, or when
+  maintenance pressure is visible in repeated edits across both runtimes.
+- Keep Python CLI command handling, Node MCP handler wiring, host process
+  execution, and fanout runtime code in their native adapters until at least two
+  more duplicated surfaces show recurring drift.
+
+Required parity gates:
+
+- Python suite: `python3 -m unittest discover -s tests -v`.
+- MCP suite: `npm test --prefix mcp-server`.
+- Interop suite, with MCP dependencies installed:
+  `python3 -m unittest tests.test_interop -v`.
+- Surface manifest check: `node scripts/check_surface_manifest.mjs`.
+- Classification and operation registry mirror check:
+  `node scripts/check_classification_rules_manifest.mjs`.
+
 ## Capability registry
 
 The MCP server keeps host, provider, execution, and lifecycle capability metadata in
@@ -859,7 +891,7 @@ Implementation notes:
 ## MCP server: mcp-server/
 
 Node 18+, ESM (`"type": "module"`). Dependencies: `@modelcontextprotocol/sdk`
-(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.52`,
+(current 1.x) and `zod` (4.x). package.json: name `mythify-mcp`, version `3.6.53`,
 scripts `{"start": "node src/index.js", "test": "node --test test/*.test.js"}`
 (the glob form, because modern Node treats a bare directory argument to --test as
 a literal file and fails), engines node >= 18. Use the registration API that the
@@ -1977,7 +2009,7 @@ step (`step ID in_progress`) sets the lower bound, the VERIFY step
 
 ## Versioning
 
-This is Mythify v3.6.52. Fanout was added in 2.1.0; 2.2.0 added local
+This is Mythify v3.6.53. Fanout was added in 2.1.0; 2.2.0 added local
 subscription-backed `codex-cli` and `cursor-agent` engines; 2.3.0 added
 task classification; 2.4.0 added optional fast model triage after
 classification, execution profiles, platform-aware model policy,
@@ -2064,6 +2096,7 @@ memory and lesson tool registrations into a direct-import MCP helper module;
 tool registrations; 3.6.51 extracts MCP verification and reflection tool
 registrations; 3.6.52 extracts Python parser, model triage, and status view
 helpers plus MCP workflow tools, view builders, status views, fanout policy,
-and fanout registration helpers.
-The CLI reports 3.6.52 through `--version`; the MCP server reads `package.json`
+and fanout registration helpers; 3.6.53 adds the dual-runtime parity CI gate
+and documents the parity discipline for shared CLI and MCP behavior changes.
+The CLI reports 3.6.53 through `--version`; the MCP server reads `package.json`
 and reports the package version through server info.

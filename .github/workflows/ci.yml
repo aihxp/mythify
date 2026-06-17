@@ -47,8 +47,8 @@ jobs:
       - name: Run MCP server tests
         run: npm test
 
-  interop:
-    name: CLI and MCP interop
+  parity:
+    name: Dual-runtime parity
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -63,10 +63,12 @@ jobs:
       - name: Install MCP server dependencies
         run: npm ci
         working-directory: mcp-server
-      # With node_modules present, tests/test_interop.py exercises the CLI
-      # and the MCP server against the same state directory.
-      - name: Run full test suite including interop
-        run: python -m unittest discover -s tests -v
+      - name: Run CLI and MCP interop tests
+        run: python -m unittest tests.test_interop -v
+      - name: Check shared parity manifests
+        run: |
+          node scripts/check_surface_manifest.mjs
+          node scripts/check_classification_rules_manifest.mjs
 
   hygiene:
     name: Repository hygiene

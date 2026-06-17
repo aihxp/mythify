@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.53] - 2026-06-17
+
+### Changed
+
+- Added an explicit dual-runtime parity CI gate for CLI and MCP interop plus
+  shared manifest checks.
+- Documented the parity discipline for future shared CLI and MCP behavior
+  changes across the design spec, contributor guide, release gate, and pull
+  request checklist.
+
 ## [3.6.52] - 2026-06-16
 
 ### Changed
@@ -1029,7 +1039,8 @@ ground-up rebuild around the contracts in [docs/design.md](docs/design.md).
   orchestrator, and prebuilt `.skill` archives). The source research report is
   preserved verbatim at [docs/research-report.md](docs/research-report.md).
 
-[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.52...HEAD
+[Unreleased]: https://github.com/aihxp/mythify/compare/v3.6.53...HEAD
+[3.6.53]: https://github.com/aihxp/mythify/compare/v3.6.52...v3.6.53
 [3.6.52]: https://github.com/aihxp/mythify/compare/v3.6.51...v3.6.52
 [3.6.51]: https://github.com/aihxp/mythify/compare/v3.6.50...v3.6.51
 [3.6.50]: https://github.com/aihxp/mythify/compare/v3.6.49...v3.6.50
