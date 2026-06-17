@@ -1,13 +1,13 @@
 # Release Process
 
-Current release target: `v3.6.52`.
+Current release target: `v3.6.53`.
 
 Current package metadata:
 
 - MCP package: `mythify-mcp`
-- Version: `3.6.52`
+- Version: `3.6.53`
 - Node runtime: `>=18`
-- Package artifact: `mcp-server/mythify-mcp-3.6.52.tgz`
+- Package artifact: `mcp-server/mythify-mcp-3.6.53.tgz`
 - Skill artifact: `dist/mythify.skill`
 
 ## Release Gate
@@ -15,8 +15,10 @@ Current package metadata:
 Run these checks on the final commit before publishing:
 
 ```bash
+npm ci --prefix mcp-server
 python3 -m unittest discover -s tests -v
 npm test --prefix mcp-server
+python3 -m unittest tests.test_interop -v
 node scripts/check_surface_manifest.mjs
 node scripts/check_classification_rules_manifest.mjs
 node scripts/build_registry_docs.mjs --check
@@ -42,7 +44,7 @@ python3 scripts/package_skill.py
 Expected artifacts:
 
 - `dist/mythify.skill`
-- `mcp-server/mythify-mcp-3.6.52.tgz`
+- `mcp-server/mythify-mcp-3.6.53.tgz`
 
 The npm tarball must include package-local copies of
 `mcp-server/protocol/classification-rules.json`,
@@ -76,11 +78,11 @@ optional `mythify-chat-report-hook.sh` helper under `$CODEX_HOME/hooks` or
 Create the GitHub release only after the final commit is pushed and CI is green:
 
 ```bash
-gh release create v3.6.52 \
+gh release create v3.6.53 \
   dist/mythify.skill \
-  mcp-server/mythify-mcp-3.6.52.tgz \
-  --title "Mythify v3.6.52" \
-  --notes-file /tmp/mythify-v3-6-52-release-notes.md
+  mcp-server/mythify-mcp-3.6.53.tgz \
+  --title "Mythify v3.6.53" \
+  --notes-file /tmp/mythify-v3-6-53-release-notes.md
 ```
 
 The release workflow also builds and uploads the same assets on
@@ -91,7 +93,7 @@ identical or safely overwritten by the workflow.
 
 The current npm package name is unscoped: `mythify-mcp`. This repository
 currently produces a GitHub release package artifact
-(`mythify-mcp-3.6.52.tgz`) rather than publishing an npm package to the GitHub
+(`mythify-mcp-3.6.53.tgz`) rather than publishing an npm package to the GitHub
 Packages registry. The current product promise is therefore:
 
 - Source checkout plus `scripts/install_user.sh` for user-local installation.
